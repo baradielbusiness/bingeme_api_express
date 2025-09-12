@@ -1,0 +1,578 @@
+/**
+ * @file creatorController.js
+ * @description Creator controller for Bingeme API Express.js
+ * Handles all creator-related operations including settings, agreements, payments, etc.
+ */
+
+import { getDB } from '../config/database.js';
+import { 
+  logInfo, 
+  logError, 
+  getAuthenticatedUserId, 
+  getUserById, 
+  getAdminSettings, 
+  getCreatorSettingsByUserId, 
+  updateCreatorSettingsByUserId, 
+  checkVideoCallAccess, 
+  checkFreeVideoCallAccess, 
+  checkAudioCallAccess, 
+  checkPaidChatAccess,
+  getFile
+} from '../utils/common.js';
+
+/**
+ * GET Creator Settings
+ * @param {object} req - Express request object
+ * @param {object} res - Express response object
+ */
+export const getCreatorSettings = async (req, res) => {
+  try {
+    const userId = req.userId;
+    logInfo('Fetching creator settings', { userId });
+    
+    // Fetch user and admin settings
+    const user = await getUserById(userId);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    // Core Enablement Check: User must be verified
+    if (user.verified_id !== 'yes') {
+      return res.status(404).json({ error: 'User must be verified to access creator settings' });
+    }
+    
+    const adminSettings = await getAdminSettings();
+    
+    // Check feature access for each feature
+    const isVcEnable = await checkVideoCallAccess(userId, adminSettings);
+    const isFreeVcEnable = await checkFreeVideoCallAccess(userId, adminSettings);
+    const isAcEnable = await checkAudioCallAccess(userId, adminSettings);
+    const isPaidChatEnable = await checkPaidChatAccess(userId, adminSettings);
+    
+    // Core Enablement Check: At least one feature must be enabled
+    const isCreatorSettingsEnable = isVcEnable || isAcEnable || isPaidChatEnable || isFreeVcEnable;
+    if (!isCreatorSettingsEnable) {
+      return res.status(404).json({ error: 'Creator settings not available for this user' });
+    }
+    
+    // Fetch creator settings
+    const creatorSettings = await getCreatorSettingsByUserId(userId);
+
+    // Build the settings configuration structure
+    const settingsConfig = {
+      video_call: {
+        enabled: isVcEnable,
+        status: creatorSettings.vdcl_status || 'no',
+        min_coin: creatorSettings.vdcl_min_coin || 0
+      },
+      free_video_call: {
+        enabled: isFreeVcEnable,
+        status: creatorSettings.free_vdcl_status || 'no'
+      },
+      audio_call: {
+        enabled: isAcEnable,
+        status: creatorSettings.adcl_status || 'no',
+        price: creatorSettings.audio_call_price || 0
+      },
+      paid_chat: {
+        enabled: isPaidChatEnable,
+        status: creatorSettings.paid_chat_status || 'no',
+        sub_price: creatorSettings.pc_sub_price || 0,
+        non_sub_price: creatorSettings.pc_non_sub_price || 0
+      }
+    };
+
+    return res.json({
+      success: true,
+      message: 'Creator settings retrieved successfully',
+      data: {
+        settings: settingsConfig,
+        admin_settings: {
+          video_call_min: adminSettings.video_call_min || 0,
+          video_call_max: adminSettings.video_call_max || 999999,
+          audio_call_min: adminSettings.audio_call_min || 0,
+          audio_call_max: adminSettings.audio_call_max || 999999,
+          paid_chat_min: adminSettings.paid_chat_min || 0,
+          paid_chat_max: adminSettings.paid_chat_max || 999999
+        }
+      }
+    });
+  } catch (error) {
+    logError('Error fetching creator settings:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+/**
+ * POST Update Creator Settings
+ * @param {object} req - Express request object
+ * @param {object} res - Express response object
+ */
+export const updateCreatorSettings = async (req, res) => {
+  try {
+    const userId = req.userId;
+    const data = req.body;
+    
+    logInfo('Updating creator settings', { userId, data });
+    
+    // Fetch user and admin settings
+    const user = await getUserById(userId);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    // Core Enablement Check: User must be verified
+    if (user.verified_id !== 'yes') {
+      return res.status(404).json({ error: 'User must be verified to access creator settings' });
+    }
+    
+    const adminSettings = await getAdminSettings();
+    
+    // Check feature access for each feature
+    const isVcEnable = await checkVideoCallAccess(userId, adminSettings);
+    const isFreeVcEnable = await checkFreeVideoCallAccess(userId, adminSettings);
+    const isAcEnable = await checkAudioCallAccess(userId, adminSettings);
+    const isPaidChatEnable = await checkPaidChatAccess(userId, adminSettings);
+    
+    // Prepare access object
+    const access = {
+      isVcEnable,
+      isFreeVcEnable,
+      isAcEnable,
+      isPaidChatEnable
+    };
+    
+    // Update creator settings
+    const result = await updateCreatorSettingsByUserId(userId, data, access);
+    
+    if (!result.success) {
+      return res.status(400).json({ error: result.message || 'Failed to update creator settings' });
+    }
+    
+    return res.json({
+      success: true,
+      message: 'Creator settings updated successfully'
+    });
+  } catch (error) {
+    logError('Error updating creator settings:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+/**
+ * GET Blocked Countries
+ * @param {object} req - Express request object
+ * @param {object} res - Express response object
+ */
+export const getBlockedCountries = async (req, res) => {
+  try {
+    const userId = req.userId;
+    const pool = getDB();
+    
+    // Get user's blocked countries
+    const [rows] = await pool.query(
+      'SELECT blocked_countries FROM users WHERE id = ?',
+      [userId]
+    );
+    
+    if (rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    const blockedCountries = rows[0].blocked_countries ? 
+      rows[0].blocked_countries.split(',').map(country => country.trim()) : [];
+    
+    return res.json({
+      success: true,
+      message: 'Blocked countries retrieved successfully',
+      data: {
+        blocked_countries: blockedCountries
+      }
+    });
+  } catch (error) {
+    logError('Error fetching blocked countries:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+/**
+ * POST Update Blocked Countries
+ * @param {object} req - Express request object
+ * @param {object} res - Express response object
+ */
+export const updateBlockedCountries = async (req, res) => {
+  try {
+    const userId = req.userId;
+    const { blocked_countries } = req.body;
+    const pool = getDB();
+    
+    // Validate blocked_countries is an array
+    if (!Array.isArray(blocked_countries)) {
+      return res.status(400).json({ error: 'blocked_countries must be an array' });
+    }
+    
+    // Update blocked countries
+    const blockedCountriesString = blocked_countries.join(',');
+    await pool.query(
+      'UPDATE users SET blocked_countries = ? WHERE id = ?',
+      [blockedCountriesString, userId]
+    );
+    
+    return res.json({
+      success: true,
+      message: 'Blocked countries updated successfully'
+    });
+  } catch (error) {
+    logError('Error updating blocked countries:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+/**
+ * GET Subscription Settings
+ * @param {object} req - Express request object
+ * @param {object} res - Express response object
+ */
+export const getSubscriptionSettings = async (req, res) => {
+  try {
+    const userId = req.userId;
+    const pool = getDB();
+    
+    // Get user's subscription settings
+    const [rows] = await pool.query(
+      'SELECT subscription_price, subscription_status FROM users WHERE id = ?',
+      [userId]
+    );
+    
+    if (rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    const user = rows[0];
+    
+    return res.json({
+      success: true,
+      message: 'Subscription settings retrieved successfully',
+      data: {
+        subscription_price: user.subscription_price || 0,
+        subscription_status: user.subscription_status || 'no'
+      }
+    });
+  } catch (error) {
+    logError('Error fetching subscription settings:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+/**
+ * POST Update Subscription Settings
+ * @param {object} req - Express request object
+ * @param {object} res - Express response object
+ */
+export const updateSubscriptionSettings = async (req, res) => {
+  try {
+    const userId = req.userId;
+    const { subscription_price, subscription_status } = req.body;
+    const pool = getDB();
+    
+    // Validate subscription_price is a number
+    if (subscription_price !== undefined && (isNaN(subscription_price) || subscription_price < 0)) {
+      return res.status(400).json({ error: 'Invalid subscription price' });
+    }
+    
+    // Validate subscription_status
+    if (subscription_status && !['yes', 'no'].includes(subscription_status)) {
+      return res.status(400).json({ error: 'Invalid subscription status' });
+    }
+    
+    // Update subscription settings
+    const updateFields = [];
+    const updateValues = [];
+    
+    if (subscription_price !== undefined) {
+      updateFields.push('subscription_price = ?');
+      updateValues.push(subscription_price);
+    }
+    
+    if (subscription_status !== undefined) {
+      updateFields.push('subscription_status = ?');
+      updateValues.push(subscription_status);
+    }
+    
+    if (updateFields.length > 0) {
+      updateValues.push(userId);
+      await pool.query(
+        `UPDATE users SET ${updateFields.join(', ')} WHERE id = ?`,
+        updateValues
+      );
+    }
+    
+    return res.json({
+      success: true,
+      message: 'Subscription settings updated successfully'
+    });
+  } catch (error) {
+    logError('Error updating subscription settings:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+/**
+ * GET Creator Agreement
+ * @param {object} req - Express request object
+ * @param {object} res - Express response object
+ */
+export const getCreatorAgreement = async (req, res) => {
+  try {
+    const userId = req.userId;
+    const pool = getDB();
+    
+    // Get user's creator agreement status
+    const [rows] = await pool.query(
+      'SELECT creator_agreement FROM users WHERE id = ?',
+      [userId]
+    );
+    
+    if (rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    const user = rows[0];
+    
+    return res.json({
+      success: true,
+      message: 'Creator agreement status retrieved successfully',
+      data: {
+        creator_agreement: user.creator_agreement || 'no'
+      }
+    });
+  } catch (error) {
+    logError('Error fetching creator agreement:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+/**
+ * POST Creator Agreement
+ * @param {object} req - Express request object
+ * @param {object} res - Express response object
+ */
+export const postCreatorAgreement = async (req, res) => {
+  try {
+    const userId = req.userId;
+    const { agreement_accepted } = req.body;
+    const pool = getDB();
+    
+    if (agreement_accepted !== true) {
+      return res.status(400).json({ error: 'Agreement must be accepted' });
+    }
+    
+    // Update creator agreement status
+    await pool.query(
+      'UPDATE users SET creator_agreement = ? WHERE id = ?',
+      ['yes', userId]
+    );
+    
+    return res.json({
+      success: true,
+      message: 'Creator agreement accepted successfully'
+    });
+  } catch (error) {
+    logError('Error updating creator agreement:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+/**
+ * GET Upload URL
+ * @param {object} req - Express request object
+ * @param {object} res - Express response object
+ */
+export const getUploadUrl = async (req, res) => {
+  try {
+    const userId = req.userId;
+    const { file_type } = req.query;
+    
+    // TODO: Implement S3 presigned URL generation
+    // This is a placeholder implementation
+    
+    return res.json({
+      success: true,
+      message: 'Upload URL generated successfully',
+      data: {
+        upload_url: `https://example.com/upload/${userId}/${file_type}`,
+        expires_in: 3600
+      }
+    });
+  } catch (error) {
+    logError('Error generating upload URL:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+/**
+ * GET Download Creator Agreement PDF
+ * @param {object} req - Express request object
+ * @param {object} res - Express response object
+ */
+export const downloadCreatorAgreementPdf = async (req, res) => {
+  try {
+    const userId = req.userId;
+    
+    // TODO: Implement PDF generation and download
+    // This is a placeholder implementation
+    
+    return res.json({
+      success: true,
+      message: 'PDF download initiated',
+      data: {
+        download_url: `https://example.com/agreement-pdf/${userId}`
+      }
+    });
+  } catch (error) {
+    logError('Error downloading creator agreement PDF:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+/**
+ * GET Creator Dashboard
+ * @param {object} req - Express request object
+ * @param {object} res - Express response object
+ */
+export const getDashboard = async (req, res) => {
+  try {
+    const userId = req.userId;
+    const pool = getDB();
+    
+    // Get dashboard statistics
+    const [stats] = await pool.query(`
+      SELECT 
+        COUNT(DISTINCT followers.id) as total_followers,
+        COUNT(DISTINCT posts.id) as total_posts,
+        COALESCE(SUM(payments.amount), 0) as total_earnings
+      FROM users 
+      LEFT JOIN followers ON users.id = followers.creator_id
+      LEFT JOIN posts ON users.id = posts.user_id
+      LEFT JOIN payments ON users.id = payments.creator_id
+      WHERE users.id = ?
+    `, [userId]);
+    
+    return res.json({
+      success: true,
+      message: 'Dashboard data retrieved successfully',
+      data: {
+        stats: stats[0] || {
+          total_followers: 0,
+          total_posts: 0,
+          total_earnings: 0
+        }
+      }
+    });
+  } catch (error) {
+    logError('Error fetching dashboard data:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+/**
+ * GET Payments Received
+ * @param {object} req - Express request object
+ * @param {object} res - Express response object
+ */
+export const getPaymentsReceived = async (req, res) => {
+  try {
+    const userId = req.userId;
+    const { page = 1, limit = 10 } = req.query;
+    const pool = getDB();
+    
+    const offset = (page - 1) * limit;
+    
+    // Get payments received
+    const [payments] = await pool.query(`
+      SELECT 
+        p.*,
+        u.name as payer_name,
+        u.username as payer_username
+      FROM payments p
+      LEFT JOIN users u ON p.user_id = u.id
+      WHERE p.creator_id = ?
+      ORDER BY p.created_at DESC
+      LIMIT ? OFFSET ?
+    `, [userId, parseInt(limit), parseInt(offset)]);
+    
+    // Get total count
+    const [countResult] = await pool.query(
+      'SELECT COUNT(*) as total FROM payments WHERE creator_id = ?',
+      [userId]
+    );
+    
+    const total = countResult[0].total;
+    
+    return res.json({
+      success: true,
+      message: 'Payments received retrieved successfully',
+      data: {
+        payments,
+        pagination: {
+          page: parseInt(page),
+          limit: parseInt(limit),
+          total,
+          pages: Math.ceil(total / limit)
+        }
+      }
+    });
+  } catch (error) {
+    logError('Error fetching payments received:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+/**
+ * GET Withdrawals
+ * @param {object} req - Express request object
+ * @param {object} res - Express response object
+ */
+export const getWithdrawals = async (req, res) => {
+  try {
+    const userId = req.userId;
+    const { page = 1, limit = 10 } = req.query;
+    const pool = getDB();
+    
+    const offset = (page - 1) * limit;
+    
+    // Get withdrawals
+    const [withdrawals] = await pool.query(`
+      SELECT *
+      FROM withdrawals
+      WHERE user_id = ?
+      ORDER BY created_at DESC
+      LIMIT ? OFFSET ?
+    `, [userId, parseInt(limit), parseInt(offset)]);
+    
+    // Get total count
+    const [countResult] = await pool.query(
+      'SELECT COUNT(*) as total FROM withdrawals WHERE user_id = ?',
+      [userId]
+    );
+    
+    const total = countResult[0].total;
+    
+    return res.json({
+      success: true,
+      message: 'Withdrawals retrieved successfully',
+      data: {
+        withdrawals,
+        pagination: {
+          page: parseInt(page),
+          limit: parseInt(limit),
+          total,
+          pages: Math.ceil(total / limit)
+        }
+      }
+    });
+  } catch (error) {
+    logError('Error fetching withdrawals:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+};

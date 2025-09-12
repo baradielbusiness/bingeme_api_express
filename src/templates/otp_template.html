@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OTP Verification</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f8f9fa;
+        }
+        .container {
+            background-color: white;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+        .header {
+            background: linear-gradient(135deg, #007bff, #0056b3);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 28px;
+        }
+        .header p {
+            margin: 10px 0 0 0;
+            opacity: 0.9;
+        }
+        .content {
+            padding: 40px 30px;
+            text-align: center;
+        }
+        .otp-code {
+            background-color: #f8f9fa;
+            border: 2px solid #007bff;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 30px 0;
+            font-size: 32px;
+            font-weight: bold;
+            color: #007bff;
+            letter-spacing: 5px;
+            font-family: 'Courier New', monospace;
+        }
+        .message {
+            font-size: 16px;
+            color: #6c757d;
+            margin-bottom: 20px;
+        }
+        .warning {
+            background-color: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 5px;
+            padding: 15px;
+            margin: 20px 0;
+            color: #856404;
+        }
+        .footer {
+            background-color: #6c757d;
+            color: white;
+            padding: 20px;
+            text-align: center;
+            font-size: 14px;
+        }
+        .expiry {
+            color: #dc3545;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>OTP Verification</h1>
+            <p>Bingeme Platform</p>
+        </div>
+        
+        <div class="content">
+            <div class="message">
+                <p>Hello <strong>{{name}}</strong>,</p>
+                <p>You have requested a One-Time Password (OTP) for your account verification.</p>
+            </div>
+            
+            <div class="otp-code">
+                {{otp_code}}
+            </div>
+            
+            <div class="message">
+                <p>Please use this code to complete your verification process.</p>
+                <p class="expiry">This code will expire in {{expiry_minutes}} minutes.</p>
+            </div>
+            
+            <div class="warning">
+                <strong>Important:</strong> Never share this OTP with anyone. Bingeme will never ask for your OTP via phone, email, or any other means.
+            </div>
+            
+            <div class="message">
+                <p>If you didn't request this OTP, please ignore this email or contact our support team.</p>
+            </div>
+        </div>
+        
+        <div class="footer">
+            <p>This is an automated message from Bingeme Platform.</p>
+            <p>Please do not reply to this email.</p>
+            <p>© 2024 Bingeme. All rights reserved.</p>
+        </div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,79 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "title": "User Signup Schema",
+  "description": "Schema for user registration validation",
+  "required": ["username", "email", "password", "confirm_password"],
+  "properties": {
+    "username": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 30,
+      "pattern": "^[a-zA-Z0-9_]+$",
+      "description": "Username must contain only letters, numbers, and underscores"
+    },
+    "email": {
+      "type": "string",
+      "format": "email",
+      "maxLength": 255,
+      "description": "Valid email address"
+    },
+    "password": {
+      "type": "string",
+      "minLength": 8,
+      "maxLength": 128,
+      "pattern": "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[@$!%*?&])[A-Za-z\\d@$!%*?&]",
+      "description": "Password must contain at least one lowercase letter, one uppercase letter, one number, and one special character"
+    },
+    "confirm_password": {
+      "type": "string",
+      "description": "Password confirmation must match the password"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100,
+      "description": "Full name of the user"
+    },
+    "mobile": {
+      "type": "string",
+      "pattern": "^\\+?[1-9]\\d{1,14}$",
+      "description": "Valid phone number"
+    },
+    "gender": {
+      "type": "string",
+      "enum": ["male", "female", "other", "prefer_not_to_say"],
+      "description": "User's gender"
+    },
+    "birthdate": {
+      "type": "string",
+      "format": "date",
+      "description": "User's birthdate in YYYY-MM-DD format"
+    },
+    "countries_id": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Country ID"
+    },
+    "state_id": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "State/Province ID"
+    },
+    "terms_accepted": {
+      "type": "boolean",
+      "const": true,
+      "description": "User must accept terms and conditions"
+    },
+    "privacy_accepted": {
+      "type": "boolean",
+      "const": true,
+      "description": "User must accept privacy policy"
+    },
+    "marketing_consent": {
+      "type": "boolean",
+      "description": "Optional marketing consent"
+    }
+  },
+  "additionalProperties": false
+}
