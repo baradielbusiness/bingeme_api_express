@@ -1,27 +1,82 @@
 /**
  * @file pagesController.js
- * @description Express.js Pages Controller
- * 
- * This module provides page functionality including:
- * - Page retrieval by slug with access control
- * - Creator and member access validation
- * - Locale fallback support
- * 
- * Database Tables: pages, users
+ * @description Pages controller for Bingeme API Express.js
+ * Handles page retrieval with access control and locale support
  */
 
 import { 
-  getAuthenticatedUserId, 
-  createErrorResponse, 
-  createSuccessResponse, 
   logInfo, 
   logError, 
-  getVerifiedUserById
+  createErrorResponse, 
+  createSuccessResponse, 
+  getAuthenticatedUserId, 
+  getVerifiedUserById 
 } from '../utils/common.js';
-import { pool } from '../config/database.js';
+import { getDB } from '../config/database.js';
+
+/**
+ * Get page by slug with access control
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ */
+export const getPage = async (req, res) => {
+  try {
+    const { slug } = req.params;
+    
+    if (!slug) {
+      return res.status(400).json(createErrorResponse(400, 'Page slug is required'));
+    }
+    
+    // Get user ID if authenticated
+    const userId = req.userId; // This will be null if not authenticated
+    
+    // Get page from database
+    const page = await getPageBySlug(slug);
+    
+    if (!page) {
+      return res.status(404).json(createErrorResponse(404, 'Page not found', 
+        `The requested page '${slug}' could not be found`));
+    }
+    
+    // Check access permissions
+    if (page.access === 'creators') {
+      if (!userId) {
+        return res.status(403).json(createErrorResponse(403, 'Access denied', 
+          'This page is only accessible to verified creators. Please login with a creator account.'));
+      }
+      
+      // Check if user is a verified creator
+      logInfo('Checking if user is verified creator:', { userId, userIdType: typeof userId });
+      const verifiedUser = await getVerifiedUserById(userId);
+      logInfo('Verified user result:', { userId, verifiedUser: !!verifiedUser, verifiedUserDetails: verifiedUser });
+      if (!verifiedUser) {
+        return res.status(403).json(createErrorResponse(403, 'Access denied', 
+          'This page is only accessible to verified creators'));
+      }
+    } else if (page.access === 'members' && !userId) {
+      return res.status(403).json(createErrorResponse(403, 'Access denied', 
+        'This page is only accessible to authenticated members'));
+    }
+    
+    // Return page data
+    return res.json(createSuccessResponse('Page retrieved successfully', {
+      title: page.title,
+      description: page.description,
+      keywords: page.keywords,
+      content: page.content
+    }));
+    
+  } catch (error) {
+    logError('Error in pages handler:', error);
+    return res.status(500).json(createErrorResponse(500, 'Internal server error', 
+      'An error occurred while processing your request'));
+  }
+};
 
 /**
  * Get page by slug from database with locale fallback
+ * @param {string} pageSlug - The slug of the page to retrieve
+ * @returns {Promise<Object|null>} Page data or null if not found
  */
 const getPageBySlug = async (pageSlug) => {
   try {
@@ -54,9 +109,13 @@ const getPageBySlug = async (pageSlug) => {
 
 /**
  * Retrieve page data from database
+ * @param {string} pageSlug - The slug of the page
+ * @param {string} locale - The language locale
+ * @returns {Promise<Object|null>} Page data or null if not found
  */
 const getPageFromDatabase = async (pageSlug, locale) => {
   try {
+    const pool = getDB();
     const query = `
       SELECT 
         id,
@@ -83,59 +142,5 @@ const getPageFromDatabase = async (pageSlug, locale) => {
   } catch (error) {
     logError('Database error getting page:', { pageSlug, locale, error: error.message });
     throw error;
-  }
-};
-
-/**
- * Handler to get page by slug (GET /pages/:slug)
- */
-export const getPage = async (req, res) => {
-  try {
-    const { slug } = req.params;
-    
-    if (!slug) {
-      return res.status(400).json(createErrorResponse(400, 'Bad request', 'Page slug is required'));
-    }
-    
-    // Get authenticated user ID (optional for pages)
-    const userId = req.userId; // From optionalAuthMiddleware
-    
-    // Get page from database
-    const page = await getPageBySlug(slug);
-    
-    if (!page) {
-      return res.status(404).json(createErrorResponse(404, 'Page not found', 
-        `The requested page '${slug}' could not be found`));
-    }
-    
-    // Check access permissions
-    if (page.access === 'creators') {
-      if (!userId) {
-        return res.status(403).json(createErrorResponse(403, 'Access denied', 'This page is only accessible to verified creators. Please login with a creator account.'));
-      }
-      
-      // Check if user is a verified creator
-      logInfo('Checking if user is verified creator:', { userId, userIdType: typeof userId });
-      const verifiedUser = await getVerifiedUserById(userId);
-      logInfo('Verified user result:', { userId, verifiedUser: !!verifiedUser, verifiedUserDetails: verifiedUser });
-      if (!verifiedUser) {
-        return res.status(403).json(createErrorResponse(403, 'Access denied', 'This page is only accessible to verified creators'));
-      }
-    } else if (page.access === 'members' && !userId) {
-      return res.status(403).json(createErrorResponse(403, 'Access denied', 'This page is only accessible to authenticated members'));
-    }
-    
-    // Return page data
-    return res.status(200).json(createSuccessResponse({
-      title: page.title,
-      description: page.description,
-      keywords: page.keywords,
-      content: page.content
-    }));
-    
-  } catch (error) {
-    logError('Error in getPage handler:', error);
-    return res.status(500).json(createErrorResponse(500, 'Internal server error', 
-      'An error occurred while processing your request'));
   }
 };

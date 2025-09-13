@@ -120,7 +120,7 @@ router.get('/verification/conversations', authMiddleware, verificationController
 router.post('/verification/conversations', authMiddleware, verificationController.storeVerificationConversation);
 
 // Contact
-router.get('/contact', optionalAuthMiddleware, contactController.getContactInfo);
+router.get('/contact', optionalAuthMiddleware, contactController.getContactUserInfo);
 router.post('/contact', optionalAuthMiddleware, contactController.submitContactForm);
 
 // Call
