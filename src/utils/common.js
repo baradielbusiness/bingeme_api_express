@@ -567,7 +567,7 @@ export const getUserProfileBySlug = async (slug) => {
         verified_id,
         date
       FROM users 
-      WHERE username = ? AND deleted = 0
+      WHERE username = ? AND status = 'active'
     `;
     
     const [rows] = await pool.query(query, [slug]);

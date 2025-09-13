@@ -5,6 +5,7 @@ import setEdgeCacheHeaders from '../middleware/edgeCacheHeaders.js';
 
 const router = express.Router();
 
+// Referrals routes (authentication required)
 router.use(authMiddleware);
 
 router.get('/', setEdgeCacheHeaders, referralsController.getReferrals);
