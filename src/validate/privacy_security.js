@@ -90,3 +90,42 @@ export const validateAccountDeletionRequest = (requestData) => {
     errors
   };
 };
+
+/**
+ * Validate account deletion OTP verify request (only OTP field)
+ */
+export const validateAccountDeletionOTPRequest = (requestData) => {
+  const errors = [];
+  if (!requestData || typeof requestData !== 'object') {
+    errors.push('Request data must be an object');
+    return { isValid: false, errors };
+  }
+  const { otp } = requestData;
+  if (!otp || typeof otp !== 'string' || /^\d{6}$/.test(otp) === false) {
+    errors.push('OTP is required and must be 6 digits');
+  }
+  return { isValid: errors.length === 0, errors };
+};
+
+/**
+ * Validate combined privacy and security update request
+ */
+export const validatePrivacySecurityUpdateRequest = (requestData) => {
+  const errors = [];
+  if (!requestData || typeof requestData !== 'object') {
+    return { isValid: false, errors: ['Request data must be an object'] };
+  }
+  const { privacy_settings, security_settings } = requestData;
+  if (privacy_settings !== undefined) {
+    const r = validatePrivacySettings(privacy_settings);
+    if (!r.isValid) errors.push(...r.errors.map(e => `privacy: ${e}`));
+  }
+  if (security_settings !== undefined) {
+    const r = validateSecuritySettings(security_settings);
+    if (!r.isValid) errors.push(...r.errors.map(e => `security: ${e}`));
+  }
+  if (privacy_settings === undefined && security_settings === undefined) {
+    errors.push('At least one of privacy_settings or security_settings must be provided');
+  }
+  return { isValid: errors.length === 0, errors };
+};

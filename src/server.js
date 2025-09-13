@@ -1,3 +1,4 @@
+import dotenv from 'dotenv';
 import app from './app.js';
 import { createClient } from 'redis';
 import { connectDB } from './config/database.js';
@@ -5,6 +6,10 @@ import { logInfo, logError } from './utils/common.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
+import https from 'https';
+
+// Load environment variables from api.env file
+dotenv.config({ path: path.join(process.cwd(), '.env') });
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -13,18 +18,24 @@ const __dirname = path.dirname(__filename);
 const NODE_ENV = process.env.NODE_ENV || 'development';
 const PORT = process.env.PORT || (NODE_ENV === 'development' ? 4000 : 3000);
 const HOST = NODE_ENV === 'development' ? 'localhost:4000' : 'api.bingeme.com';
-const PROTOCOL = NODE_ENV === 'development' ? 'http' : 'https';
-
-// Update swagger.json with dynamic host
+const PROTOCOL = NODE_ENV === 'development' ? 'https' : 'https';
+// Update swagger.json with dynamic host (only if changed)
 const swaggerPath = path.join(__dirname, '..', 'swagger.json');
 const swaggerData = JSON.parse(fs.readFileSync(swaggerPath, 'utf8'));
 
 // Update swagger configuration
-swaggerData.host = HOST;
-swaggerData.schemes = NODE_ENV === 'development' ? ['http'] : ['https'];
+const newHost = HOST;
+const newSchemes = NODE_ENV === 'development' ? ['https'] : ['https'];
 
-// Write updated swagger.json
-fs.writeFileSync(swaggerPath, JSON.stringify(swaggerData, null, 2));
+// Only write if content has actually changed to prevent nodemon restart loop
+if (swaggerData.host !== newHost || JSON.stringify(swaggerData.schemes) !== JSON.stringify(newSchemes)) {
+  swaggerData.host = newHost;
+  swaggerData.schemes = newSchemes;
+  fs.writeFileSync(swaggerPath, JSON.stringify(swaggerData, null, 2));
+  logInfo('Updated swagger.json with new host configuration');
+} else {
+  logInfo('Swagger.json host configuration unchanged, skipping update');
+}
 
 // Serve swagger documentation
 app.get('/swagger', (req, res) => {
@@ -84,15 +95,34 @@ const startServer = async () => {
     await redisClient.connect();
     logInfo('Redis connected successfully');
 
-    // Start Express server
-    app.listen(PORT, () => {
-      logInfo(`🚀 Bingeme API Express server running on port ${PORT}`);
-      logInfo(`🌍 Environment: ${NODE_ENV}`);
-      logInfo(`🔗 API Base URL: ${PROTOCOL}://${HOST}`);
-      logInfo(`📚 Swagger UI available at: ${PROTOCOL}://${HOST}/docs`);
-      logInfo(`📋 Swagger JSON available at: ${PROTOCOL}://${HOST}/swagger`);
-      logInfo(`🏥 Health check available at: ${PROTOCOL}://${HOST}/health`);
-    });
+    // Start Express server with HTTPS
+    if (NODE_ENV === 'development') {
+      // Load SSL certificates for development
+      const sslOptions = {
+        key: fs.readFileSync(path.join(__dirname, '..', 'ssl', 'key.pem')),
+        cert: fs.readFileSync(path.join(__dirname, '..', 'ssl', 'cert.pem'))
+      };
+      
+      https.createServer(sslOptions, app).listen(PORT, () => {
+        logInfo(`🚀 Bingeme API Express server running on port ${PORT} (HTTPS)`);
+        logInfo(`🌍 Environment: ${NODE_ENV}`);
+        logInfo(`🔗 API Base URL: ${PROTOCOL}://${HOST}`);
+        logInfo(`📚 Swagger UI available at: ${PROTOCOL}://${HOST}/docs`);
+        logInfo(`📋 Swagger JSON available at: ${PROTOCOL}://${HOST}/swagger`);
+        logInfo(`🏥 Health check available at: ${PROTOCOL}://${HOST}/health`);
+        logInfo(`🔒 SSL Certificate: Self-signed (development only)`);
+      });
+    } else {
+      // Production server (can be HTTP or HTTPS depending on deployment)
+      app.listen(PORT, () => {
+        logInfo(`🚀 Bingeme API Express server running on port ${PORT}`);
+        logInfo(`🌍 Environment: ${NODE_ENV}`);
+        logInfo(`🔗 API Base URL: ${PROTOCOL}://${HOST}`);
+        logInfo(`📚 Swagger UI available at: ${PROTOCOL}://${HOST}/docs`);
+        logInfo(`📋 Swagger JSON available at: ${PROTOCOL}://${HOST}/swagger`);
+        logInfo(`🏥 Health check available at: ${PROTOCOL}://${HOST}/health`);
+      });
+    }
   } catch (error) {
     logError('Failed to start server:', error);
     process.exit(1);

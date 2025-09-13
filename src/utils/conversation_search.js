@@ -61,8 +61,8 @@ const searchUsersInConversations = async (userId, searchTerm) => {
         u.id,
         u.username,
         u.name,
-        u.profile_pic,
-        u.verified,
+        u.avatar,
+        u.verified_id,
         u.last_seen,
         c.id as conversation_id,
         c.updated_at as conversation_updated_at
@@ -73,7 +73,7 @@ const searchUsersInConversations = async (userId, searchTerm) => {
       )
       WHERE u.id IN (${placeholders})
         AND (u.username LIKE ? OR u.name LIKE ?)
-        AND u.deleted = 0
+        AND u.status != "deleted"
         AND c.status = 1
       ORDER BY c.updated_at DESC
     `;
@@ -128,9 +128,9 @@ const getLatestMessageInConversation = async (conversationId, userId) => {
           SEPARATOR '|'
         ) as media
       FROM messages m
-      LEFT JOIN media_messages mm ON m.id = mm.message_id AND mm.deleted = 0
+      LEFT JOIN media_messages mm ON m.id = mm.message_id AND mm.status != "deleted"
       WHERE m.conversations_id = ? 
-        AND m.deleted = 0
+        AND m.status != "deleted"
       GROUP BY m.id, m.from_user_id, m.to_user_id, m.message, m.created_at, m.status, m.tip
       ORDER BY m.created_at DESC
       LIMIT 1

@@ -7,6 +7,7 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 import { getDB } from '../config/database.js';
+import { pool } from '../config/database.js';
 import winston from 'winston';
 import nodemailer from 'nodemailer';
 import axios from 'axios';
@@ -70,8 +71,9 @@ export const logger = winston.createLogger({
 /**
  * Get admin settings
  */
-const getAdminSettings = async () => {
+export const getAdminSettings = async () => {
   try {
+    const pool = getDB();
     const query = `SELECT * FROM admin_settings ORDER BY id ASC`;
     const [rows] = await pool.query(query);
     
@@ -90,7 +92,7 @@ const getAdminSettings = async () => {
 /**
  * Get file from S3
  */
-const getFile = async (fileKey) => {
+export const getFile = async (fileKey) => {
   try {
     const { S3Client, GetObjectCommand } = await import('@aws-sdk/client-s3');
     const s3Client = new S3Client({ region: process.env.AWS_DEFAULT_REGION });
@@ -111,9 +113,9 @@ const getFile = async (fileKey) => {
 /**
  * Get user by ID
  */
-const getUserById = async (userId) => {
+export const getUserById = async (userId) => {
   try {
-    const query = `SELECT * FROM users WHERE id = ? AND deleted = 0`;
+    const query = `SELECT * FROM users WHERE id = ? AND status != "deleted"`;
     const [rows] = await pool.query(query, [userId]);
     return rows.length > 0 ? rows[0] : null;
   } catch (error) {
@@ -125,7 +127,7 @@ const getUserById = async (userId) => {
 /**
  * Get user country
  */
-const getUserCountry = async (req, user) => {
+export const getUserCountry = async (req, user) => {
   try {
     // Try to get country from user profile first
     if (user && user.country) {
@@ -143,7 +145,7 @@ const getUserCountry = async (req, user) => {
 /**
  * Process currency settings
  */
-const processCurrencySettings = (adminSettings, userCountry) => {
+export const processCurrencySettings = (adminSettings, userCountry) => {
   try {
     const defaultCurrency = {
       code: 'USD',
@@ -166,7 +168,7 @@ const processCurrencySettings = (adminSettings, userCountry) => {
 /**
  * Upsert FCM token record
  */
-const upsertFcmTokenRecord = async (userId, fcmToken, deviceInfo = {}) => {
+export const upsertFcmTokenRecord = async (userId, fcmToken, deviceInfo = {}) => {
   try {
     const tableName = `fcm-token-${process.env.NODE_ENV || 'dev'}`;
     
@@ -195,14 +197,14 @@ const upsertFcmTokenRecord = async (userId, fcmToken, deviceInfo = {}) => {
 /**
  * Get subscribers list
  */
-const getSubscribersList = async (userId, limit = 20, skip = 0) => {
+export const getSubscribersList = async (userId, limit = 20, skip = 0) => {
   try {
     const query = `
       SELECT 
         u.id,
         u.username,
         u.name,
-        u.profile_pic,
+        u.avatar,
         u.verified,
         s.created_at as subscribed_at
       FROM subscriptions s
@@ -223,7 +225,7 @@ const getSubscribersList = async (userId, limit = 20, skip = 0) => {
 /**
  * Get subscribers count
  */
-const getSubscribersCount = async (userId) => {
+export const getSubscribersCount = async (userId) => {
   try {
     const query = `
       SELECT COUNT(*) as count 
@@ -242,7 +244,7 @@ const getSubscribersCount = async (userId) => {
 /**
  * Get user posts list
  */
-const getUserPostsList = async (userId, limit = 20, skip = 0) => {
+export const getUserPostsList = async (userId, limit = 20, skip = 0) => {
   try {
     const query = `
       SELECT 
@@ -270,7 +272,7 @@ const getUserPostsList = async (userId, limit = 20, skip = 0) => {
 /**
  * Get user posts count
  */
-const getUserPostsCount = async (userId) => {
+export const getUserPostsCount = async (userId) => {
   try {
     const query = `SELECT COUNT(*) as count FROM posts WHERE user_id = ? AND deleted = 0`;
     const [result] = await pool.query(query, [userId]);
@@ -284,7 +286,7 @@ const getUserPostsCount = async (userId) => {
 /**
  * Get user updates list
  */
-const getUserUpdatesList = async (userId, limit = 20, skip = 0) => {
+export const getUserUpdatesList = async (userId, limit = 20, skip = 0) => {
   try {
     const query = `
       SELECT 
@@ -311,7 +313,7 @@ const getUserUpdatesList = async (userId, limit = 20, skip = 0) => {
 /**
  * Get user updates count
  */
-const getUserUpdatesCount = async (userId) => {
+export const getUserUpdatesCount = async (userId) => {
   try {
     const query = `SELECT COUNT(*) as count FROM updates WHERE user_id = ? AND deleted = 0`;
     const [result] = await pool.query(query, [userId]);
@@ -325,7 +327,7 @@ const getUserUpdatesCount = async (userId) => {
 /**
  * Update user post
  */
-const updateUserPost = async (postId, postData) => {
+export const updateUserPost = async (postId, postData) => {
   try {
     const { content, media } = postData;
     const query = `UPDATE posts SET content = ?, media = ?, updated_at = NOW() WHERE id = ?`;
@@ -340,7 +342,7 @@ const updateUserPost = async (postId, postData) => {
 /**
  * Delete user post
  */
-const deleteUserPost = async (postId) => {
+export const deleteUserPost = async (postId) => {
   try {
     const query = `UPDATE posts SET deleted = 1, deleted_at = NOW() WHERE id = ?`;
     await pool.query(query, [postId]);
@@ -354,7 +356,7 @@ const deleteUserPost = async (postId) => {
 /**
  * Get post comments
  */
-const getPostComments = async (postId, limit = 20, skip = 0) => {
+export const getPostComments = async (postId, limit = 20, skip = 0) => {
   try {
     const query = `
       SELECT 
@@ -365,7 +367,7 @@ const getPostComments = async (postId, limit = 20, skip = 0) => {
         c.created_at,
         u.username,
         u.name,
-        u.profile_pic
+        u.avatar
       FROM comments c
       JOIN users u ON c.user_id = u.id
       WHERE c.post_id = ? AND c.deleted = 0
@@ -384,15 +386,15 @@ const getPostComments = async (postId, limit = 20, skip = 0) => {
 /**
  * Update user settings
  */
-const updateUserSettings = async (userId, settings) => {
+export const updateUserSettings = async (userId, settings) => {
   try {
-    const { username, name, email, mobile, bio, country } = settings;
+    const { username, name, email, mobile, story, country } = settings;
     const query = `
       UPDATE users 
-      SET username = ?, name = ?, email = ?, mobile = ?, bio = ?, country = ?, updated_at = NOW() 
+      SET username = ?, name = ?, email = ?, mobile = ?, story = ?, country = ?, updated_at = NOW() 
       WHERE id = ? AND deleted = 0
     `;
-    await pool.query(query, [username, name, email, mobile, bio, country, userId]);
+    await pool.query(query, [username, name, email, mobile, story, country, userId]);
     logInfo(`Updated user settings: ${userId}`);
   } catch (error) {
     logError('Error updating user settings:', error);
@@ -403,7 +405,7 @@ const updateUserSettings = async (userId, settings) => {
 /**
  * Send OTP to user
  */
-const sendOtpToUser = async (userId, otpType = 'verification') => {
+export const sendOtpToUser = async (userId, otpType = 'verification') => {
   try {
     const user = await getUserById(userId);
     if (!user) {
@@ -434,7 +436,7 @@ const sendOtpToUser = async (userId, otpType = 'verification') => {
 /**
  * Verify user OTP
  */
-const verifyUserOtp = async (userId, otp, otpType = 'verification') => {
+export const verifyUserOtp = async (userId, otp, otpType = 'verification') => {
   try {
     const identifier = `${otpType}_${userId}`;
     const isValid = await verifyOTP(identifier, otp);
@@ -453,14 +455,14 @@ const verifyUserOtp = async (userId, otp, otpType = 'verification') => {
 /**
  * Search users by name
  */
-const searchUsersByName = async (searchTerm, limit = 20, skip = 0) => {
+export const searchUsersByName = async (searchTerm, limit = 20, skip = 0) => {
   try {
     const query = `
       SELECT 
         id,
         username,
         name,
-        profile_pic,
+        avatar,
         verified
       FROM users 
       WHERE (username LIKE ? OR name LIKE ?) AND deleted = 0
@@ -480,7 +482,7 @@ const searchUsersByName = async (searchTerm, limit = 20, skip = 0) => {
 /**
  * Change user password
  */
-const changeUserPassword = async (userId, newPassword) => {
+export const changeUserPassword = async (userId, newPassword) => {
   try {
     const bcrypt = await import('bcryptjs');
     const hashedPassword = await bcrypt.hash(newPassword, 10);
@@ -497,7 +499,7 @@ const changeUserPassword = async (userId, newPassword) => {
 /**
  * Create password OTP for user
  */
-const createPasswordOtpForUser = async (userId) => {
+export const createPasswordOtpForUser = async (userId) => {
   try {
     const otp = generateOTP();
     const identifier = `password_reset_${userId}`;
@@ -515,7 +517,7 @@ const createPasswordOtpForUser = async (userId) => {
 /**
  * Verify password OTP for user
  */
-const verifyPasswordOtpForUser = async (userId, otp) => {
+export const verifyPasswordOtpForUser = async (userId, otp) => {
   try {
     const identifier = `password_reset_${userId}`;
     const isValid = await verifyOTP(identifier, otp);
@@ -534,7 +536,7 @@ const verifyPasswordOtpForUser = async (userId, otp) => {
 /**
  * Block user by ID
  */
-const blockUserById = async (userId, blockedUserId) => {
+export const blockUserById = async (userId, blockedUserId) => {
   try {
     const query = `
       INSERT INTO user_blocks (user_id, blocked_user_id, created_at) 
@@ -553,17 +555,17 @@ const blockUserById = async (userId, blockedUserId) => {
 /**
  * Get user profile by slug
  */
-const getUserProfileBySlug = async (slug) => {
+export const getUserProfileBySlug = async (slug) => {
   try {
     const query = `
       SELECT 
         id,
         username,
         name,
-        profile_pic,
-        bio,
-        verified,
-        created_at
+        avatar,
+        story,
+        verified_id,
+        date
       FROM users 
       WHERE username = ? AND deleted = 0
     `;
@@ -579,7 +581,7 @@ const getUserProfileBySlug = async (slug) => {
 /**
  * Check audio call access
  */
-const checkAudioCallAccess = async (userId, otherUserId) => {
+export const checkAudioCallAccess = async (userId, otherUserId) => {
   try {
     // Check if users are blocked or have restrictions
     const query = `
@@ -600,7 +602,7 @@ const checkAudioCallAccess = async (userId, otherUserId) => {
 /**
  * Get verification request info
  */
-const getVerificationRequestInfo = async (userId) => {
+export const getVerificationRequestInfo = async (userId) => {
   try {
     const query = `
       SELECT 
@@ -626,7 +628,7 @@ const getVerificationRequestInfo = async (userId) => {
 /**
  * Get verification categories
  */
-const getVerificationCategories = async () => {
+export const getVerificationCategories = async () => {
   try {
     const query = `SELECT * FROM verification_categories WHERE active = 1 ORDER BY name ASC`;
     const [categories] = await pool.query(query);
@@ -640,7 +642,7 @@ const getVerificationCategories = async () => {
 /**
  * Create verification request
  */
-const createVerificationRequest = async (requestData) => {
+export const createVerificationRequest = async (requestData) => {
   try {
     const { user_id, category_id, documents, status = 'pending' } = requestData;
     
@@ -661,7 +663,7 @@ const createVerificationRequest = async (requestData) => {
 /**
  * Get verification conversations list
  */
-const getVerificationConversationsList = async (userId, skip = 0, limit = 10) => {
+export const getVerificationConversationsList = async (userId, skip = 0, limit = 10) => {
   try {
     const skipNum = parseInt(skip) || 0;
     const limitNum = parseInt(limit) || 10;
@@ -699,7 +701,7 @@ const getVerificationConversationsList = async (userId, skip = 0, limit = 10) =>
 /**
  * Store verification conversation data
  */
-const storeVerificationConversationData = async (conversationData) => {
+export const storeVerificationConversationData = async (conversationData) => {
   try {
     const { from_user_id, to_user_id, message, image = null, type = '1' } = conversationData;
     
@@ -720,7 +722,7 @@ const storeVerificationConversationData = async (conversationData) => {
 /**
  * Get all countries
  */
-const getAllCountries = async () => {
+export const getAllCountries = async () => {
   try {
     const query = `SELECT * FROM countries ORDER BY name ASC`;
     const [countries] = await pool.query(query);
@@ -734,7 +736,7 @@ const getAllCountries = async () => {
 /**
  * Get states by country
  */
-const getStates = async (countryId) => {
+export const getStates = async (countryId) => {
   try {
     const query = `SELECT * FROM states WHERE country_id = ? ORDER BY name ASC`;
     const [states] = await pool.query(query, [countryId]);
@@ -748,7 +750,7 @@ const getStates = async (countryId) => {
 /**
  * Get gender options
  */
-const getGenderOptions = async () => {
+export const getGenderOptions = async () => {
   try {
     return [
       { id: 1, name: 'Male' },
@@ -764,7 +766,7 @@ const getGenderOptions = async () => {
 /**
  * Get user sales list
  */
-const getUserSalesList = async (userId, skip = 0, limit = 10) => {
+export const getUserSalesList = async (userId, skip = 0, limit = 10) => {
   try {
     const skipNum = parseInt(skip) || 0;
     const limitNum = parseInt(limit) || 10;
@@ -799,7 +801,7 @@ const getUserSalesList = async (userId, skip = 0, limit = 10) => {
 /**
  * Update purchase status
  */
-const updatePurchaseStatus = async (saleId, status) => {
+export const updatePurchaseStatus = async (saleId, status) => {
   try {
     const query = `UPDATE sales SET status = ?, updated_at = NOW() WHERE id = ?`;
     await pool.query(query, [status, saleId]);
@@ -813,7 +815,7 @@ const updatePurchaseStatus = async (saleId, status) => {
 /**
  * Safe decrypt ID
  */
-const safeDecryptId = (encryptedId) => {
+export const safeDecryptId = (encryptedId) => {
   try {
     if (!encryptedId) return null;
     return decryptId(encryptedId);
@@ -826,7 +828,7 @@ const safeDecryptId = (encryptedId) => {
 /**
  * Check free video call access
  */
-const checkFreeVideoCallAccess = async (userId, otherUserId) => {
+export const checkFreeVideoCallAccess = async (userId, otherUserId) => {
   try {
     // Check if users are blocked or have restrictions
     const query = `
@@ -847,7 +849,7 @@ const checkFreeVideoCallAccess = async (userId, otherUserId) => {
 /**
  * Check paid video call access
  */
-const checkPaidVideoCallAccess = async (userId, otherUserId) => {
+export const checkPaidVideoCallAccess = async (userId, otherUserId) => {
   try {
     // Check if users are blocked or have restrictions
     const query = `
@@ -868,7 +870,7 @@ const checkPaidVideoCallAccess = async (userId, otherUserId) => {
 /**
  * Check paid chat access
  */
-const checkPaidChatAccess = async (userId, otherUserId) => {
+export const checkPaidChatAccess = async (userId, otherUserId) => {
   try {
     // Check if users are blocked or have restrictions
     const query = `
@@ -889,7 +891,7 @@ const checkPaidChatAccess = async (userId, otherUserId) => {
 /**
  * Check free chat access
  */
-const checkFreeChatAccess = async (userId, otherUserId) => {
+export const checkFreeChatAccess = async (userId, otherUserId) => {
   try {
     // Check if users are blocked or have restrictions
     const query = `
@@ -910,7 +912,7 @@ const checkFreeChatAccess = async (userId, otherUserId) => {
 /**
  * Check creator agreement access
  */
-const checkCreatorAgreementAccess = async (userId) => {
+export const checkCreatorAgreementAccess = async (userId) => {
   try {
     // Check if user is already a creator or has pending agreement
     const query = `
@@ -930,7 +932,7 @@ const checkCreatorAgreementAccess = async (userId) => {
 /**
  * Get creator agreement status
  */
-const getCreatorAgreementStatus = async (userId) => {
+export const getCreatorAgreementStatus = async (userId) => {
   try {
     const query = `
       SELECT status, created_at, updated_at 
@@ -951,7 +953,7 @@ const getCreatorAgreementStatus = async (userId) => {
 /**
  * Create creator agreement
  */
-const createCreatorAgreement = async (agreementData) => {
+export const createCreatorAgreement = async (agreementData) => {
   try {
     const { user_id, photo_path, signature_path, pdf_path, status = 'pending' } = agreementData;
     
@@ -972,7 +974,7 @@ const createCreatorAgreement = async (agreementData) => {
 /**
  * Update creator agreement status
  */
-const updateCreatorAgreementStatus = async (userId, status) => {
+export const updateCreatorAgreementStatus = async (userId, status) => {
   try {
     const query = `
       UPDATE creator_agreements 
@@ -993,7 +995,7 @@ const updateCreatorAgreementStatus = async (userId, status) => {
 /**
  * Check video call access (generic)
  */
-const checkVideoCallAccess = async (userId, otherUserId) => {
+export const checkVideoCallAccess = async (userId, otherUserId) => {
   try {
     // Check if users are blocked or have restrictions
     const query = `
@@ -1014,7 +1016,7 @@ const checkVideoCallAccess = async (userId, otherUserId) => {
 /**
  * Check chat access (generic)
  */
-const checkChatAccess = async (userId, otherUserId) => {
+export const checkChatAccess = async (userId, otherUserId) => {
   try {
     // Check if users are blocked or have restrictions
     const query = `
@@ -1035,7 +1037,7 @@ const checkChatAccess = async (userId, otherUserId) => {
 /**
  * Check call access (generic)
  */
-const checkCallAccess = async (userId, otherUserId) => {
+export const checkCallAccess = async (userId, otherUserId) => {
   try {
     // Check if users are blocked or have restrictions
     const query = `
@@ -1056,7 +1058,7 @@ const checkCallAccess = async (userId, otherUserId) => {
 /**
  * Get creator settings by user ID
  */
-const getCreatorSettingsByUserId = async (userId) => {
+export const getCreatorSettingsByUserId = async (userId) => {
   try {
     const query = `
       SELECT 
@@ -1084,7 +1086,7 @@ const getCreatorSettingsByUserId = async (userId) => {
 /**
  * Update creator settings
  */
-const updateCreatorSettings = async (userId, settings) => {
+export const updateCreatorSettings = async (userId, settings) => {
   try {
     const {
       monthly_price,
@@ -1121,9 +1123,97 @@ const updateCreatorSettings = async (userId, settings) => {
 };
 
 /**
+ * Update creator settings by user ID (upsert, feature-flag aware)
+ * Mirrors Lambda behavior using fields like vdcl_status, adcl_status, etc.
+ * @param {number} userId
+ * @param {object} data - Incoming settings payload
+ * @param {object} access - Feature access flags (e.g., isVcEnable, isAcEnable)
+ * @returns {Promise<{success: boolean, message?: string}>}
+ */
+export const updateCreatorSettingsByUserId = async (userId, data, access) => {
+  try {
+    const pool = getDB();
+
+    // Prepare update data conditionally based on access flags
+    const updateData = { user_id: userId };
+
+    // Video call settings
+    if (access?.isVcEnable && data?.video_call) {
+      updateData.vdcl_status = (
+        data.video_call.vdcl_status === 1 ||
+        data.video_call.vdcl_status === '1' ||
+        data.video_call.vdcl_status === true ||
+        data.video_call.vdcl_status === 'yes'
+      ) ? 'yes' : 'no';
+      updateData.vdcl_min_coin = data.video_call.vdcl_min_coin || 0;
+    }
+
+    // Free video call settings
+    if (access?.isFreeVcEnable && data?.free_video_call) {
+      updateData.free_vdcl_status = (
+        data.free_video_call.free_vdcl_status === 1 ||
+        data.free_video_call.free_vdcl_status === '1' ||
+        data.free_video_call.free_vdcl_status === true ||
+        data.free_video_call.free_vdcl_status === 'yes'
+      ) ? 'yes' : 'no';
+    }
+
+    // Audio call settings
+    if (access?.isAcEnable && data?.audio_call) {
+      updateData.adcl_status = (
+        data.audio_call.adcl_status === 1 ||
+        data.audio_call.adcl_status === '1' ||
+        data.audio_call.adcl_status === true ||
+        data.audio_call.adcl_status === 'yes'
+      ) ? 'yes' : 'no';
+      updateData.audio_call_price = data.audio_call.audio_call_price || 0;
+    }
+
+    // Paid chat settings
+    if (access?.isPaidChatEnable && data?.paid_chat) {
+      updateData.paid_chat_status = (
+        data.paid_chat.paid_chat_status === 1 ||
+        data.paid_chat.paid_chat_status === '1' ||
+        data.paid_chat.paid_chat_status === true ||
+        data.paid_chat.paid_chat_status === 'yes'
+      ) ? 'yes' : 'no';
+      updateData.pc_sub_price = data.paid_chat.pc_sub_price || 0;
+      updateData.pc_non_sub_price = data.paid_chat.pc_non_sub_price || 0;
+    }
+
+    // Upsert into creator_settings
+    const [existing] = await pool.query('SELECT id FROM creator_settings WHERE user_id = ? LIMIT 1', [userId]);
+    if (Array.isArray(existing) && existing.length > 0) {
+      // Build dynamic update
+      const updateFields = [];
+      const updateValues = [];
+      Object.entries(updateData).forEach(([key, value]) => {
+        if (key !== 'user_id') {
+          updateFields.push(`${key} = ?`);
+          updateValues.push(value);
+        }
+      });
+      updateValues.push(userId);
+      const updateQuery = `UPDATE creator_settings SET ${updateFields.join(', ')}, updated_at = NOW() WHERE user_id = ?`;
+      await pool.query(updateQuery, updateValues);
+    } else {
+      const insertFields = Object.keys(updateData);
+      const insertValues = Object.values(updateData);
+      const placeholders = insertFields.map(() => '?').join(', ');
+      const insertQuery = `INSERT INTO creator_settings (${insertFields.join(', ')}, created_at, updated_at) VALUES (${placeholders}, NOW(), NOW())`;
+      await pool.query(insertQuery, insertValues);
+    }
+    return { success: true };
+  } catch (error) {
+    logError('updateCreatorSettingsByUserId error:', error);
+    return { success: false, message: 'Database error while updating creator settings' };
+  }
+};
+
+/**
  * Get creator subscription settings
  */
-const getCreatorSubscriptionSettings = async (userId) => {
+export const getCreatorSubscriptionSettings = async (userId) => {
   try {
     const query = `
       SELECT 
@@ -1151,7 +1241,7 @@ const getCreatorSubscriptionSettings = async (userId) => {
 /**
  * Update creator subscription settings
  */
-const updateCreatorSubscriptionSettings = async (userId, settings) => {
+export const updateCreatorSubscriptionSettings = async (userId, settings) => {
   try {
     const {
       monthly_price,
@@ -1190,7 +1280,7 @@ const updateCreatorSubscriptionSettings = async (userId, settings) => {
 /**
  * Get creator withdrawal settings
  */
-const getCreatorWithdrawalSettings = async (userId) => {
+export const getCreatorWithdrawalSettings = async (userId) => {
   try {
     const query = `
       SELECT 
@@ -1216,7 +1306,7 @@ const getCreatorWithdrawalSettings = async (userId) => {
 /**
  * Update creator withdrawal settings
  */
-const updateCreatorWithdrawalSettings = async (userId, settings) => {
+export const updateCreatorWithdrawalSettings = async (userId, settings) => {
   try {
     const {
       withdrawal_method,
@@ -1711,7 +1801,7 @@ export const verifyEmailOTP = async (identifier, otp) => {
  * Get WhatsApp access token status from database
  * @returns {Promise<object>} Token status information
  */
-const getWhatsAppTokenStatus = async () => {
+export const getWhatsAppTokenStatus = async () => {
   try {
     const pool = getDB();
     const [rows] = await pool.query(
@@ -1739,7 +1829,7 @@ const getWhatsAppTokenStatus = async () => {
  * @param {string} message - The message to send
  * @returns {Promise<void>}
  */
-const sendTelegramNotification = async (message) => {
+export const sendTelegramNotification = async (message) => {
   try {
     const chatId = process.env.TELEGRAM_CHAT_ID;
     const botToken = process.env.TELEGRAM_BOT_TOKEN;
@@ -1811,6 +1901,46 @@ export const getDeviceInfo = (req) => {
       appString: '',
       timestamp: new Date().toISOString()
     };
+  }
+};
+
+/**
+ * Convert local date/time in a given timezone to a UTC Date object
+ * @param {string} date - YYYY-MM-DD
+ * @param {string} time - HH:mm
+ * @param {string} timezone - IANA timezone (e.g., 'Asia/Kolkata')
+ * @returns {Date} UTC Date
+ */
+export const convertLocalToUTC = (date, time, timezone) => {
+  try {
+    if (!date || !time || !timezone) {
+      throw new Error('date, time, and timezone are required');
+    }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      throw new Error('date must be in YYYY-MM-DD format');
+    }
+    if (!/^\d{2}:\d{2}$/.test(time)) {
+      throw new Error('time must be in HH:mm format');
+    }
+    if (!/^[A-Za-z_]+\/[A-Za-z_]+$/.test(timezone)) {
+      throw new Error('timezone must be a valid IANA timezone identifier');
+    }
+
+    const localDateTimeString = `${date} ${time}`;
+    const localMoment = dayjs.tz(localDateTimeString, 'YYYY-MM-DD HH:mm', timezone);
+
+    if (!localMoment.isValid()) {
+      throw new Error(`Invalid timezone: ${timezone}`);
+    }
+
+    const utcMoment = localMoment.utc();
+    return utcMoment.toDate();
+  } catch (error) {
+    logError('[convertLocalToUTC] Timezone conversion failed:', {
+      error: error.message,
+      input: { date, time, timezone }
+    });
+    throw new Error(`Timezone conversion failed: ${error.message}`);
   }
 };
 
@@ -1958,7 +2088,13 @@ export const storeRefreshToken = async (anonymousId, refreshToken, req) => {
     // Get comprehensive device information
     const deviceInfo = getDeviceInfo(req);
 
-    logInfo('Storing refresh token in DynamoDB');
+    logInfo('Storing refresh token in DynamoDB', { 
+      tableName, 
+      anonymousId, 
+      refreshTokenLength: refreshToken.length,
+      expiresAtSeconds,
+      deviceInfo: deviceInfo ? 'present' : 'missing'
+    });
     
     await docClient.send(new PutCommand({
       TableName: tableName,
@@ -1981,7 +2117,13 @@ export const storeRefreshToken = async (anonymousId, refreshToken, req) => {
     logInfo('Refresh token stored successfully');
     return true;
   } catch (error) {
-    logError('Error storing refresh token:', error);
+    logError('Error storing refresh token:', { 
+      error: error.message, 
+      code: error.code, 
+      tableName: `sessions-${process.env.NODE_ENV || 'dev'}`,
+      anonymousId,
+      refreshTokenLength: refreshToken?.length
+    });
     return false;
   }
 };
@@ -1992,7 +2134,7 @@ export const storeRefreshToken = async (anonymousId, refreshToken, req) => {
  * @param {string} userId - User ID (for verification)
  * @returns {Promise<object|null>} Refresh token object with expiry or null if not found
  */
-const getRefreshToken = async (refreshToken, userId) => {
+export const getRefreshToken = async (refreshToken, userId) => {
   try {
     const tableName = `sessions-${process.env.NODE_ENV || 'dev'}`;
     
@@ -2039,7 +2181,7 @@ const getRefreshToken = async (refreshToken, userId) => {
  * @param {number} days - Number of days to check (default: 7)
  * @returns {boolean} True if expires within specified days
  */
-const isRefreshTokenExpiringSoon = (expiresAt, days = 7) => {
+export const isRefreshTokenExpiringSoon = (expiresAt, days = 7) => {
   const nowInSeconds = Math.floor(Date.now() / 1000);
   const daysInSeconds = days * 24 * 60 * 60;
   const threshold = nowInSeconds + daysInSeconds;
@@ -2054,7 +2196,7 @@ const isRefreshTokenExpiringSoon = (expiresAt, days = 7) => {
  * @param {string} userId - User ID (for verification)
  * @returns {Promise<boolean>} True if revoked successfully
  */
-const revokeRefreshToken = async (refreshToken, userId) => {
+export const revokeRefreshToken = async (refreshToken, userId) => {
   try {
     const tableName = `sessions-${process.env.NODE_ENV || 'dev'}`;
     
@@ -2133,7 +2275,7 @@ export const getAuthenticatedUserId = (req, options = {}) => {
 /**
  * Get creator groups
  */
-const getCreatorGroups = async (userId, creatorGroupName) => {
+export const getCreatorGroups = async (userId, creatorGroupName) => {
   try {
     const query = `
       SELECT id, group_name, description, is_active, created_at, updated_at
@@ -2152,7 +2294,7 @@ const getCreatorGroups = async (userId, creatorGroupName) => {
 /**
  * Get creator group name by ID
  */
-const getCreatorGroupName = async (groupId) => {
+export const getCreatorGroupName = async (groupId) => {
   try {
     const query = 'SELECT group_name FROM creator_groups WHERE id = ? AND is_active = 1';
     const [rows] = await pool.query(query, [groupId]);
@@ -2166,7 +2308,7 @@ const getCreatorGroupName = async (groupId) => {
 /**
  * Get creator IDs by group name
  */
-const getCreatorIdsByGroupName = async (groupName) => {
+export const getCreatorIdsByGroupName = async (groupName) => {
   try {
     const query = 'SELECT user_id FROM creator_groups WHERE group_name = ? AND is_active = 1';
     const [rows] = await pool.query(query, [groupName]);
@@ -2180,7 +2322,7 @@ const getCreatorIdsByGroupName = async (groupName) => {
 /**
  * Get creator group based IDs
  */
-const getCreatorGroupBasedIds = async (groupId) => {
+export const getCreatorGroupBasedIds = async (groupId) => {
   try {
     const query = 'SELECT user_id FROM creator_groups WHERE id = ? AND is_active = 1';
     const [rows] = await pool.query(query, [groupId]);
@@ -2194,7 +2336,7 @@ const getCreatorGroupBasedIds = async (groupId) => {
 /**
  * Get user balance
  */
-const getUserBalance = async (userId, role) => {
+export const getUserBalance = async (userId, role) => {
   try {
     const query = `
       SELECT 
@@ -2220,7 +2362,7 @@ const getUserBalance = async (userId, role) => {
 /**
  * Get creator earnings
  */
-const getCreatorEarnings = async (userId) => {
+export const getCreatorEarnings = async (userId) => {
   try {
     const query = `
       SELECT 
@@ -2241,7 +2383,7 @@ const getCreatorEarnings = async (userId) => {
 /**
  * Get agent earnings
  */
-const getAgentEarnings = async (userId) => {
+export const getAgentEarnings = async (userId) => {
   try {
     const query = `
       SELECT 
@@ -2262,7 +2404,7 @@ const getAgentEarnings = async (userId) => {
 /**
  * Get withdrawal summary
  */
-const getWithdrawalSummary = async (userId) => {
+export const getWithdrawalSummary = async (userId) => {
   try {
     const query = `
       SELECT 
@@ -2281,4 +2423,413 @@ const getWithdrawalSummary = async (userId) => {
   }
 };
 
+/**
+ * Get all languages (Express parity with Lambda)
+ */
+export const getAllLanguages = async () => {
+  try {
+    const pool = getDB();
+    const [rows] = await pool.query(
+      'SELECT id, name, abbreviation FROM languages ORDER BY name ASC'
+    );
+    return rows;
+  } catch (error) {
+    logError('Error fetching languages:', error);
+    return [];
+  }
+};
 
+/**
+ * Get verified user by ID
+ */
+export const getVerifiedUserById = async (userId) => {
+  try {
+    const pool = getDB();
+    const [rows] = await pool.query('SELECT id, verified_id FROM users WHERE id = ?', [userId]);
+    if (!rows.length) return null;
+    if (rows[0].verified_id !== 'yes') return null;
+    return rows[0];
+  } catch (error) {
+    logError('Error fetching or verifying user:', error);
+    return null;
+  }
+};
+
+/**
+ * Days in month helper
+ */
+export const getDaysInMonth = (month, year) => {
+  const monthNum = Number(month);
+  if (monthNum === 2) {
+    return year % 4 ? 28 : (year % 100 ? 29 : (year % 400 ? 28 : 29));
+  }
+  return ((monthNum - 1) % 7 % 2) ? 30 : 31;
+};
+
+/**
+ * Month names mapping
+ */
+export const MONTH_NAMES = {
+  '01': 'Jan', '02': 'Feb', '03': 'Mar', '04': 'Apr', '05': 'May', '06': 'Jun',
+  '07': 'Jul', '08': 'Aug', '09': 'Sep', '10': 'Oct', '11': 'Nov', '12': 'Dec'
+};
+
+/**
+ * Support IDs from admin settings
+ */
+export const getSupportCreatorIds = async () => {
+  try {
+    const pool = getDB();
+    const [rows] = await pool.query('SELECT creator_support_id FROM admin_settings LIMIT 1');
+    if (!rows.length || !rows[0].creator_support_id) return [];
+    return rows[0].creator_support_id.split(',').map(id => id.trim()).filter(Boolean);
+  } catch (error) {
+    logError('Support creator IDs fetch error:', error);
+    return [];
+  }
+};
+
+export const getSupportUserIds = async () => {
+  try {
+    const pool = getDB();
+    const [rows] = await pool.query('SELECT support_user_id FROM admin_settings LIMIT 1');
+    if (!rows.length || !rows[0].support_user_id) return [];
+    return rows[0].support_user_id.split(',').map(id => id.trim()).filter(Boolean);
+  } catch (error) {
+    logError('Support user IDs fetch error:', error);
+    return [];
+  }
+};
+
+export const getRestrictedUserIds = async (userId) => {
+  try {
+    const pool = getDB();
+    const [rows] = await pool.query('SELECT user_restricted FROM restrictions WHERE user_id = ?', [userId]);
+    return rows.map(r => r.user_restricted);
+  } catch (error) {
+    logError('Get restricted user IDs error:', error);
+    return [];
+  }
+};
+
+/**
+ * ID obfuscation utilities
+ */
+const ENCODED_ID_LENGTH = 24;
+
+export const encryptId = (id) => {
+  const secret = process.env.ENCRYPT_SECRET_ID;
+  if (!secret || secret.length < 32) {
+    throw new Error('ENCRYPT_SECRET_ID must be set and at least 32 characters');
+  }
+  const key = crypto.createHash('sha256').update(secret).digest();
+  const iv = Buffer.alloc(16, 0);
+  const cipher = crypto.createCipheriv('aes-256-cbc', key, iv);
+  let encrypted = cipher.update(String(id), 'utf8', 'base64');
+  encrypted += cipher.final('base64');
+  let base64url = encrypted.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  if (base64url.length < ENCODED_ID_LENGTH) {
+    base64url = base64url.padEnd(ENCODED_ID_LENGTH, '0');
+  }
+  return base64url;
+};
+
+export const decryptId = (encodedId) => {
+  const secret = process.env.ENCRYPT_SECRET_ID;
+  if (!secret || secret.length < 32) {
+    throw new Error('ENCRYPT_SECRET_ID must be set and at least 32 characters');
+  }
+  const key = crypto.createHash('sha256').update(secret).digest();
+  const iv = Buffer.alloc(16, 0);
+  let base64url = encodedId;
+  if (base64url.length === ENCODED_ID_LENGTH && base64url.endsWith('00')) {
+    base64url = base64url.slice(0, -2);
+  }
+  let base64 = base64url.replace(/-/g, '+').replace(/_/g, '/');
+  while (base64.length % 4 !== 0) {
+    base64 += '=';
+  }
+  const decipher = crypto.createDecipheriv('aes-256-cbc', key, iv);
+  let decrypted = decipher.update(base64, 'base64', 'utf8');
+  decrypted += decipher.final('utf8');
+  return parseInt(decrypted, 10);
+};
+
+export const isEncryptedId = (id) => {
+  return typeof id === 'string' && id.length === ENCODED_ID_LENGTH && /^[a-zA-Z0-9_-]+$/.test(id);
+};
+
+/**
+ * UTC to local conversion
+ */
+export const convertUTCToLocal = (utcDate, timezone = 'Asia/Kolkata') => {
+  try {
+    if (!utcDate) {
+      throw new Error('UTC date is required');
+    }
+    if (!/^[A-Za-z_]+\/[A-Za-z_]+$/.test(timezone)) {
+      throw new Error('timezone must be a valid IANA timezone identifier');
+    }
+    const utcMoment = dayjs.utc(utcDate);
+    if (!utcMoment.isValid()) {
+      throw new Error('Invalid UTC date');
+    }
+    return utcMoment.tz(timezone).format('YYYY-MM-DD HH:mm:ss');
+  } catch (error) {
+    logError('[convertUTCToLocal] Timezone conversion failed:', {
+      error: error.message,
+      input: { utcDate, timezone }
+    });
+    throw new Error(`Timezone conversion failed: ${error.message}`);
+  }
+};
+
+/**
+ * Updates with counts
+ */
+export const getUserUpdatesWithCounts = async (userId, event = {}) => {
+  const pool = getDB();
+  const { queryStringParameters = {} } = event || {};
+  const { skip: skipParam = 0, limit: limitParam = 10 } = queryStringParameters;
+  const skip = parseInt(skipParam) || 0;
+  const limit = parseInt(limitParam) || 10;
+
+  const query = `
+    SELECT 
+      u.id,
+      u.locked,
+      u.price,
+      u.description,
+      u.status,
+      DATE_FORMAT(u.expired_at, '%Y-%m-%d %H:%i:%s') as expired_at,
+      u.is_utc,
+      u.date,
+      COALESCE(likes.likes_count, 0) as likes_count,
+      COALESCE(comments.comments_count, 0) as comments_count
+    FROM updates u
+    LEFT JOIN (
+      SELECT updates_id, COUNT(*) as likes_count 
+      FROM likes 
+      WHERE status = '1' 
+      GROUP BY updates_id
+    ) likes ON u.id = likes.updates_id
+    LEFT JOIN (
+      SELECT updates_id, COUNT(*) as comments_count 
+      FROM comments 
+      GROUP BY updates_id
+    ) comments ON u.id = comments.updates_id
+    WHERE u.user_id = ? 
+      AND u.status <> 'encode'
+      AND u.status IN ('active', 'disabled')
+      AND (u.expired_at IS NULL OR u.expired_at >= NOW())
+    ORDER BY u.id DESC
+    LIMIT ? OFFSET ?
+  `;
+
+  const countQuery = `
+    SELECT COUNT(*) as total
+    FROM updates u
+    WHERE u.user_id = ? 
+      AND u.status <> 'encode'
+      AND u.status IN ('active', 'disabled')
+      AND (u.expired_at IS NULL OR u.expired_at >= NOW())
+  `;
+
+  try {
+    const [countResult, updatesResult] = await Promise.all([
+      pool.query(countQuery, [userId]),
+      pool.query(query, [userId, limit, skip])
+    ]);
+
+    const [[{ total: totalUpdates }]] = countResult;
+    const [rows] = updatesResult;
+    return { updates: rows, totalUpdates };
+  } catch (error) {
+    logError('Database error in getUserUpdatesWithCounts:', { userId, error: error.message });
+    throw error;
+  }
+};
+
+/**
+ * Basic format helpers
+ */
+export const formatDate = (date) => {
+  const d = new Date(date);
+  const day = d.getDate().toString().padStart(2, '0');
+  const month = d.toLocaleDateString('en-US', { month: 'long' });
+  const year = d.getFullYear();
+  return `${day} ${month} ${year}`;
+};
+
+export const formatRelativeTime = (date) => {
+  const now = new Date();
+  const postDate = new Date(date);
+  const diffInSeconds = Math.floor((now - postDate) / 1000);
+  if (diffInSeconds < 0 || diffInSeconds < 60) return 'just now';
+  const diffInMinutes = Math.floor(diffInSeconds / 60);
+  if (diffInMinutes < 60) return `${diffInMinutes} minute${diffInMinutes > 1 ? 's' : ''} ago`;
+  const diffInHours = Math.floor(diffInMinutes / 60);
+  if (diffInHours < 24) return `${diffInHours} hour${diffInHours > 1 ? 's' : ''} ago`;
+  const diffInDays = Math.floor(diffInHours / 24);
+  if (diffInDays < 7) return `${diffInDays} day${diffInDays > 1 ? 's' : ''} ago`;
+  const diffInWeeks = Math.floor(diffInDays / 7);
+  if (diffInWeeks < 4) return `${diffInWeeks} week${diffInWeeks > 1 ? 's' : ''} ago`;
+  const diffInMonths = Math.floor(diffInDays / 30);
+  if (diffInMonths < 12) return `${diffInMonths} month${diffInMonths > 1 ? 's' : ''} ago`;
+  const diffInYears = Math.floor(diffInDays / 365.25);
+  if (diffInYears === 0) return `${diffInMonths} month${diffInMonths > 1 ? 's' : ''} ago`;
+  return `${diffInYears} year${diffInYears > 1 ? 's' : ''} ago`;
+};
+
+export const formatTimeAgo = (date) => formatRelativeTime(date);
+
+export const formatNumberWithK = (num) => {
+  if (num === null || num === undefined || isNaN(num) || !isFinite(num)) return '0';
+  const number = Number(num);
+  const isNegative = number < 0;
+  const absNumber = Math.abs(number);
+  if (absNumber < 1000) return number.toString();
+  const thousands = absNumber / 1000;
+  if (thousands === Math.floor(thousands)) {
+    const sign = isNegative ? '-' : '';
+    return `${sign}${thousands}k`;
+  }
+  const formatted = thousands.toFixed(1);
+  const clean = formatted.endsWith('.0') ? Math.floor(thousands) : formatted;
+  const sign = isNegative ? '-' : '';
+  return `${sign}${clean}k`;
+};
+
+export const getCommentLikesCount = async (commentId) => {
+  try {
+    const pool = getDB();
+    const [rows] = await pool.execute(`
+      SELECT COUNT(*) as count FROM comments_likes 
+      WHERE comments_id = ?
+    `, [commentId]);
+    return rows[0].count;
+  } catch (error) {
+    logError('Database error getting comment likes count:', error);
+    return 0;
+  }
+};
+
+export const formatPaymentType = (type) => {
+  if (!type) return 'Subscription';
+  const map = {
+    'video_call_tip': 'Video Call Tip',
+    'audio_call_tip': 'Audio Call Tip',
+    'live_tip': 'Live Tip',
+    'chat_tip': 'Chat Tip',
+    'subscription': 'Subscription',
+    'tip': 'Tip',
+    'ppv': 'Pay Per View',
+    'chat_ppv': 'Chat Pay Per View',
+    'videocall': 'Video Call',
+    'audiocall': 'Audio Call',
+    'live': 'Live Stream',
+    'product': 'Product Purchase',
+    'purchase': 'Purchase'
+  };
+  const lower = String(type).toLowerCase();
+  if (map[lower]) return map[lower];
+  return String(type)
+    .split('_')
+    .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+    .join(' ');
+};
+
+export const convertExpiresAtToTimestamp = (expiresAt) => {
+  if (!expiresAt) return null;
+  const now = new Date();
+  let hoursToAdd = 0;
+  switch (expiresAt) {
+    case '24h': hoursToAdd = 24; break;
+    case '48h': hoursToAdd = 48; break;
+    case '72h': hoursToAdd = 72; break;
+    default: return null;
+  }
+  const expiryDate = new Date(now.getTime() + (hoursToAdd * 60 * 60 * 1000));
+  return expiryDate.toISOString().slice(0, 19).replace('T', ' ');
+};
+
+export const encryptSensitiveData = (data) => {
+  if (!data || typeof data !== 'string') return data;
+  const secret = process.env.ENCRYPT_SECRET_ID;
+  if (!secret || secret.length < 32) throw new Error('ENCRYPT_SECRET_ID must be set and at least 32 characters');
+  const iv = crypto.randomBytes(16);
+  const key = crypto.createHash('sha256').update(secret).digest();
+  const cipher = crypto.createCipheriv('aes-256-cbc', key, iv);
+  let encrypted = cipher.update(data, 'utf8', 'base64');
+  encrypted += cipher.final('base64');
+  const hmac = crypto.createHmac('sha256', key);
+  hmac.update(iv);
+  hmac.update(encrypted);
+  const mac = hmac.digest('hex');
+  const payload = { iv: iv.toString('base64'), value: encrypted, mac, tag: '' };
+  return Buffer.from(JSON.stringify(payload), 'utf8').toString('base64');
+};
+
+export const decryptSensitiveData = (encryptedData) => {
+  if (!encryptedData || typeof encryptedData !== 'string') return encryptedData;
+  const secret = process.env.ENCRYPT_SECRET_ID;
+  if (!secret || secret.length < 32) throw new Error('ENCRYPT_SECRET_ID must be set and at least 32 characters');
+  const jsonPayload = Buffer.from(encryptedData, 'base64').toString('utf8');
+  const payload = JSON.parse(jsonPayload);
+  if (!payload.iv || !payload.value || !payload.mac) throw new Error('Invalid encrypted data format: missing required fields');
+  const iv = Buffer.from(payload.iv, 'base64');
+  const encrypted = payload.value;
+  const key = crypto.createHash('sha256').update(secret).digest();
+  const hmac = crypto.createHmac('sha256', key);
+  hmac.update(iv);
+  hmac.update(encrypted);
+  const expectedMac = hmac.digest('hex');
+  if (payload.mac !== expectedMac) throw new Error('MAC verification failed: data integrity compromised');
+  const decipher = crypto.createDecipheriv('aes-256-cbc', key, iv);
+  let decrypted = decipher.update(encrypted, 'base64', 'utf8');
+  decrypted += decipher.final('utf8');
+  return decrypted;
+};
+
+/**
+ * Sessions list and revoke by token
+ */
+export const getUserSessionsWithDeviceInfo = async (userId) => {
+  try {
+    const tableName = `sessions-${process.env.NODE_ENV || 'dev'}`;
+    const result = await docClient.send(new QueryCommand({
+      TableName: tableName,
+      KeyConditionExpression: 'userId = :userId',
+      ExpressionAttributeValues: { ':userId': userId }
+    }));
+    if (result.Items && result.Items.length > 0) {
+      return result.Items.map(item => ({
+        token: item.token,
+        userId: item.userId,
+        deviceFingerprint: item.deviceFingerprint,
+        ipAddress: item.ipAddress,
+        app: item.app || null,
+        createdAt: item.createdAt,
+        expiresAt: item.expires_at
+      }));
+    }
+    return [];
+  } catch (error) {
+    logError('Error getting user sessions with device info:', error);
+    return [];
+  }
+};
+
+export const revokeSessionByToken = async (token, userId) => {
+  try {
+    const tableName = `sessions-${process.env.NODE_ENV || 'dev'}`;
+    await docClient.send(new DeleteCommand({
+      TableName: tableName,
+      Key: { token, userId }
+    }));
+    return true;
+  } catch (error) {
+    logError('Error revoking session by token:', error);
+    return false;
+  }
+};

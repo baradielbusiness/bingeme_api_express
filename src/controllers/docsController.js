@@ -75,9 +75,13 @@ export const getSwaggerUI = async (req, res) => {
         <script src="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.11.0/swagger-ui-bundle.js"></script>
         <script src="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.11.0/swagger-ui-standalone-preset.js"></script>
         <script>
+          // Use current protocol and host for swagger.json
+          const currentProtocol = window.location.protocol;
+          const currentHost = window.location.host;
+          const swaggerUrl = currentProtocol + '//' + currentHost + '/docs/swagger.json';
           window.onload = function() {
             const ui = SwaggerUIBundle({
-              url: "/docs/swagger.json",
+              url: swaggerUrl,
               dom_id: '#swagger-ui',
               deepLinking: true,
               presets: [

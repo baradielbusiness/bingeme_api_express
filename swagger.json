@@ -8,7 +8,7 @@
       "name": "BingeMe Support"
     }
   },
-  "host": "api.bingeme.com",
+  "host": "localhost:4000",
   "basePath": "/",
   "schemes": [
     "https"
@@ -11364,7 +11364,7 @@
                 },
                 "story": {
                   "type": "string",
-                  "description": "User's story/bio (optional)"
+                  "description": "User's story/story (optional)"
                 },
                 "countries_id": {
                   "type": "integer",
@@ -18009,7 +18009,7 @@
         },
         "story": {
           "type": "string",
-          "description": "User's story/bio (max 1000 characters)",
+          "description": "User's story/story (max 1000 characters)",
           "maxLength": 1000,
           "example": "Passionate about creating engaging content"
         },

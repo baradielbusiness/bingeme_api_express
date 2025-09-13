@@ -1,26 +1,16 @@
 import express from 'express';
+import * as payoutController from '../controllers/payoutController.js';
 import { authMiddleware } from '../middleware/auth.js';
-import {
-  getPayoutMethod,
-  createPayoutMethod,
-  deletePayoutMethod,
-  getPayoutConversations,
-  storePayoutConversation,
-  getPayoutUploadUrl
-} from '../controllers/payoutController.js';
+import setEdgeCacheHeaders from '../middleware/edgeCacheHeaders.js';
 
 const router = express.Router();
 
-// Payout method routes
-router.get('/', authMiddleware, getPayoutMethod);
-router.post('/create', authMiddleware, createPayoutMethod);
-router.delete('/delete', authMiddleware, deletePayoutMethod);
+router.use(authMiddleware);
 
-// Payout conversation routes
-router.get('/conversations', authMiddleware, getPayoutConversations);
-router.post('/conversations/store', authMiddleware, storePayoutConversation);
-
-// Payout upload routes
-router.get('/upload-url', authMiddleware, getPayoutUploadUrl);
+router.get('/', setEdgeCacheHeaders, payoutController.getPayoutMethod);
+router.post('/create', payoutController.createPayoutMethod);
+router.delete('/delete', payoutController.deletePayoutMethod);
+router.get('/conversations', setEdgeCacheHeaders, payoutController.getPayoutConversations);
+router.post('/conversations', payoutController.storePayoutConversation);
 
 export default router;

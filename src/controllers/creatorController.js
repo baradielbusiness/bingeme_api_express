@@ -238,24 +238,47 @@ export const getSubscriptionSettings = async (req, res) => {
     const userId = req.userId;
     const pool = getDB();
     
-    // Get user's subscription settings
-    const [rows] = await pool.query(
-      'SELECT subscription_price, subscription_status FROM users WHERE id = ?',
+    // Get subscription plans for this user
+    const [planRows] = await pool.query(
+      'SELECT id, name, price, interval, status FROM plans WHERE user_id = ? ORDER BY created_at DESC',
       [userId]
     );
     
-    if (rows.length === 0) {
+    // Get free subscription status from subscriptions table (look for free subscription record)
+    const [freeSubRows] = await pool.query(
+      'SELECT free FROM subscriptions WHERE user_id = ? AND free = "yes" LIMIT 1',
+      [userId]
+    );
+    
+    // Check if user exists
+    const [userRows] = await pool.query(
+      'SELECT id FROM users WHERE id = ?',
+      [userId]
+    );
+    
+    if (userRows.length === 0) {
       return res.status(404).json({ error: 'User not found' });
     }
     
-    const user = rows[0];
+    // Organize plans by interval
+    const plansByInterval = {};
+    planRows.forEach(plan => {
+      plansByInterval[plan.interval] = {
+        id: plan.id,
+        name: plan.name,
+        price: parseFloat(plan.price),
+        interval: plan.interval,
+        status: plan.status === '1' ? 'active' : 'inactive'
+      };
+    });
     
     return res.json({
       success: true,
       message: 'Subscription settings retrieved successfully',
       data: {
-        subscription_price: user.subscription_price || 0,
-        subscription_status: user.subscription_status || 'no'
+        subscription_price: plansByInterval.monthly?.price || 0,
+        subscription_status: freeSubRows.length > 0 ? 'yes' : 'no',
+        plans: plansByInterval
       }
     });
   } catch (error) {
@@ -285,31 +308,56 @@ export const updateSubscriptionSettings = async (req, res) => {
       return res.status(400).json({ error: 'Invalid subscription status' });
     }
     
-    // Update subscription settings
-    const updateFields = [];
-    const updateValues = [];
-    
-    if (subscription_price !== undefined) {
-      updateFields.push('subscription_price = ?');
-      updateValues.push(subscription_price);
-    }
-    
+    // Update free subscription status in subscriptions table
     if (subscription_status !== undefined) {
-      updateFields.push('subscription_status = ?');
-      updateValues.push(subscription_status);
+      if (subscription_status === 'yes') {
+        // Create or update free subscription record
+        await pool.query(
+          `INSERT INTO subscriptions (user_id, name, stripe_id, stripe_status, free, subscription_id, created_at) 
+           VALUES (?, ?, '', 'active', 'yes', 'free_sub', NOW()) 
+           ON DUPLICATE KEY UPDATE free = 'yes', updated_at = NOW()`,
+          [userId, 'free_subscription']
+        );
+      } else {
+        // Remove free subscription record
+        await pool.query(
+          'UPDATE subscriptions SET free = "no", updated_at = NOW() WHERE user_id = ? AND free = "yes"',
+          [userId]
+        );
+      }
     }
     
-    if (updateFields.length > 0) {
-      updateValues.push(userId);
-      await pool.query(
-        `UPDATE users SET ${updateFields.join(', ')} WHERE id = ?`,
-        updateValues
+    // Update or create plan in plans table for monthly subscription
+    if (subscription_price !== undefined) {
+      // Check if plan exists for this user and monthly interval
+      const [existingPlans] = await pool.query(
+        'SELECT id FROM plans WHERE user_id = ? AND interval = ?',
+        [userId, 'monthly']
       );
+      
+      if (existingPlans.length > 0) {
+        // Update existing plan
+        await pool.query(
+          'UPDATE plans SET price = ?, updated_at = NOW() WHERE user_id = ? AND interval = ?',
+          [subscription_price, userId, 'monthly']
+        );
+      } else {
+        // Create new plan
+        await pool.query(
+          'INSERT INTO plans (user_id, name, price, interval, paystack, status, created_at) VALUES (?, ?, ?, ?, ?, ?, NOW())',
+          [userId, 'monthly_plan', subscription_price, 'monthly', '', '1']
+        );
+      }
     }
     
     return res.json({
       success: true,
-      message: 'Subscription settings updated successfully'
+      message: 'Subscription settings updated successfully',
+      data: { 
+        updated: true,
+        price: subscription_price,
+        free_subscription: subscription_status
+      }
     });
   } catch (error) {
     logError('Error updating subscription settings:', error);

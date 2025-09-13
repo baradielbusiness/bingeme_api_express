@@ -1,5 +1,5 @@
 import { pool } from '../config/database.js';
-import { logInfo, logError, generateOTP, storeOTP, verifyOTP } from './common.js';
+import { logInfo, logError, generateOTP, verifyEmailOTP } from './common.js';
 
 /**
  * Fetch privacy and security details for user
@@ -12,14 +12,14 @@ export const fetchPrivacySecurityDetails = async (userId) => {
         username,
         email,
         mobile,
-        profile_pic,
-        verified,
+        avatar,
+        verified_id,
         created_at,
         last_login,
         privacy_settings,
         security_settings
       FROM users 
-      WHERE id = ? AND deleted = 0
+      WHERE id = ? AND status != "deleted"
     `;
 
     const [rows] = await pool.query(query, [userId]);
@@ -40,7 +40,7 @@ export const updatePrivacySecurityDetails = async (userId, settings) => {
     const query = `
       UPDATE users 
       SET privacy_settings = ?, security_settings = ?, updated_at = NOW() 
-      WHERE id = ? AND deleted = 0
+      WHERE id = ? AND status != "deleted"
     `;
     
     await pool.query(query, [privacy_settings, security_settings, userId]);
@@ -56,10 +56,8 @@ export const updatePrivacySecurityDetails = async (userId, settings) => {
  */
 export const generateAccountDeletionOTP = async (userId) => {
   try {
-    const otp = generateOTP();
     const identifier = `delete_account_${userId}`;
-    
-    await storeOTP(identifier, otp, 10); // 10 minutes expiry
+    const otp = await generateOTP(identifier);
     
     logInfo(`Generated account deletion OTP for user: ${userId}`);
     return { otp, identifier };
@@ -75,7 +73,7 @@ export const generateAccountDeletionOTP = async (userId) => {
 export const verifyAccountDeletionOTP = async (userId, otp) => {
   try {
     const identifier = `delete_account_${userId}`;
-    const isValid = await verifyOTP(identifier, otp);
+    const isValid = await verifyEmailOTP(identifier, otp);
     
     if (isValid) {
       logInfo(`Account deletion OTP verified for user: ${userId}`);
@@ -146,7 +144,7 @@ export const getAccountRetrieveInfo = async (userId) => {
  */
 export const reactivateUserAccount = async (userId) => {
   try {
-    const query = `UPDATE users SET deleted = 0, deleted_at = NULL WHERE id = ?`;
+    const query = `UPDATE users SET status = "active", updated_at = NOW() WHERE id = ?`;
     await pool.query(query, [userId]);
     
     logInfo(`Reactivated user account: ${userId}`);

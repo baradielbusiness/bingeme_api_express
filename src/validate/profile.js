@@ -21,7 +21,7 @@ export const validateProfileUpdateInput = (input) => {
     username, 
     email, 
     mobile, 
-    bio, 
+    story, 
     website, 
     gender, 
     birthdate, 
@@ -74,12 +74,12 @@ export const validateProfileUpdateInput = (input) => {
     }
   }
   
-  // Validate bio
-  if (bio !== undefined) {
-    if (typeof bio !== 'string') {
-      errors.push('Bio must be a string');
-    } else if (bio.length > 500) {
-      errors.push('Bio must be less than 500 characters');
+  // Validate story
+  if (story !== undefined) {
+    if (typeof story !== 'string') {
+      errors.push('story must be a string');
+    } else if (story.length > 500) {
+      errors.push('story must be less than 500 characters');
     }
   }
   

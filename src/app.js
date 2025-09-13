@@ -30,20 +30,76 @@ import referralsRoutes from './routes/referrals.js';
 import salesRoutes from './routes/sales.js';
 import userRoutes from './routes/user.js';
 import verificationRoutes from './routes/verification.js';
+import aliasRoutes from './routes/aliases.js';
+import { purgeCloudfrontOnWrite } from './middleware/purgeCloudfront.js';
 
 // Load environment variables
 dotenv.config();
 
 const app = express();
 
-// Security middleware
-app.use(helmet());
-
-// CORS configuration
-app.use(cors({
-  origin: process.env.ALLOWED_ORIGINS?.split(',') || '*',
-  credentials: true
+// Security middleware with CSP configuration for Swagger UI
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net"],
+      scriptSrc: ["'self'", "https://cdn.jsdelivr.net", "'unsafe-inline'"],
+      imgSrc: ["'self'", "data:", "https:"],
+      connectSrc: ["'self'"],
+      fontSrc: ["'self'", "https:", "data:"],
+      objectSrc: ["'none'"],
+      mediaSrc: ["'self'"],
+      frameSrc: ["'none'"],
+    },
+  },
 }));
+
+// CORS configuration (supports native apps, WebViews, and browsers)
+const allowedOrigins = (process.env.ALLOWED_ORIGINS || '')
+  .split(',')
+  .map((s) => s.trim())
+  .filter(Boolean);
+
+const corsOptions = {
+  origin: (origin, callback) => {
+    // Allow requests with no origin (mobile apps, curl, Postman)
+    if (!origin) return callback(null, true);
+    // If no whitelist configured, allow all
+    if (allowedOrigins.length === 0) return callback(null, true);
+    // Otherwise, validate against whitelist
+    if (allowedOrigins.includes(origin)) return callback(null, true);
+    return callback(null, false);
+  },
+  credentials: true,
+  methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
+  allowedHeaders: [
+    'Authorization',
+    'Content-Type',
+    'X-Requested-With',
+    'Accept',
+    'X-User-Cache-Key',
+    'If-None-Match',
+    'If-Modified-Since'
+  ],
+  exposedHeaders: [
+    'Content-Length',
+    'Content-Type',
+    'X-User-Cache-Key',
+    'Cache-Control',
+    'Age',
+    'ETag',
+    'Last-Modified',
+    'Vary',
+    'X-Cache',
+    'X-Amz-Cf-Id',
+    'X-Amz-Cf-Pop'
+  ]
+};
+
+app.use(cors(corsOptions));
+// Handle preflight for all routes
+app.options('*', cors(corsOptions));
 
 // Rate limiting
 const limiter = rateLimit({
@@ -63,6 +119,9 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 // Request logging
 app.use(logger);
 
+// Purge CloudFront cache on write operations
+app.use(purgeCloudfrontOnWrite());
+
 // Health check endpoint
 app.get('/health', (req, res) => {
   res.json({ 
@@ -73,12 +132,14 @@ app.get('/health', (req, res) => {
 });
 
 // API routes (matching original Lambda API paths)
+// Serve docs BEFORE alias routes to avoid slug catch-all
+app.use('/docs', docsRoutes);
+
 app.use('/auth', authRoutes);
 app.use('/call', callRoutes);
 app.use('/contact', contactRoutes);
 app.use('/creator', creatorRoutes);
 app.use('/dashboard', dashboardRoutes);
-app.use('/docs', docsRoutes);
 app.use('/live', liveRoutes);
 app.use('/media', mediaRoutes);
 app.use('/messages', messageRoutes);
@@ -92,6 +153,9 @@ app.use('/referrals', referralsRoutes);
 app.use('/sales', salesRoutes);
 app.use('/user', userRoutes);
 app.use('/verification', verificationRoutes);
+
+// Mount alias routes LAST so it doesn't override specific routes like /docs
+app.use('/', aliasRoutes);
 
 // 404 handler
 app.use('*', (req, res) => {

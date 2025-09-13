@@ -70,6 +70,11 @@ export const connectRedis = async () => {
     return client;
   } catch (error) {
     logError('Redis connection failed:', error);
+    // In development mode, continue without Redis
+    if (process.env.NODE_ENV === 'development') {
+      logInfo('Continuing without Redis connection (development mode)');
+      return null;
+    }
     throw error;
   }
 };

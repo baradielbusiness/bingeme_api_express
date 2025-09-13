@@ -309,7 +309,7 @@ const getVerificationRequestWithUser = async (requestId) => {
         vr.*,
         u.username,
         u.name,
-        u.profile_pic,
+        u.avatar,
         u.verified
       FROM verification_requests vr
       JOIN users u ON vr.user_id = u.id
@@ -342,7 +342,7 @@ const getAllVerificationRequests = async (status = null, limit = 20, skip = 0) =
         vr.admin_notes,
         u.username,
         u.name,
-        u.profile_pic
+        u.avatar
       FROM verification_requests vr
       JOIN users u ON vr.user_id = u.id
     `;

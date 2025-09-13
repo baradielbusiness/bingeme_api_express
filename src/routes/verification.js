@@ -1,24 +1,13 @@
 import express from 'express';
+import * as verificationController from '../controllers/verificationController.js';
 import { authMiddleware } from '../middleware/auth.js';
-import {
-  getVerificationUploadUrl,
-  getVerificationAccount,
-  verifyAccountSend,
-  getVerificationConversations,
-  storeVerificationConversation
-} from '../controllers/verificationController.js';
+import setEdgeCacheHeaders from '../middleware/edgeCacheHeaders.js';
 
 const router = express.Router();
 
-// Verification upload URL
-router.get('/upload-url', authMiddleware, getVerificationUploadUrl);
+router.use(authMiddleware);
 
-// Verification account management
-router.get('/account', authMiddleware, getVerificationAccount);
-router.post('/account', authMiddleware, verifyAccountSend);
-
-// Verification conversations
-router.get('/conversations', authMiddleware, getVerificationConversations);
-router.post('/conversations', authMiddleware, storeVerificationConversation);
+router.get('/account', setEdgeCacheHeaders, verificationController.getVerificationAccount);
+router.get('/conversations', setEdgeCacheHeaders, verificationController.getVerificationConversations);
 
 export default router;

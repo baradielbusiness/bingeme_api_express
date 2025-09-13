@@ -14,7 +14,7 @@ router.post('/forgot-password/verify', authController.forgotPasswordVerify);
 router.post('/reset-password', authController.forgotPasswordReset);
 router.post('/google', authController.googleSignin);
 router.post('/apple', authController.appleSignin);
-router.get('/init', authController.init);
+router.post('/init', authController.init);
 router.get('/suspended', authController.suspended);
 
 // Protected routes (authentication required)

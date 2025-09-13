@@ -6,7 +6,7 @@ import { logInfo, logError } from './common.js';
  */
 export const getUserProducts = async (userId, limit = 20, skip = 0, status = 'all', sortBy = 'latest') => {
   try {
-    let whereClause = 'WHERE user_id = ? AND deleted = 0';
+    let whereClause = 'WHERE user_id = ? AND status != "deleted"';
     let orderClause = 'ORDER BY created_at DESC';
     
     if (status !== 'all') {
@@ -67,7 +67,7 @@ export const getProductByIdForUser = async (productId, userId) => {
         created_at,
         updated_at
       FROM products 
-      WHERE id = ? AND user_id = ? AND deleted = 0
+      WHERE id = ? AND user_id = ? AND status != "deleted"
     `;
     
     const [rows] = await pool.query(query, [productId, userId]);
@@ -88,7 +88,7 @@ export const updateProduct = async (productId, productData) => {
     const query = `
       UPDATE products 
       SET name = ?, price = ?, delivery_time = ?, tags = ?, description = ?, type = ?, status = ?, updated_at = NOW() 
-      WHERE id = ? AND deleted = 0
+      WHERE id = ? AND status != "deleted"
     `;
     
     await pool.query(query, [name, price, delivery_time, tags, description, type, status, productId]);

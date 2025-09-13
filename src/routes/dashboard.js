@@ -1,6 +1,7 @@
 import express from 'express';
 import * as dashboardController from '../controllers/dashboardController.js';
 import { authMiddleware } from '../middleware/auth.js';
+import setEdgeCacheHeaders from '../middleware/edgeCacheHeaders.js';
 
 const router = express.Router();
 
@@ -8,8 +9,8 @@ const router = express.Router();
 router.use(authMiddleware);
 
 // Dashboard routes
-router.get('/', dashboardController.getDashboard);
-router.get('/posts-report', dashboardController.getPostsReport);
-router.get('/income-chart', dashboardController.getIncomeChart);
+router.get('/', setEdgeCacheHeaders, dashboardController.getDashboard);
+router.get('/posts-report', setEdgeCacheHeaders, dashboardController.getPostsReport);
+router.get('/income-chart', setEdgeCacheHeaders, dashboardController.getIncomeChart);
 
 export default router;

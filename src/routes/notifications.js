@@ -1,20 +1,13 @@
 import express from 'express';
+import * as notificationsController from '../controllers/notificationController.js';
 import { authMiddleware } from '../middleware/auth.js';
-import {
-  getNotifications,
-  getNotificationSettings,
-  updateNotificationSettings,
-  deleteNotificationById,
-  deleteAllNotifications
-} from '../controllers/notificationController.js';
+import setEdgeCacheHeaders from '../middleware/edgeCacheHeaders.js';
 
 const router = express.Router();
 
-// Notification routes
-router.get('/', authMiddleware, getNotifications);
-router.get('/settings', authMiddleware, getNotificationSettings);
-router.post('/settings', authMiddleware, updateNotificationSettings);
-router.delete('/delete/:id', authMiddleware, deleteNotificationById);
-router.delete('/delete-all', authMiddleware, deleteAllNotifications);
+router.use(authMiddleware);
+
+router.get('/', setEdgeCacheHeaders, notificationsController.getNotifications);
+router.get('/settings', setEdgeCacheHeaders, notificationsController.getNotificationSettings);
 
 export default router;

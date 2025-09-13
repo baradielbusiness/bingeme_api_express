@@ -1,20 +1,12 @@
 import express from 'express';
+import * as salesController from '../controllers/salesController.js';
 import { authMiddleware } from '../middleware/auth.js';
-import {
-  getSales,
-  deliveredProduct,
-  rejectOrder
-} from '../controllers/salesController.js';
+import setEdgeCacheHeaders from '../middleware/edgeCacheHeaders.js';
 
 const router = express.Router();
 
-// Get user's sales list with filtering, sorting, and pagination
-router.get('/', authMiddleware, getSales);
+router.use(authMiddleware);
 
-// Mark a purchase as delivered
-router.post('/delivered-product/:id', authMiddleware, deliveredProduct);
-
-// Mark a purchase as rejected
-router.post('/reject-order/:id', authMiddleware, rejectOrder);
+router.get('/', setEdgeCacheHeaders, salesController.getSales);
 
 export default router;

@@ -2,6 +2,147 @@ import { pool } from '../config/database.js';
 import { logInfo, logError } from './common.js';
 
 /**
+ * Fetch payout method details for a user from the database
+ */
+export const fetchUserPayoutDetails = async (userId) => {
+  try {
+    logInfo('[fetchUserPayoutDetails] Fetching payout details for user:', { userId });
+    const query = `
+      SELECT id, username, payment_gateway, bank, paypal_account, countries_id
+      FROM users
+      WHERE id = ?
+    `;
+    const [rows] = await pool.query(query, [userId]);
+    const user = rows.length ? rows[0] : null;
+    logInfo('[fetchUserPayoutDetails] User found:', { userId, hasData: !!user });
+    return user;
+  } catch (error) {
+    logError('[fetchUserPayoutDetails] Database error:', { userId, error: error.message });
+    throw error;
+  }
+};
+
+/**
+ * Update user payout method in users table (gateway/bank/paypal)
+ * Mirrors Lambda behavior
+ */
+export const updateUserPayoutMethod = async (userId, paymentGateway, bankData = '', paypalAccount = '') => {
+  try {
+    logInfo('[updateUserPayoutMethod] Updating payout method:', {
+      userId,
+      paymentGateway,
+      hasBankData: !!bankData,
+      hasPayPal: !!paypalAccount
+    });
+
+    const query = `
+      UPDATE users 
+      SET payment_gateway = ?, 
+          bank = ?, 
+          paypal_account = ?
+      WHERE id = ?
+    `;
+
+    const [result] = await pool.query(query, [paymentGateway, bankData, paypalAccount, userId]);
+    logInfo('[updateUserPayoutMethod] Update result:', { userId, affectedRows: result.affectedRows });
+    return result;
+  } catch (error) {
+    logError('[updateUserPayoutMethod] Database error:', { userId, error: error.message });
+    throw error;
+  }
+};
+
+/**
+ * Parse serialized PHP-like array data (e.g., a:4:{s:...}) into a JS object
+ */
+const parseSerializedData = (serialized) => {
+  try {
+    const arrayMatch = serialized.match(/a:\d+:\{([\s\S]*)\}/);
+    if (!arrayMatch) return null;
+    const content = arrayMatch[1];
+    const pairs = content.match(/s:\d+:"([^"]+)";s:\d+:"([^"]+)"/g) || [];
+    const obj = {};
+    for (const pair of pairs) {
+      const m = pair.match(/s:\d+:"([^"]+)";s:\d+:"([^"]+)"/);
+      if (m) obj[m[1]] = m[2];
+    }
+    return obj;
+  } catch (error) {
+    logError('[parseSerializedData] failed:', { error: error.message });
+    return null;
+  }
+};
+
+/**
+ * Parse bank data from JSON, serialized, or plain text
+ */
+const parseBankData = async (bankData) => {
+  try {
+    if (!bankData || typeof bankData !== 'string') return null;
+    try {
+      return JSON.parse(bankData);
+    } catch (_) {
+      const parsed = parseSerializedData(bankData);
+      return parsed || null;
+    }
+  } catch (error) {
+    logError('[parseBankData] failed:', { error: error.message });
+    return null;
+  }
+};
+
+/**
+ * Sanitize payout data and format for API response (parity with Lambda)
+ */
+export const sanitizePayoutData = async (user) => {
+  try {
+    logInfo('[sanitizePayoutData] Sanitizing data for user:', { userId: user.id });
+    const sanitized = {
+      country_id: user.countries_id ? String(user.countries_id) : '99',
+      selected: user.payment_gateway ? String(user.payment_gateway).toLowerCase() : null
+    };
+
+    switch (sanitized.selected) {
+      case 'upi':
+        if (user.bank) {
+          sanitized.upi = user.bank;
+        }
+        break;
+      case 'paypal':
+        if (user.paypal_account) {
+          sanitized.paypal = { email: user.paypal_account };
+        }
+        break;
+      case 'bank':
+        if (user.bank) {
+          sanitized.bank = { bank_details: user.bank };
+        }
+        break;
+      case 'bank_india':
+        if (user.bank) {
+          const bd = await parseBankData(user.bank);
+          if (bd) {
+            sanitized.bank_india = {
+              acc_no: bd.account_number || bd.acc_no,
+              name: bd.holder_name || bd.name,
+              bank_name: bd.bank_name,
+              ifsc: bd.ifsc_code || bd.ifsc
+            };
+          }
+        }
+        break;
+      default:
+        break;
+    }
+
+    return sanitized;
+  } catch (error) {
+    logError('[sanitizePayoutData] Sanitization error:', { userId: user?.id, error: error.message });
+    throw error;
+  }
+};
+
+/**
  * Get payout conversations for user
  */
 export const getPayoutConversations = async (userId, skip = 0, limit = 10) => {
@@ -20,10 +161,10 @@ export const getPayoutConversations = async (userId, skip = 0, limit = 10) => {
         tc.type,
         u1.username as from_username,
         u1.name as from_name,
-        u1.profile_pic as from_profile_pic,
+        u1.avatar as from_avatar,
         u2.username as to_username,
         u2.name as to_name,
-        u2.profile_pic as to_profile_pic
+        u2.avatar as to_avatar
       FROM ticket_conversations tc
       LEFT JOIN users u1 ON tc.from_user_id = u1.id
       LEFT JOIN users u2 ON tc.to_user_id = u2.id
@@ -153,6 +294,23 @@ export const updatePayoutStatus = async (payoutId, status, processedAt = null) =
     logInfo(`Updated payout status: ${payoutId} -> ${status}`);
   } catch (error) {
     logError('Error updating payout status:', error);
+    throw error;
+  }
+};
+
+/**
+ * Delete user payout method by clearing all payment-related fields
+ * Mirrors Lambda behavior: sets payment_gateway, bank, paypal_account to empty strings
+ */
+export const deleteUserPayoutMethod = async (userId) => {
+  try {
+    logInfo('[deleteUserPayoutMethod] Deleting payout method for user:', { userId });
+    const query = `UPDATE users SET payment_gateway = '', bank = '', paypal_account = '' WHERE id = ?`;
+    const [result] = await pool.query(query, [userId]);
+    logInfo('[deleteUserPayoutMethod] Delete result:', { userId, affectedRows: result.affectedRows });
+    return result;
+  } catch (error) {
+    logError('[deleteUserPayoutMethod] Database error:', { userId, error: error.message });
     throw error;
   }
 };

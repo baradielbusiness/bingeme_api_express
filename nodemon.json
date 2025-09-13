@@ -1,0 +1,14 @@
+{
+  "watch": ["src"],
+  "ext": "js,json",
+  "ignore": [
+    "swagger.json",
+    "node_modules/**/*",
+    "*.log",
+    ".git/**/*"
+  ],
+  "delay": 1000,
+  "env": {
+    "NODE_ENV": "development"
+  }
+}

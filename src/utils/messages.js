@@ -25,10 +25,10 @@ export const getUserMessagesById = async (userId, otherUserId, skip = 0, limit =
           SEPARATOR '|'
         ) as media
       FROM messages m
-      LEFT JOIN media_messages mm ON m.id = mm.message_id AND mm.deleted = 0
+      LEFT JOIN media_messages mm ON m.id = mm.message_id AND mm.status != "deleted"
       WHERE ((m.from_user_id = ? AND m.to_user_id = ?) 
          OR (m.from_user_id = ? AND m.to_user_id = ?))
-        AND m.deleted = 0
+        AND m.status != "deleted"
       GROUP BY m.id, m.from_user_id, m.to_user_id, m.message, m.created_at, m.status, m.tip, m.conversations_id
       ORDER BY m.created_at DESC
       LIMIT ? OFFSET ?
@@ -70,8 +70,8 @@ export const getUserMessagesByUsername = async (userId, username, skip = 0, limi
         (m.from_user_id = u.id AND m.to_user_id = ?) OR 
         (m.to_user_id = u.id AND m.from_user_id = ?)
       )
-      LEFT JOIN media_messages mm ON m.id = mm.message_id AND mm.deleted = 0
-      WHERE u.username = ? AND m.deleted = 0
+      LEFT JOIN media_messages mm ON m.id = mm.message_id AND mm.status != "deleted"
+      WHERE u.username = ? AND m.status != "deleted"
       GROUP BY m.id, m.from_user_id, m.to_user_id, m.message, m.created_at, m.status, m.tip, m.conversations_id
       ORDER BY m.created_at DESC
       LIMIT ? OFFSET ?
@@ -109,7 +109,7 @@ export const validateUserAccess = async (messageId, userId) => {
   try {
     const query = `
       SELECT id FROM messages 
-      WHERE id = ? AND (from_user_id = ? OR to_user_id = ?) AND deleted = 0
+      WHERE id = ? AND (from_user_id = ? OR to_user_id = ?) AND status != "deleted"
     `;
     
     const [rows] = await pool.query(query, [messageId, userId, userId]);
@@ -125,7 +125,7 @@ export const validateUserAccess = async (messageId, userId) => {
  */
 export const validateUserByUsername = async (username) => {
   try {
-    const query = `SELECT id, username, name, profile_pic, verified FROM users WHERE username = ?`;
+    const query = `SELECT id, username, name, avatar, verified_id FROM users WHERE username = ?`;
     const [rows] = await pool.query(query, [username]);
     return rows.length > 0 ? rows[0] : null;
   } catch (error) {
@@ -155,8 +155,8 @@ export const getMessageById = async (messageId) => {
           SEPARATOR '|'
         ) as media
       FROM messages m
-      LEFT JOIN media_messages mm ON m.id = mm.message_id AND mm.deleted = 0
-      WHERE m.id = ? AND m.deleted = 0
+      LEFT JOIN media_messages mm ON m.id = mm.message_id AND mm.status != "deleted"
+      WHERE m.id = ? AND m.status != "deleted"
       GROUP BY m.id, m.from_user_id, m.to_user_id, m.message, m.created_at, m.status, m.tip, m.conversations_id
     `;
 
@@ -215,7 +215,7 @@ export const removeMessageNotifications = async (messageId) => {
  */
 export const countActiveMessages = async (conversationId) => {
   try {
-    const query = `SELECT COUNT(*) as count FROM messages WHERE conversations_id = ? AND deleted = 0`;
+    const query = `SELECT COUNT(*) as count FROM messages WHERE conversations_id = ? AND status != "deleted"`;
     const [rows] = await pool.query(query, [conversationId]);
     return rows[0].count;
   } catch (error) {
@@ -232,7 +232,7 @@ export const countActiveMessagesOnDay = async (conversationId, date) => {
     const query = `
       SELECT COUNT(*) as count 
       FROM messages 
-      WHERE conversations_id = ? AND deleted = 0 
+      WHERE conversations_id = ? AND status != "deleted" 
         AND DATE(created_at) = DATE(?)
     `;
     const [rows] = await pool.query(query, [conversationId, date]);
@@ -293,7 +293,7 @@ export const getLatestMessageTime = async (conversationId) => {
     const query = `
       SELECT MAX(created_at) as latest_time 
       FROM messages 
-      WHERE conversations_id = ? AND deleted = 0
+      WHERE conversations_id = ? AND status != "deleted"
     `;
     const [rows] = await pool.query(query, [conversationId]);
     return rows[0].latest_time;
@@ -320,12 +320,12 @@ export const getMessageByIdWithDetails = async (messageId) => {
         m.conversations_id,
         u1.username as from_username,
         u1.name as from_name,
-        u1.profile_pic as from_profile_pic,
-        u1.verified as from_verified,
+        u1.avatar as from_avatar,
+        u1.verified_id as from_verified,
         u2.username as to_username,
         u2.name as to_name,
-        u2.profile_pic as to_profile_pic,
-        u2.verified as to_verified,
+        u2.avatar as to_avatar,
+        u2.verified_id as to_verified,
         COUNT(mm.id) as media_count,
         GROUP_CONCAT(
           CONCAT(mm.id, ':', mm.media_path, ':', mm.media_type, ':', mm.media_size)
@@ -334,9 +334,9 @@ export const getMessageByIdWithDetails = async (messageId) => {
       FROM messages m
       LEFT JOIN users u1 ON m.from_user_id = u1.id
       LEFT JOIN users u2 ON m.to_user_id = u2.id
-      LEFT JOIN media_messages mm ON m.id = mm.message_id AND mm.deleted = 0
-      WHERE m.id = ? AND m.deleted = 0
-      GROUP BY m.id, m.from_user_id, m.to_user_id, m.message, m.created_at, m.status, m.tip, m.conversations_id, u1.username, u1.name, u1.profile_pic, u1.verified, u2.username, u2.name, u2.profile_pic, u2.verified
+      LEFT JOIN media_messages mm ON m.id = mm.message_id AND mm.status != "deleted"
+      WHERE m.id = ? AND m.status != "deleted"
+      GROUP BY m.id, m.from_user_id, m.to_user_id, m.message, m.created_at, m.status, m.tip, m.conversations_id, u1.username, u1.name, u1.avatar, u1.verified_id, u2.username, u2.name, u2.avatar, u2.verified_id
     `;
 
     const [rows] = await pool.query(query, [messageId]);

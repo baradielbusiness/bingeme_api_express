@@ -111,6 +111,39 @@ export const cleanupS3Files = async (fileKeys) => {
 };
 
 /**
+ * Validate an array of media paths for posts/uploads
+ * Returns { success: boolean, errors: string[] }
+ */
+export const validateMediaArray = (media, basePath = 'uploads/updates/', context = 'post') => {
+  const errors = [];
+  if (!Array.isArray(media)) {
+    return { success: false, errors: ['media must be an array'] };
+  }
+  if (media.length === 0) {
+    return { success: true, errors };
+  }
+  const allowedExt = ['jpg','jpeg','png','gif','webp','bmp','svg','tiff','avif','jfif','heic','mp4','mov','avi','mkv','webm','mpeg','3gp','flv','ogv','wmv','mp3','wav','m4a','aac','ogg','flac','pdf','doc','docx','xls','xlsx','ppt','pptx','txt','rtf','zip','rar','7z','tar','gz'];
+  media.forEach((item, idx) => {
+    if (typeof item !== 'string' || item.trim().length === 0) {
+      errors.push(`media[${idx}] must be a non-empty string`);
+      return;
+    }
+    // Optional base path check when a relative key is expected
+    if (!/^https?:\/\//i.test(item) && basePath && typeof basePath === 'string' && basePath.length > 0) {
+      // allow either starting with basePath or any path if contains '/'
+      if (!(item.startsWith(basePath) || item.includes('/'))) {
+        errors.push(`media[${idx}] has invalid path; expected to include '${basePath}'`);
+      }
+    }
+    const ext = item.split('?')[0].split('#')[0].split('.').pop().toLowerCase();
+    if (!allowedExt.includes(ext)) {
+      errors.push(`media[${idx}] has unsupported file type: .${ext}`);
+    }
+  });
+  return { success: errors.length === 0, errors };
+};
+
+/**
  * Convert stream to buffer
  */
 const streamToBuffer = async (stream) => {

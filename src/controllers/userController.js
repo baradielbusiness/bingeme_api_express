@@ -191,7 +191,7 @@ export const getSettings = async (req, res) => {
       name: user.name || '',
       email: user.email || '',
       avatar: user.avatar ? getFile(`avatar/${user.avatar}`) : '',
-      bio: user.bio || '',
+      story: user.story || '',
       location: user.location || '',
       website: user.website || '',
       social_links: user.social_links ? JSON.parse(user.social_links) : {}

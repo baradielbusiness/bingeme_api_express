@@ -2,6 +2,87 @@ import { pool } from '../config/database.js';
 import { logInfo, logError } from './common.js';
 
 /**
+ * Standard API response payload builder (used by controllers)
+ */
+export const createApiResponse = (status, message, data = null, error = null) => {
+  return {
+    status,
+    message,
+    ...(data && { data }),
+    ...(error && { error }),
+    timestamp: new Date().toISOString()
+  };
+};
+
+/**
+ * Get support users by their IDs
+ */
+export const getSupportUsersByIds = async (supportIds = []) => {
+  try {
+    if (!Array.isArray(supportIds) || supportIds.length === 0) {
+      return [];
+    }
+    const placeholders = supportIds.map(() => '?').join(',');
+    const query = `
+      SELECT id, username, name, avatar, verified
+      FROM users
+      WHERE id IN (${placeholders}) AND status != "deleted"
+    `;
+    const [rows] = await pool.query(query, supportIds);
+    return rows;
+  } catch (error) {
+    logError('Error fetching support users by IDs:', error);
+    throw error;
+  }
+};
+
+/**
+ * Find users by search query with optional exclusions and support-only filter
+ */
+export const getUsersBySearch = async ({ excludedUserIds = [], searchTerm = '', supportIds = [], type = null }) => {
+  try {
+    const params = [];
+    let whereClauses = ['status != "deleted"'];
+
+    // Search term on username or name
+    if (searchTerm && String(searchTerm).trim().length > 0) {
+      const pattern = `%${String(searchTerm).trim()}%`;
+      whereClauses.push('(username LIKE ? OR name LIKE ?)');
+      params.push(pattern, pattern);
+    }
+
+    // Exclude specific users
+    if (Array.isArray(excludedUserIds) && excludedUserIds.length > 0) {
+      const placeholders = excludedUserIds.map(() => '?').join(',');
+      whereClauses.push(`id NOT IN (${placeholders})`);
+      params.push(...excludedUserIds);
+    }
+
+    // If supportIds provided and type indicates support, restrict to supportIds
+    if (Array.isArray(supportIds) && supportIds.length > 0 && (type === 'support' || type === 'only_support')) {
+      const placeholders = supportIds.map(() => '?').join(',');
+      whereClauses.push(`id IN (${placeholders})`);
+      params.push(...supportIds);
+    }
+
+    const whereSql = whereClauses.length ? `WHERE ${whereClauses.join(' AND ')}` : '';
+    const query = `
+      SELECT id, username, name, avatar, verified
+      FROM users
+      ${whereSql}
+      ORDER BY name ASC
+      LIMIT 50
+    `;
+
+    const [rows] = await pool.query(query, params);
+    return rows;
+  } catch (error) {
+    logError('Error searching users:', error);
+    throw error;
+  }
+};
+
+/**
  * Get user inbox with media attachments
  */
 export const getUserInboxWithMedia = async (userId, skip = 0, limit = 10) => {
@@ -26,10 +107,10 @@ export const getUserInboxWithMedia = async (userId, skip = 0, limit = 10) => {
         ) as media,
         c.room_id
       FROM messages m
-      LEFT JOIN media_messages mm ON m.id = mm.message_id AND mm.deleted = 0
+      LEFT JOIN media_messages mm ON m.id = mm.message_id AND mm.status != "deleted"
       LEFT JOIN conversations c ON m.conversations_id = c.id
       WHERE (m.from_user_id = ? OR m.to_user_id = ?) 
-        AND m.deleted = 0
+        AND m.status != "deleted"
       GROUP BY m.id, m.from_user_id, m.to_user_id, m.message, m.created_at, m.status, m.tip, m.conversations_id, c.room_id
       ORDER BY m.created_at DESC
       LIMIT ? OFFSET ?
@@ -42,7 +123,7 @@ export const getUserInboxWithMedia = async (userId, skip = 0, limit = 10) => {
       SELECT COUNT(DISTINCT m.id) as total
       FROM messages m
       WHERE (m.from_user_id = ? OR m.to_user_id = ?) 
-        AND m.deleted = 0
+        AND m.status != "deleted"
     `;
     const [countResult] = await pool.query(countQuery, [userId, userId]);
     const totalMessages = countResult[0].total;
@@ -75,7 +156,7 @@ export const fetchUsersMap = async (userIds) => {
 
     const placeholders = userIds.map(() => '?').join(',');
     const query = `
-      SELECT id, username, name, profile_pic, verified
+      SELECT id, username, name, avatar, verified
       FROM users 
       WHERE id IN (${placeholders})
     `;
@@ -88,8 +169,8 @@ export const fetchUsersMap = async (userIds) => {
         id: user.id,
         username: user.username,
         name: user.name,
-        profile_pic: user.profile_pic,
-        verified: user.verified
+        avatar: user.avatar,
+        verified_id: user.verified_id
       };
     });
 
@@ -110,7 +191,7 @@ export const getMessageAndConversationIds = async (userId, otherUserId) => {
       FROM messages m
       WHERE ((m.from_user_id = ? AND m.to_user_id = ?) 
          OR (m.from_user_id = ? AND m.to_user_id = ?))
-        AND m.deleted = 0
+        AND m.status != "deleted"
     `;
     
     const [rows] = await pool.query(query, [userId, otherUserId, otherUserId, userId]);
@@ -233,8 +314,8 @@ export const searchConversations = async (userId, searchTerm, skip = 0, limit = 
         u.id as user_id,
         u.username,
         u.name,
-        u.profile_pic,
-        u.verified,
+        u.avatar,
+        u.verified_id,
         COUNT(mm.id) as media_count,
         GROUP_CONCAT(
           CONCAT(mm.id, ':', mm.media_path, ':', mm.media_type, ':', mm.media_size)
@@ -245,10 +326,10 @@ export const searchConversations = async (userId, searchTerm, skip = 0, limit = 
         (m.from_user_id = u.id AND m.to_user_id = ?) OR 
         (m.to_user_id = u.id AND m.from_user_id = ?)
       )
-      LEFT JOIN media_messages mm ON m.id = mm.message_id AND mm.deleted = 0
+      LEFT JOIN media_messages mm ON m.id = mm.message_id AND mm.status != "deleted"
       WHERE (u.username LIKE ? OR u.name LIKE ?)
-        AND m.deleted = 0
-      GROUP BY m.id, m.from_user_id, m.to_user_id, m.message, m.created_at, m.status, m.tip, m.conversations_id, u.id, u.username, u.name, u.profile_pic, u.verified
+        AND m.status != "deleted"
+      GROUP BY m.id, m.from_user_id, m.to_user_id, m.message, m.created_at, m.status, m.tip, m.conversations_id, u.id, u.username, u.name, u.avatar, u.verified
       ORDER BY m.created_at DESC
       LIMIT ? OFFSET ?
     `;

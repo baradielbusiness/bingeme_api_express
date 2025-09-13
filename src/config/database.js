@@ -22,9 +22,7 @@ export const createConnectionPool = () => {
       waitForConnections: true,
       connectionLimit: parseInt(process.env.DB_CONNECTION_LIMIT) || 10,
       queueLimit: 0,
-      acquireTimeout: 60000,
-      timeout: 60000,
-      reconnect: true,
+      connectTimeout: 60000,
       charset: 'utf8mb4',
       timezone: '+00:00'
     });
@@ -42,18 +40,20 @@ export const createConnectionPool = () => {
  * Establishes initial database connection
  */
 export const connectDB = async () => {
+  const allowStartWithoutDb = (process.env.ALLOW_START_WITHOUT_DB === 'true') || (process.env.NODE_ENV === 'development');
   try {
     const pool = createConnectionPool();
-    
-    // Test the connection
     const connection = await pool.getConnection();
     await connection.ping();
     connection.release();
-    
     logInfo('Database connected successfully');
     return pool;
   } catch (error) {
     logError('Database connection failed:', error);
+    if (allowStartWithoutDb) {
+      logError('Continuing without active DB connection (development mode)');
+      return null;
+    }
     throw error;
   }
 };
@@ -64,9 +64,18 @@ export const connectDB = async () => {
  */
 export const getDB = () => {
   if (!connectionPool) {
-    throw new Error('Database not initialized. Call connectDB() first.');
+    // Lazily create the pool if not initialized yet
+    connectionPool = createConnectionPool();
   }
   return connectionPool;
+};
+
+// Lightweight proxy to maintain compatibility with modules importing { pool }
+// Uses lazy getDB() under the hood to avoid premature initialization
+export const pool = {
+  query: (...args) => getDB().query(...args),
+  execute: (...args) => getDB().execute(...args),
+  getConnection: (...args) => getDB().getConnection(...args)
 };
 
 /**
