@@ -1,14 +1,13 @@
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
-import rateLimit from 'express-rate-limit';
-import { createClient } from 'redis';
 import dotenv from 'dotenv';
 
 // Import middleware
 import { errorHandler } from './middleware/errorHandler.js';
 import { logger } from './middleware/logger.js';
 import { authMiddleware } from './middleware/auth.js';
+import { apiLimiter } from './middleware/dynamodbRateLimit.js';
 
 // Import routes
 import authRoutes from './routes/auth.js';
@@ -101,16 +100,8 @@ app.use(cors(corsOptions));
 // Handle preflight for all routes
 app.options('*', cors(corsOptions));
 
-// Rate limiting
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limit each IP to 100 requests per windowMs
-  message: 'Too many requests from this IP, please try again later.',
-  standardHeaders: true,
-  legacyHeaders: false,
-});
-
-app.use(limiter);
+// Rate limiting using DynamoDB
+app.use(apiLimiter);
 
 // Body parsing middleware
 app.use(express.json({ limit: '10mb' }));

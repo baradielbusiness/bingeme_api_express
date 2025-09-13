@@ -16,7 +16,7 @@ COPY . .
 
 FROM node:22-alpine AS runner
 WORKDIR /app
-ENV NODE_ENV=production
+ENV NODE_ENV=prod
 COPY --from=builder /app .
 
 # Create logs dir for PM2 (if used in container) and app

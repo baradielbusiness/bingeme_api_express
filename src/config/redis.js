@@ -65,7 +65,14 @@ export const createRedisClient = () => {
 export const connectRedis = async () => {
   try {
     const client = createRedisClient();
-    await client.connect();
+    
+    // Add timeout to Redis connection
+    const connectPromise = client.connect();
+    const timeoutPromise = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error('Redis connection timeout')), 5000)
+    );
+    
+    await Promise.race([connectPromise, timeoutPromise]);
     logInfo('Redis connected successfully');
     return client;
   } catch (error) {

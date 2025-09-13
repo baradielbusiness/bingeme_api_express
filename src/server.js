@@ -1,6 +1,5 @@
 import dotenv from 'dotenv';
 import app from './app.js';
-import { createClient } from 'redis';
 import { connectDB } from './config/database.js';
 import { logInfo, logError } from './utils/common.js';
 import path from 'path';
@@ -14,14 +13,49 @@ dotenv.config({ path: path.join(process.cwd(), '.env') });
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+console.log(process.env)
 // Determine host and port based on NODE_ENV
 const NODE_ENV = process.env.NODE_ENV || 'development';
 const PORT = process.env.PORT || (NODE_ENV === 'development' ? 4000 : 3000);
 const HOST = NODE_ENV === 'development' ? 'localhost:4000' : 'api.bingeme.com';
-const PROTOCOL = NODE_ENV === 'development' ? 'https' : 'https';
+const PROTOCOL = NODE_ENV === 'development' ? 'https' : 'http';
 // Update swagger.json with dynamic host (only if changed)
 const swaggerPath = path.join(__dirname, '..', 'swagger.json');
-const swaggerData = JSON.parse(fs.readFileSync(swaggerPath, 'utf8'));
+let swaggerData;
+
+try {
+  if (fs.existsSync(swaggerPath)) {
+    swaggerData = JSON.parse(fs.readFileSync(swaggerPath, 'utf8'));
+  } else {
+    // Create default swagger configuration if file doesn't exist
+    swaggerData = {
+      openapi: '3.0.0',
+      info: {
+        title: 'BingeMe API',
+        version: '1.0.0',
+        description: 'BingeMe Express API'
+      },
+      servers: [],
+      paths: {},
+      components: {}
+    };
+    logInfo('Swagger.json not found, using default configuration');
+  }
+} catch (error) {
+  logError('Error reading swagger.json:', error);
+  // Fallback to default configuration
+  swaggerData = {
+    openapi: '3.0.0',
+    info: {
+      title: 'BingeMe API',
+      version: '1.0.0',
+      description: 'BingeMe Express API'
+    },
+    servers: [],
+    paths: {},
+    components: {}
+  };
+}
 
 // Update swagger configuration
 const newHost = HOST;
@@ -69,20 +103,6 @@ app.get('/docs', (req, res) => {
   `);
 });
 
-// Initialize Redis connection
-const redisClient = createClient({
-  host: process.env.REDIS_HOST || 'localhost',
-  port: process.env.REDIS_PORT || 6379,
-  password: process.env.REDIS_PASSWORD
-});
-
-redisClient.on('error', (err) => {
-  logError('Redis Client Error:', err);
-});
-
-redisClient.on('connect', () => {
-  logInfo('Redis Client Connected');
-});
 
 // Connect to database
 const startServer = async () => {
@@ -91,9 +111,6 @@ const startServer = async () => {
     await connectDB();
     logInfo('Database connected successfully');
 
-    // Connect to Redis
-    await redisClient.connect();
-    logInfo('Redis connected successfully');
 
     // Start Express server with HTTPS
     if (NODE_ENV === 'development') {
@@ -138,7 +155,6 @@ process.on('SIGTERM', async () => {
 
 process.on('SIGINT', async () => {
   logInfo('SIGINT received, shutting down gracefully');
-  await redisClient.quit();
   process.exit(0);
 });
 
