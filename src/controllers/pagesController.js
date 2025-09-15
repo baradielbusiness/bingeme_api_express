@@ -9,6 +9,8 @@ import {
   logError, 
   createErrorResponse, 
   createSuccessResponse, 
+  createExpressSuccessResponse,
+  createExpressErrorResponse,
   getAuthenticatedUserId, 
   getVerifiedUserById 
 } from '../utils/common.js';
@@ -24,7 +26,7 @@ export const getPage = async (req, res) => {
     const { slug } = req.params;
     
     if (!slug) {
-      return res.status(400).json(createErrorResponse(400, 'Page slug is required'));
+      return res.status(400).json(createExpressErrorResponse('Page slug is required', 400));
     }
     
     // Get user ID if authenticated
@@ -34,15 +36,13 @@ export const getPage = async (req, res) => {
     const page = await getPageBySlug(slug);
     
     if (!page) {
-      return res.status(404).json(createErrorResponse(404, 'Page not found', 
-        `The requested page '${slug}' could not be found`));
+      return res.status(404).json(createExpressErrorResponse(`The requested page '${slug}' could not be found`, 404));
     }
     
     // Check access permissions
     if (page.access === 'creators') {
       if (!userId) {
-        return res.status(403).json(createErrorResponse(403, 'Access denied', 
-          'This page is only accessible to verified creators. Please login with a creator account.'));
+        return res.status(403).json(createExpressErrorResponse('This page is only accessible to verified creators. Please login with a creator account.', 403));
       }
       
       // Check if user is a verified creator
@@ -54,12 +54,11 @@ export const getPage = async (req, res) => {
           'This page is only accessible to verified creators'));
       }
     } else if (page.access === 'members' && !userId) {
-      return res.status(403).json(createErrorResponse(403, 'Access denied', 
-        'This page is only accessible to authenticated members'));
+      return res.status(403).json(createExpressErrorResponse('This page is only accessible to authenticated members', 403));
     }
     
     // Return page data
-    return res.json(createSuccessResponse('Page retrieved successfully', {
+    return res.json(createExpressSuccessResponse('Page retrieved successfully', {
       title: page.title,
       description: page.description,
       keywords: page.keywords,
@@ -68,8 +67,7 @@ export const getPage = async (req, res) => {
     
   } catch (error) {
     logError('Error in pages handler:', error);
-    return res.status(500).json(createErrorResponse(500, 'Internal server error', 
-      'An error occurred while processing your request'));
+    return res.status(500).json(createExpressErrorResponse('An error occurred while processing your request', 500));
   }
 };
 

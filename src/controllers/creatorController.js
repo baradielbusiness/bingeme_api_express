@@ -17,7 +17,9 @@ import {
   checkFreeVideoCallAccess, 
   checkAudioCallAccess, 
   checkPaidChatAccess,
-  getFile
+  getFile,
+  createExpressSuccessResponse,
+  createExpressErrorResponse
 } from '../utils/common.js';
 
 /**
@@ -33,12 +35,12 @@ export const getCreatorSettings = async (req, res) => {
     // Fetch user and admin settings
     const user = await getUserById(userId);
     if (!user) {
-      return res.status(404).json({ error: 'User not found' });
+      return res.status(404).json(createExpressErrorResponse('User not found', 404));
     }
     
     // Core Enablement Check: User must be verified
     if (user.verified_id !== 'yes') {
-      return res.status(404).json({ error: 'User must be verified to access creator settings' });
+      return res.status(404).json(createExpressErrorResponse('User must be verified to access creator settings', 404));
     }
     
     const adminSettings = await getAdminSettings();
@@ -52,7 +54,7 @@ export const getCreatorSettings = async (req, res) => {
     // Core Enablement Check: At least one feature must be enabled
     const isCreatorSettingsEnable = isVcEnable || isAcEnable || isPaidChatEnable || isFreeVcEnable;
     if (!isCreatorSettingsEnable) {
-      return res.status(404).json({ error: 'Creator settings not available for this user' });
+      return res.status(404).json(createExpressErrorResponse('Creator settings not available for this user', 404));
     }
     
     // Fetch creator settings
@@ -82,24 +84,20 @@ export const getCreatorSettings = async (req, res) => {
       }
     };
 
-    return res.json({
-      success: true,
-      message: 'Creator settings retrieved successfully',
-      data: {
-        settings: settingsConfig,
-        admin_settings: {
-          video_call_min: adminSettings.video_call_min || 0,
-          video_call_max: adminSettings.video_call_max || 999999,
-          audio_call_min: adminSettings.audio_call_min || 0,
-          audio_call_max: adminSettings.audio_call_max || 999999,
-          paid_chat_min: adminSettings.paid_chat_min || 0,
-          paid_chat_max: adminSettings.paid_chat_max || 999999
-        }
+    return res.json(createExpressSuccessResponse('Creator settings retrieved successfully', {
+      settings: settingsConfig,
+      admin_settings: {
+        video_call_min: adminSettings.video_call_min || 0,
+        video_call_max: adminSettings.video_call_max || 999999,
+        audio_call_min: adminSettings.audio_call_min || 0,
+        audio_call_max: adminSettings.audio_call_max || 999999,
+        paid_chat_min: adminSettings.paid_chat_min || 0,
+        paid_chat_max: adminSettings.paid_chat_max || 999999
       }
-    });
+    }));
   } catch (error) {
     logError('Error fetching creator settings:', error);
-    return res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json(createExpressErrorResponse('Internal server error', 500));
   }
 };
 
@@ -118,12 +116,12 @@ export const updateCreatorSettings = async (req, res) => {
     // Fetch user and admin settings
     const user = await getUserById(userId);
     if (!user) {
-      return res.status(404).json({ error: 'User not found' });
+      return res.status(404).json(createExpressErrorResponse('User not found', 404));
     }
     
     // Core Enablement Check: User must be verified
     if (user.verified_id !== 'yes') {
-      return res.status(404).json({ error: 'User must be verified to access creator settings' });
+      return res.status(404).json(createExpressErrorResponse('User must be verified to access creator settings', 404));
     }
     
     const adminSettings = await getAdminSettings();
@@ -146,16 +144,13 @@ export const updateCreatorSettings = async (req, res) => {
     const result = await updateCreatorSettingsByUserId(userId, data, access);
     
     if (!result.success) {
-      return res.status(400).json({ error: result.message || 'Failed to update creator settings' });
+      return res.status(400).json(createExpressErrorResponse(result.message || 'Failed to update creator settings', 400));
     }
     
-    return res.json({
-      success: true,
-      message: 'Creator settings updated successfully'
-    });
+    return res.json(createExpressSuccessResponse('Creator settings updated successfully'));
   } catch (error) {
     logError('Error updating creator settings:', error);
-    return res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json(createExpressErrorResponse('Internal server error', 500));
   }
 };
 
@@ -176,22 +171,18 @@ export const getBlockedCountries = async (req, res) => {
     );
     
     if (rows.length === 0) {
-      return res.status(404).json({ error: 'User not found' });
+      return res.status(404).json(createExpressErrorResponse('User not found', 404));
     }
     
     const blockedCountries = rows[0].blocked_countries ? 
       rows[0].blocked_countries.split(',').map(country => country.trim()) : [];
     
-    return res.json({
-      success: true,
-      message: 'Blocked countries retrieved successfully',
-      data: {
-        blocked_countries: blockedCountries
-      }
-    });
+    return res.json(createExpressSuccessResponse('Blocked countries retrieved successfully', {
+      blocked_countries: blockedCountries
+    }));
   } catch (error) {
     logError('Error fetching blocked countries:', error);
-    return res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json(createExpressErrorResponse('Internal server error', 500));
   }
 };
 
@@ -208,7 +199,7 @@ export const updateBlockedCountries = async (req, res) => {
     
     // Validate blocked_countries is an array
     if (!Array.isArray(blocked_countries)) {
-      return res.status(400).json({ error: 'blocked_countries must be an array' });
+      return res.status(400).json(createExpressErrorResponse('blocked_countries must be an array', 400));
     }
     
     // Update blocked countries
@@ -218,13 +209,10 @@ export const updateBlockedCountries = async (req, res) => {
       [blockedCountriesString, userId]
     );
     
-    return res.json({
-      success: true,
-      message: 'Blocked countries updated successfully'
-    });
+    return res.json(createExpressSuccessResponse('Blocked countries updated successfully'));
   } catch (error) {
     logError('Error updating blocked countries:', error);
-    return res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json(createExpressErrorResponse('Internal server error', 500));
   }
 };
 
@@ -257,7 +245,7 @@ export const getSubscriptionSettings = async (req, res) => {
     );
     
     if (userRows.length === 0) {
-      return res.status(404).json({ error: 'User not found' });
+      return res.status(404).json(createExpressErrorResponse('User not found', 404));
     }
     
     // Organize plans by interval
@@ -272,18 +260,14 @@ export const getSubscriptionSettings = async (req, res) => {
       };
     });
     
-    return res.json({
-      success: true,
-      message: 'Subscription settings retrieved successfully',
-      data: {
-        subscription_price: plansByInterval.monthly?.price || 0,
-        subscription_status: freeSubRows.length > 0 ? 'yes' : 'no',
-        plans: plansByInterval
-      }
-    });
+    return res.json(createExpressSuccessResponse('Subscription settings retrieved successfully', {
+      subscription_price: plansByInterval.monthly?.price || 0,
+      subscription_status: freeSubRows.length > 0 ? 'yes' : 'no',
+      plans: plansByInterval
+    }));
   } catch (error) {
     logError('Error fetching subscription settings:', error);
-    return res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json(createExpressErrorResponse('Internal server error', 500));
   }
 };
 
@@ -300,12 +284,12 @@ export const updateSubscriptionSettings = async (req, res) => {
     
     // Validate subscription_price is a number
     if (subscription_price !== undefined && (isNaN(subscription_price) || subscription_price < 0)) {
-      return res.status(400).json({ error: 'Invalid subscription price' });
+      return res.status(400).json(createExpressErrorResponse('Invalid subscription price', 400));
     }
     
     // Validate subscription_status
     if (subscription_status && !['yes', 'no'].includes(subscription_status)) {
-      return res.status(400).json({ error: 'Invalid subscription status' });
+      return res.status(400).json(createExpressErrorResponse('Invalid subscription status', 400));
     }
     
     // Update free subscription status in subscriptions table
@@ -350,18 +334,14 @@ export const updateSubscriptionSettings = async (req, res) => {
       }
     }
     
-    return res.json({
-      success: true,
-      message: 'Subscription settings updated successfully',
-      data: { 
-        updated: true,
-        price: subscription_price,
-        free_subscription: subscription_status
-      }
-    });
+    return res.json(createExpressSuccessResponse('Subscription settings updated successfully', { 
+      updated: true,
+      price: subscription_price,
+      free_subscription: subscription_status
+    }));
   } catch (error) {
     logError('Error updating subscription settings:', error);
-    return res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json(createExpressErrorResponse('Internal server error', 500));
   }
 };
 
@@ -382,21 +362,17 @@ export const getCreatorAgreement = async (req, res) => {
     );
     
     if (rows.length === 0) {
-      return res.status(404).json({ error: 'User not found' });
+      return res.status(404).json(createExpressErrorResponse('User not found', 404));
     }
     
     const user = rows[0];
     
-    return res.json({
-      success: true,
-      message: 'Creator agreement status retrieved successfully',
-      data: {
-        creator_agreement: user.creator_agreement || 'no'
-      }
-    });
+    return res.json(createExpressSuccessResponse('Creator agreement status retrieved successfully', {
+      creator_agreement: user.creator_agreement || 'no'
+    }));
   } catch (error) {
     logError('Error fetching creator agreement:', error);
-    return res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json(createExpressErrorResponse('Internal server error', 500));
   }
 };
 
@@ -412,7 +388,7 @@ export const postCreatorAgreement = async (req, res) => {
     const pool = getDB();
     
     if (agreement_accepted !== true) {
-      return res.status(400).json({ error: 'Agreement must be accepted' });
+      return res.status(400).json(createExpressErrorResponse('Agreement must be accepted', 400));
     }
     
     // Update creator agreement status
@@ -421,13 +397,10 @@ export const postCreatorAgreement = async (req, res) => {
       ['yes', userId]
     );
     
-    return res.json({
-      success: true,
-      message: 'Creator agreement accepted successfully'
-    });
+    return res.json(createExpressSuccessResponse('Creator agreement accepted successfully'));
   } catch (error) {
     logError('Error updating creator agreement:', error);
-    return res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json(createExpressErrorResponse('Internal server error', 500));
   }
 };
 
@@ -444,17 +417,13 @@ export const getUploadUrl = async (req, res) => {
     // TODO: Implement S3 presigned URL generation
     // This is a placeholder implementation
     
-    return res.json({
-      success: true,
-      message: 'Upload URL generated successfully',
-      data: {
-        upload_url: `https://example.com/upload/${userId}/${file_type}`,
-        expires_in: 3600
-      }
-    });
+    return res.json(createExpressSuccessResponse('Upload URL generated successfully', {
+      upload_url: `https://example.com/upload/${userId}/${file_type}`,
+      expires_in: 3600
+    }));
   } catch (error) {
     logError('Error generating upload URL:', error);
-    return res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json(createExpressErrorResponse('Internal server error', 500));
   }
 };
 
@@ -470,16 +439,12 @@ export const downloadCreatorAgreementPdf = async (req, res) => {
     // TODO: Implement PDF generation and download
     // This is a placeholder implementation
     
-    return res.json({
-      success: true,
-      message: 'PDF download initiated',
-      data: {
-        download_url: `https://example.com/agreement-pdf/${userId}`
-      }
-    });
+    return res.json(createExpressSuccessResponse('PDF download initiated', {
+      download_url: `https://example.com/agreement-pdf/${userId}`
+    }));
   } catch (error) {
     logError('Error downloading creator agreement PDF:', error);
-    return res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json(createExpressErrorResponse('Internal server error', 500));
   }
 };
 
@@ -506,20 +471,16 @@ export const getDashboard = async (req, res) => {
       WHERE users.id = ?
     `, [userId]);
     
-    return res.json({
-      success: true,
-      message: 'Dashboard data retrieved successfully',
-      data: {
-        stats: stats[0] || {
-          total_followers: 0,
-          total_posts: 0,
-          total_earnings: 0
-        }
+    return res.json(createExpressSuccessResponse('Dashboard data retrieved successfully', {
+      stats: stats[0] || {
+        total_followers: 0,
+        total_posts: 0,
+        total_earnings: 0
       }
-    });
+    }));
   } catch (error) {
     logError('Error fetching dashboard data:', error);
-    return res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json(createExpressErrorResponse('Internal server error', 500));
   }
 };
 
@@ -557,22 +518,18 @@ export const getPaymentsReceived = async (req, res) => {
     
     const total = countResult[0].total;
     
-    return res.json({
-      success: true,
-      message: 'Payments received retrieved successfully',
-      data: {
-        payments,
-        pagination: {
-          page: parseInt(page),
-          limit: parseInt(limit),
-          total,
-          pages: Math.ceil(total / limit)
-        }
+    return res.json(createExpressSuccessResponse('Payments received retrieved successfully', {
+      payments,
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total,
+        pages: Math.ceil(total / limit)
       }
-    });
+    }));
   } catch (error) {
     logError('Error fetching payments received:', error);
-    return res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json(createExpressErrorResponse('Internal server error', 500));
   }
 };
 
@@ -606,21 +563,17 @@ export const getWithdrawals = async (req, res) => {
     
     const total = countResult[0].total;
     
-    return res.json({
-      success: true,
-      message: 'Withdrawals retrieved successfully',
-      data: {
-        withdrawals,
-        pagination: {
-          page: parseInt(page),
-          limit: parseInt(limit),
-          total,
-          pages: Math.ceil(total / limit)
-        }
+    return res.json(createExpressSuccessResponse('Withdrawals retrieved successfully', {
+      withdrawals,
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total,
+        pages: Math.ceil(total / limit)
       }
-    });
+    }));
   } catch (error) {
     logError('Error fetching withdrawals:', error);
-    return res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json(createExpressErrorResponse('Internal server error', 500));
   }
 };

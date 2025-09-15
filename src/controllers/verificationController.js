@@ -1,4 +1,4 @@
-import { createSuccessResponse, createErrorResponse, logInfo, logError, getAllCountries, getStates, getGenderOptions, getFile, getUserById, getVerificationRequestInfo, getVerificationCategories, createVerificationRequest, getVerificationConversationsList, storeVerificationConversationData } from '../utils/common.js';
+import { createSuccessResponse, createErrorResponse, logInfo, logError, getAllCountries, getStates, getGenderOptions, getFile, getUserById, getVerificationRequestInfo, getVerificationCategories, createVerificationRequest, getVerificationConversationsList, storeVerificationConversationData, createExpressSuccessResponse, createExpressErrorResponse } from '../utils/common.js';
 import { processUploadRequest } from '../utils/uploadUtils.js';
 
 /**
@@ -34,7 +34,7 @@ export const getVerificationAccount = async (req, res) => {
     // Get user data
     const user = await getUserById(userId);
     if (!user) {
-      return res.status(404).json(createErrorResponse(404, 'User not found'));
+      return res.status(404).json(createExpressErrorResponse('User not found', 404));
     }
 
     // Get verification request info
@@ -64,7 +64,7 @@ export const getVerificationAccount = async (req, res) => {
     };
 
     logInfo('Verification account data retrieved successfully', { userId });
-    return res.json(createSuccessResponse('Verification account data retrieved successfully', {
+    return res.json(createExpressSuccessResponse('Verification account data retrieved successfully', {
       user: userData,
       categories,
       countries,
@@ -73,7 +73,7 @@ export const getVerificationAccount = async (req, res) => {
     }));
   } catch (error) {
     logError('Error fetching verification account data:', error);
-    return res.status(500).json(createErrorResponse(500, 'Failed to fetch verification account data'));
+    return res.status(500).json(createExpressErrorResponse('Failed to fetch verification account data', 500));
   }
 };
 
@@ -88,22 +88,22 @@ export const verifyAccountSend = async (req, res) => {
     // Validate required fields
     const { category, documents, personal_info } = verificationData;
     if (!category || !documents || !personal_info) {
-      return res.status(400).json(createErrorResponse(400, 'Category, documents, and personal info are required'));
+      return res.status(400).json(createExpressErrorResponse('Category, documents, and personal info are required', 400));
     }
 
     // Create verification request
     const result = await createVerificationRequest(userId, verificationData);
     if (!result.success) {
-      return res.status(400).json(createErrorResponse(400, result.message));
+      return res.status(400).json(createExpressErrorResponse(result.message, 400));
     }
 
     logInfo('Verification request submitted successfully', { userId, category });
-    return res.json(createSuccessResponse('Verification request submitted successfully', {
+    return res.json(createExpressSuccessResponse('Verification request submitted successfully', {
       request_id: result.requestId
     }));
   } catch (error) {
     logError('Error submitting verification request:', error);
-    return res.status(500).json(createErrorResponse(500, 'Failed to submit verification request'));
+    return res.status(500).json(createExpressErrorResponse('Failed to submit verification request', 500));
   }
 };
 
@@ -120,12 +120,12 @@ export const getVerificationConversations = async (req, res) => {
     const conversations = await getVerificationConversationsList(userId, { skip, limit });
     
     logInfo('Verification conversations retrieved successfully', { userId, count: conversations.length });
-    return res.json(createSuccessResponse('Verification conversations retrieved successfully', {
+    return res.json(createExpressSuccessResponse('Verification conversations retrieved successfully', {
       conversations
     }));
   } catch (error) {
     logError('Error fetching verification conversations:', error);
-    return res.status(500).json(createErrorResponse(500, 'Failed to fetch verification conversations'));
+    return res.status(500).json(createExpressErrorResponse('Failed to fetch verification conversations', 500));
   }
 };
 
@@ -140,21 +140,21 @@ export const storeVerificationConversation = async (req, res) => {
     // Validate required fields
     const { message, attachments } = conversationData;
     if (!message) {
-      return res.status(400).json(createErrorResponse(400, 'Message is required'));
+      return res.status(400).json(createExpressErrorResponse('Message is required', 400));
     }
 
     // Store conversation
     const result = await storeVerificationConversationData(userId, conversationData);
     if (!result.success) {
-      return res.status(400).json(createErrorResponse(400, result.message));
+      return res.status(400).json(createExpressErrorResponse(result.message, 400));
     }
 
     logInfo('Verification conversation stored successfully', { userId });
-    return res.json(createSuccessResponse('Verification conversation stored successfully', {
+    return res.json(createExpressSuccessResponse('Verification conversation stored successfully', {
       conversation_id: result.conversationId
     }));
   } catch (error) {
     logError('Error storing verification conversation:', error);
-    return res.status(500).json(createErrorResponse(500, 'Failed to store verification conversation'));
+    return res.status(500).json(createExpressErrorResponse('Failed to store verification conversation', 500));
   }
 };

@@ -1,4 +1,4 @@
-import { createSuccessResponse, createErrorResponse, logInfo, logError, getUserCountry, getUserById, processCurrencySettings, getFile } from '../utils/common.js';
+import { createSuccessResponse, createErrorResponse, logInfo, logError, getUserCountry, getUserById, processCurrencySettings, getFile, createExpressSuccessResponse, createExpressErrorResponse } from '../utils/common.js';
 import { validateProductInput, validateProductId } from '../validate/products.js';
 import { getUserProducts, getProductByIdForUser, softDeleteProduct, insertProductMedia, mapProductType, formatProductsForResponse, formatProductForEdit, processFileUploadData, handleMediaProcessing, cleanupMediaFiles, getAvailableProductTags, getProductAdminSettings, processProductAdminSettings } from '../utils/product.js';
 import { processUploadRequest } from '../utils/uploadUtils.js';
@@ -37,7 +37,7 @@ export const getProductCreateData = async (req, res) => {
       duration: `${duration}ms`
     });
 
-    return res.json(createSuccessResponse(
+    return res.json(createExpressSuccessResponse(
       'Product creation data retrieved successfully',
       { tags, pricing, limits, currency }
     ));
@@ -47,8 +47,8 @@ export const getProductCreateData = async (req, res) => {
     logError('Product create data handler error:', { error: error.message, duration: `${duration}ms` });
     
     return res.status(500).json(error.message.includes('Failed to fetch')
-      ? createErrorResponse(500, 'Internal server error. Unable to fetch required product data.')
-      : createErrorResponse(500, 'Internal server error. Please try again later.'));
+      ? createExpressErrorResponse('Internal server error. Unable to fetch required product data.', 500)
+      : createExpressErrorResponse('Internal server error. Please try again later.', 500));
   }
 };
 
@@ -70,7 +70,7 @@ export const getProducts = async (req, res) => {
     
     logInfo('Products retrieved:', { userId, count: formattedProducts.length, total: totalCount });
 
-    return res.json(createSuccessResponse('Products retrieved successfully', {
+    return res.json(createExpressSuccessResponse('Products retrieved successfully', {
       product: formattedProducts,
       pagination: { 
         next: skip + limit < totalCount ? `/products?skip=${skip + limit}&limit=${limit}` : '' 
@@ -78,7 +78,7 @@ export const getProducts = async (req, res) => {
     }));
   } catch (error) {
     logError('Error in getProducts:', error);
-    return res.status(error.statusCode || 500).json(createErrorResponse(error.statusCode || 500, error.message || 'Internal Server Error'));
+    return res.status(error.statusCode || 500).json(createExpressErrorResponse(error.message || 'Internal Server Error', error.statusCode || 500));
   }
 };
 
@@ -93,7 +93,7 @@ export const createProduct = async (req, res) => {
 
     const validationErrors = validateProductInput(body, { isUpdate: false });
     if (validationErrors.length > 0) {
-      return res.status(400).json(createErrorResponse(400, 'Validation failed', { errors: validationErrors }));
+      return res.status(400).json(createExpressErrorResponse('Validation failed', 400));
     }
 
     // Extract and prepare product data
@@ -107,7 +107,7 @@ export const createProduct = async (req, res) => {
     const { AWS_BUCKET_NAME: bucketName } = process.env;
     if (!bucketName) {
       logError('S3 bucket configuration missing from environment');
-      return res.status(500).json(createErrorResponse(500, 'Media storage not configured'));
+      return res.status(500).json(createExpressErrorResponse('Media storage not configured', 500));
     }
 
     // Process media files
@@ -128,7 +128,7 @@ export const createProduct = async (req, res) => {
         cleanupMediaFiles(processedPreviews.original, processedPreviews.converted, bucketName, 'product')
       ]);
       
-      return res.status(500).json(createErrorResponse(500, 'Media processing failed', error.message));
+      return res.status(500).json(createExpressErrorResponse('Media processing failed', 500));
     }
 
     // Create product in database
@@ -153,7 +153,7 @@ export const createProduct = async (req, res) => {
         cleanupMediaFiles(processedPreviews.original, processedPreviews.converted, bucketName, 'product')
       ]);
       
-      return res.status(500).json(createErrorResponse(500, 'Failed to save product to database', error.message));
+      return res.status(500).json(createExpressErrorResponse('Failed to save product to database', 500));
     }
 
     // Insert media files into database
@@ -170,7 +170,7 @@ export const createProduct = async (req, res) => {
         cleanupMediaFiles(processedPreviews.original, processedPreviews.converted, bucketName, 'product')
       ]);
       
-      return res.status(500).json(createErrorResponse(500, 'Failed to save product media to database', error.message));
+      return res.status(500).json(createExpressErrorResponse('Failed to save product media to database', 500));
     }
 
     // Log successful creation with metrics
@@ -183,10 +183,10 @@ export const createProduct = async (req, res) => {
       price
     });
 
-    return res.json(createSuccessResponse('Product saved successfully', { product: body }));
+    return res.json(createExpressSuccessResponse('Product saved successfully', { product: body }));
   } catch (error) {
     logError('Error in createProduct:', error);
-    return res.status(500).json(createErrorResponse(500, error.message || 'Internal Server Error'));
+    return res.status(500).json(createExpressErrorResponse(error.message || 'Internal Server Error', 500));
   }
 };
 
@@ -200,18 +200,18 @@ export const getProductById = async (req, res) => {
 
     // Validate product ID
     const { isValid, error } = validateProductId(productId);
-    if (!isValid) return res.status(400).json(createErrorResponse(400, error));
+    if (!isValid) return res.status(400).json(createExpressErrorResponse(error, 400));
 
     // Fetch product from database
     const product = await getProductByIdForUser(userId, productId);
-    if (!product) return res.status(404).json(createErrorResponse(404, 'Product not found'));
+    if (!product) return res.status(404).json(createExpressErrorResponse('Product not found', 404));
 
-    return res.json(createSuccessResponse('Product retrieved successfully', { 
+    return res.json(createExpressSuccessResponse('Product retrieved successfully', { 
       product: [formatProductForEdit(product)]
     }));
   } catch (error) {
     logError('Error in getProductById:', error);
-    return res.status(500).json(createErrorResponse(500, error.message || 'Internal Server Error'));
+    return res.status(500).json(createExpressErrorResponse(error.message || 'Internal Server Error', 500));
   }
 };
 
@@ -226,26 +226,26 @@ export const updateProduct = async (req, res) => {
 
     // Validate product ID
     const { isValid, error } = validateProductId(productId);
-    if (!isValid) return res.status(400).json(createErrorResponse(400, error));
+    if (!isValid) return res.status(400).json(createExpressErrorResponse(error, 400));
 
     const validationErrors = validateProductInput(body, { isUpdate: true });
     if (validationErrors.length > 0) {
-      return res.status(400).json(createErrorResponse(400, 'Validation failed', { errors: validationErrors }));
+      return res.status(400).json(createExpressErrorResponse('Validation failed', 400));
     }
 
     // Check if product exists and user owns it
     const existingProduct = await getProductByIdForUser(userId, productId);
-    if (!existingProduct) return res.status(404).json(createErrorResponse(404, 'Product not found'));
+    if (!existingProduct) return res.status(404).json(createExpressErrorResponse('Product not found', 404));
 
     // Update product in database
     const { name, price, tags, description, delivery_time = 0 } = body;
     const updateSuccess = await updateProduct({ id: productId, userId, name, price, tags, description, delivery_time });
-    if (!updateSuccess) return res.status(404).json(createErrorResponse(404, 'Product not found or not updated'));
+    if (!updateSuccess) return res.status(404).json(createExpressErrorResponse('Product not found or not updated', 404));
     
     // Fetch and process updated product
     const updatedProduct = await getProductByIdForUser(userId, productId);
     
-    return res.json(createSuccessResponse('Product updated successfully', { 
+    return res.json(createExpressSuccessResponse('Product updated successfully', { 
       product: [{
         ...updatedProduct,
         file: getFile(updatedProduct.file?.replace(/^uploads\//, '') || '')
@@ -254,7 +254,7 @@ export const updateProduct = async (req, res) => {
 
   } catch (error) {
     logError('Error in updateProduct:', error);
-    return res.status(500).json(createErrorResponse(500, error.message || 'Internal Server Error'));
+    return res.status(500).json(createExpressErrorResponse(error.message || 'Internal Server Error', 500));
   }
 };
 
@@ -268,20 +268,20 @@ export const deleteProduct = async (req, res) => {
 
     // Validate product ID
     const { isValid, error } = validateProductId(productId);
-    if (!isValid) return res.status(400).json(createErrorResponse(400, error));
+    if (!isValid) return res.status(400).json(createExpressErrorResponse(error, 400));
 
     // Check if product exists and user owns it
     const product = await getProductByIdForUser(userId, productId);
-    if (!product) return res.status(404).json(createErrorResponse(404, 'Product not found'));
+    if (!product) return res.status(404).json(createExpressErrorResponse('Product not found', 404));
 
     // Perform soft delete
     const deleteSuccess = await softDeleteProduct(userId, productId);
-    if (!deleteSuccess) return res.status(404).json(createErrorResponse(404, 'Product not found or not deleted'));
+    if (!deleteSuccess) return res.status(404).json(createExpressErrorResponse('Product not found or not deleted', 404));
 
-    return res.json(createSuccessResponse('Product deleted successfully', {}));
+    return res.json(createExpressSuccessResponse('Product deleted successfully', {}));
   } catch (error) {
     logError('Error in deleteProduct:', error);
-    return res.status(500).json(createErrorResponse(500, error.message || 'Internal Server Error'));
+    return res.status(500).json(createExpressErrorResponse(error.message || 'Internal Server Error', 500));
   }
 };
 
@@ -307,6 +307,6 @@ export const getProductUploadUrl = async (req, res) => {
     return res.json(result);
   } catch (error) {
     logError('Error in getProductUploadUrl:', error);
-    return res.status(500).json(createErrorResponse(500, 'Failed to generate upload URLs'));
+    return res.status(500).json(createExpressErrorResponse('Failed to generate upload URLs', 500));
   }
 };
