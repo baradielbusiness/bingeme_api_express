@@ -9,7 +9,9 @@ import {
   logError, 
   createErrorResponse, 
   createSuccessResponse, 
-  getAuthenticatedUserId 
+  getAuthenticatedUserId,
+  createExpressSuccessResponse,
+  createExpressErrorResponse 
 } from '../utils/common.js';
 import { fetchUserPayoutDetails, updateUserPayoutMethod, sanitizePayoutData, deleteUserPayoutMethod } from '../utils/payout.js';
 import { validateBankDetails, validateUpiData, validatePayPalData, validateBankIndiaData } from '../validate/payout.js';
@@ -27,7 +29,7 @@ const parseRequestBody = (req) => {
   } catch (parseError) {
     return { 
       body: null, 
-      error: createErrorResponse(400, 'Invalid JSON in request body') 
+      error: createExpressErrorResponse('Invalid JSON in request body', 400) 
     };
   }
 };
@@ -45,17 +47,17 @@ export const getPayoutMethod = async (req, res) => {
     // Fetch user payout details from database
     const user = await fetchUserPayoutDetails(userId);
     if (!user) {
-      return res.status(404).json(createErrorResponse(404, 'User not found'));
+      return res.status(404).json(createExpressErrorResponse('User not found', 404));
     }
 
     // Sanitize sensitive information before responding
     const sanitizedData = await sanitizePayoutData(user);
 
-    return res.json(createSuccessResponse('Payout method details retrieved successfully', sanitizedData));
+    return res.json(createExpressSuccessResponse('Payout method details retrieved successfully', sanitizedData));
 
   } catch (error) {
     logError('[getPayoutMethod] Error:', error);
-    return res.status(500).json(createErrorResponse(500, 'Internal server error', error.message));
+    return res.status(500).json(createExpressErrorResponse('Internal server error', 500));
   }
 };
 
@@ -95,13 +97,13 @@ export const createPayoutMethod = async (req, res) => {
 
     // Validate payout type is provided and valid
     if (!type) {
-      return res.status(400).json(createErrorResponse(400, 'Payout type is required'));
+      return res.status(400).json(createExpressErrorResponse('Payout type is required', 400));
     }
 
     // Validate type is one of the supported payout methods
     const validTypes = ['paypal', 'bank', 'bank_india', 'upi'];
     if (!validTypes.includes(type)) {
-      return res.status(400).json(createErrorResponse(400, 'Invalid payout type. Must be one of: paypal, bank, bank_india, upi'));
+      return res.status(400).json(createExpressErrorResponse('Invalid payout type. Must be one of: paypal, bank, bank_india, upi', 400));
     }
 
     // Handle different payout types with type-specific validation and processing
@@ -112,19 +114,19 @@ export const createPayoutMethod = async (req, res) => {
         
         // Validate PayPal email fields
         if (!email) {
-          return res.status(400).json(createErrorResponse(400, 'PayPal email is required'));
+          return res.status(400).json(createExpressErrorResponse('PayPal email is required', 400));
         }
         
         // Validate email format using existing validation function
         const validation = validatePayPalData({ paypal_email: email });
         if (!validation.valid) {
-          return res.status(400).json(createErrorResponse(400, validation.error));
+          return res.status(400).json(createExpressErrorResponse(validation.error, 400));
         }
 
         // Update user with PayPal configuration
         await updateUserPayoutMethod(userId, 'PayPal', '', validation.data.paypalEmail);
 
-        return res.json(createSuccessResponse('Changes saved successfully', {
+        return res.json(createExpressSuccessResponse('Changes saved successfully', {
           paypal: {
             email: validation.data.paypalEmail
           }
@@ -137,11 +139,11 @@ export const createPayoutMethod = async (req, res) => {
         
         // Validate bank details using the validation function
         if (!details) {
-          return res.status(400).json(createErrorResponse(400, 'Bank details are required'));
+          return res.status(400).json(createExpressErrorResponse('Bank details are required', 400));
         }
         
         if (!validateBankDetails(details)) {
-          return res.status(400).json(createErrorResponse(400, `Bank details must be at least 20 characters long`));
+          return res.status(400).json(createExpressErrorResponse(`Bank details must be at least 20 characters long`, 400));
         }
 
         // Sanitize bank details to remove HTML tags
@@ -150,7 +152,7 @@ export const createPayoutMethod = async (req, res) => {
         // Update user with bank configuration
         await updateUserPayoutMethod(userId, 'Bank', sanitizedBankDetails);
 
-        return res.json(createSuccessResponse('Changes saved successfully', {
+        return res.json(createExpressSuccessResponse('Changes saved successfully', {
           bank: {
             bank_details: sanitizedBankDetails
           }
@@ -160,7 +162,7 @@ export const createPayoutMethod = async (req, res) => {
       case 'bank_india': {
         const { bank } = requestBody;
         if (!bank) {
-          return res.status(400).json(createErrorResponse(400, 'Bank details are required'));
+          return res.status(400).json(createExpressErrorResponse('Bank details are required', 400));
         }
         
         // Map field names to match validation expectations
@@ -171,23 +173,23 @@ export const createPayoutMethod = async (req, res) => {
         
         // Validate all required Indian bank fields
         if (!account_number) {
-          return res.status(400).json(createErrorResponse(400, 'Account number is required'));
+          return res.status(400).json(createExpressErrorResponse('Account number is required', 400));
         }
         if (!holder_name) {
-          return res.status(400).json(createErrorResponse(400, 'Account holder name is required'));
+          return res.status(400).json(createExpressErrorResponse('Account holder name is required', 400));
         }
         if (!bank_name) {
-          return res.status(400).json(createErrorResponse(400, 'Bank name is required'));
+          return res.status(400).json(createExpressErrorResponse('Bank name is required', 400));
         }
         if (!ifsc_code) {
-          return res.status(400).json(createErrorResponse(400, 'IFSC code is required'));
+          return res.status(400).json(createExpressErrorResponse('IFSC code is required', 400));
         }
         
         // Validate using existing validation function
         const validation = validateBankIndiaData({ account_number, holder_name, bank_name, ifsc_code });
         
         if (!validation.valid) {
-          return res.status(400).json(createErrorResponse(400, validation.error));
+          return res.status(400).json(createExpressErrorResponse(validation.error, 400));
         }
 
         // Serialize bank data as PHP serialized format for Laravel compatibility
@@ -202,7 +204,7 @@ export const createPayoutMethod = async (req, res) => {
         // Update user with Indian bank configuration
         await updateUserPayoutMethod(userId, 'Bank_india', bankData);
 
-        return res.json(createSuccessResponse('Changes saved successfully', {
+        return res.json(createExpressSuccessResponse('Changes saved successfully', {
           bank_india: {
             acc_no: validation.data.accountNumber,
             name: validation.data.holderName,
@@ -218,30 +220,30 @@ export const createPayoutMethod = async (req, res) => {
         
         // Validate UPI ID presence
         if (!upiId) {
-          return res.status(400).json(createErrorResponse(400, 'UPI ID is required'));
+          return res.status(400).json(createExpressErrorResponse('UPI ID is required', 400));
         }
         
         // Validate UPI format using existing validation function
         const validation = validateUpiData({ upi_id: upiId });
         if (!validation.valid) {
-          return res.status(400).json(createErrorResponse(400, validation.error));
+          return res.status(400).json(createExpressErrorResponse(validation.error, 400));
         }
 
         // Update user with UPI configuration
         await updateUserPayoutMethod(userId, 'upi', validation.data.upiId);
 
-        return res.json(createSuccessResponse('Changes saved successfully', {
+        return res.json(createExpressSuccessResponse('Changes saved successfully', {
           upi: validation.data.upiId
         }));
       }
 
       default:
-        return res.status(400).json(createErrorResponse(400, 'Unsupported payout type'));
+        return res.status(400).json(createExpressErrorResponse('Unsupported payout type', 400));
     }
 
   } catch (error) {
     logError('[createPayoutMethod] Error:', error);
-    return res.status(500).json(createErrorResponse(500, 'Internal server error', error.message));
+    return res.status(500).json(createExpressErrorResponse('Internal server error', 500));
   }
 };
 
@@ -262,20 +264,20 @@ export const deletePayoutMethod = async (req, res) => {
     // Verify user exists before attempting deletion
     const user = await fetchUserPayoutDetails(userId);
     if (!user) {
-      return res.status(404).json(createErrorResponse(404, 'User not found'));
+      return res.status(404).json(createExpressErrorResponse('User not found', 404));
     }
 
     // Delete payout method by clearing all payment-related fields
     const result = await deleteUserPayoutMethod(userId);
     
     if (result.affectedRows === 0) {
-      return res.status(404).json(createErrorResponse(404, 'User not found or no payout method to delete'));
+      return res.status(404).json(createExpressErrorResponse('User not found or no payout method to delete', 404));
     }
 
-    return res.json(createSuccessResponse('Payout method deleted successfully'));
+    return res.json(createExpressSuccessResponse('Payout method deleted successfully'));
 
   } catch (error) {
     logError('[deletePayoutMethod] Error:', error);
-    return res.status(500).json(createErrorResponse(500, 'Internal server error', error.message));
+    return res.status(500).json(createExpressErrorResponse('Internal server error', 500));
   }
 };

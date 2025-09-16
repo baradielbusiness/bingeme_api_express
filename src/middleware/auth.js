@@ -1,5 +1,5 @@
 import jwt from 'jsonwebtoken';
-import { logError } from '../utils/common.js';
+import { logError, createExpressErrorResponse, isEncryptedId, decryptId } from '../utils/common.js';
 
 /**
  * JWT Authentication middleware
@@ -11,10 +11,7 @@ export const authMiddleware = (req, res, next) => {
     
     // Check if authorization header exists and starts with 'Bearer '
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.status(401).json({ 
-        error: 'Access token required',
-        message: 'Please provide a valid authorization token'
-      });
+      return res.status(401).json(createExpressErrorResponse('Access token required', 401));
     }
     
     // Extract token from header
@@ -22,30 +19,31 @@ export const authMiddleware = (req, res, next) => {
     
     // Verify JWT token
     const decoded = jwt.verify(token, process.env.JWT_ACCESS_SECRET);
-    
+
+    // Decode 24-char encoded id if present, else use numeric id
+    let userId = decoded.id ?? decoded.userId;
+    if (typeof userId === 'string' && isEncryptedId(userId)) {
+      try {
+        userId = decryptId(userId);
+      } catch (e) {
+        return res.status(401).json(createExpressErrorResponse('Invalid token format', 401));
+      }
+    }
+
     // Add user information to request object
     req.user = decoded;
-    req.userId = decoded.userId;
+    req.userId = userId;
     
     next();
   } catch (error) {
     logError('Authentication error:', error);
     
     if (error.name === 'TokenExpiredError') {
-      return res.status(401).json({ 
-        error: 'Token expired',
-        message: 'Please refresh your token'
-      });
+      return res.status(401).json(createExpressErrorResponse('Token expired', 401));
     } else if (error.name === 'JsonWebTokenError') {
-      return res.status(401).json({ 
-        error: 'Invalid token',
-        message: 'Please provide a valid token'
-      });
+      return res.status(401).json(createExpressErrorResponse('Invalid access token', 401));
     } else {
-      return res.status(401).json({ 
-        error: 'Authentication failed',
-        message: 'Unable to authenticate request'
-      });
+      return res.status(401).json(createExpressErrorResponse('Authentication failed', 401));
     }
   }
 };
@@ -61,8 +59,12 @@ export const optionalAuthMiddleware = (req, res, next) => {
     if (authHeader && authHeader.startsWith('Bearer ')) {
       const token = authHeader.substring(7);
       const decoded = jwt.verify(token, process.env.JWT_ACCESS_SECRET);
+      let userId = decoded.id ?? decoded.userId;
+      if (typeof userId === 'string' && isEncryptedId(userId)) {
+        try { userId = decryptId(userId); } catch (e) { userId = null; }
+      }
       req.user = decoded;
-      req.userId = decoded.userId;
+      req.userId = userId ?? null;
     }
     
     next();

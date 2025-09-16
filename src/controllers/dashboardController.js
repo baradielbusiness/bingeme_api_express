@@ -9,7 +9,9 @@ import {
   logInfo, 
   logError, 
   getAuthenticatedUserId, 
-  getUserById 
+  getUserById,
+  createExpressSuccessResponse,
+  createExpressErrorResponse
 } from '../utils/common.js';
 
 /**
@@ -27,7 +29,7 @@ export const getDashboard = async (req, res) => {
     // Get user info
     const user = await getUserById(userId);
     if (!user) {
-      return res.status(404).json({ error: 'User not found' });
+      return res.status(404).json(createExpressErrorResponse('User not found', 404));
     }
     
     const pool = getDB();
@@ -91,14 +93,10 @@ export const getDashboard = async (req, res) => {
       period: period
     };
     
-    return res.json({
-      success: true,
-      message: 'Dashboard data retrieved successfully',
-      data: dashboardData
-    });
+    return res.json(createExpressSuccessResponse('Dashboard data retrieved successfully', dashboardData));
   } catch (error) {
     logError('Error fetching dashboard data:', error);
-    return res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json(createExpressErrorResponse('Internal server error', 500));
   }
 };
 
@@ -169,24 +167,20 @@ export const getPostsReport = async (req, res) => {
       ) as post_stats
     `, params);
     
-    return res.json({
-      success: true,
-      message: 'Posts report retrieved successfully',
-      data: {
-        posts: postsData,
-        summary: summary[0] || {
-          total_posts: 0,
-          published_posts: 0,
-          draft_posts: 0,
-          avg_likes: 0,
-          avg_comments: 0,
-          avg_views: 0
-        }
+    return res.json(createExpressSuccessResponse('Posts report retrieved successfully', {
+      posts: postsData,
+      summary: summary[0] || {
+        total_posts: 0,
+        published_posts: 0,
+        draft_posts: 0,
+        avg_likes: 0,
+        avg_comments: 0,
+        avg_views: 0
       }
-    });
+    }));
   } catch (error) {
     logError('Error fetching posts report:', error);
-    return res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json(createExpressErrorResponse('Internal server error', 500));
   }
 };
 
@@ -247,17 +241,13 @@ export const getIncomeChart = async (req, res) => {
       GROUP BY payment_type
     `, [userId]);
     
-    return res.json({
-      success: true,
-      message: 'Income chart data retrieved successfully',
-      data: {
-        income_data: incomeData,
-        income_by_source: incomeBySource,
-        period: period
-      }
-    });
+    return res.json(createExpressSuccessResponse('Income chart data retrieved successfully', {
+      income_data: incomeData,
+      income_by_source: incomeBySource,
+      period: period
+    }));
   } catch (error) {
     logError('Error fetching income chart data:', error);
-    return res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json(createExpressErrorResponse('Internal server error', 500));
   }
 };

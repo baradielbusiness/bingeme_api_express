@@ -8,7 +8,9 @@ import { getDB } from '../config/database.js';
 import { 
   logInfo, 
   logError, 
-  getAdminSettings 
+  getAdminSettings,
+  createExpressSuccessResponse,
+  createExpressErrorResponse
 } from '../utils/common.js';
 import { RtcTokenBuilder, Role } from '../agora/RtcTokenBuilder2.js';
 
@@ -28,11 +30,11 @@ export const getAgoraDetails = async (req, res) => {
     // Validate that we have the required parameters
     if (!roomId) {
       logError('Missing required parameters', { roomId });
-      return res.status(400).json({ error: 'Missing required parameters: room_id is required' });
+      return res.status(400).json(createExpressErrorResponse('Missing required parameters: room_id is required', 400));
     }
     if (!userId) {
       logError('Missing required parameters', { userId });
-      return res.status(400).json({ error: 'Missing required parameters: user_id is required' });
+      return res.status(400).json(createExpressErrorResponse('Missing required parameters: user_id is required', 400));
     }
 
     // Validate that the user has access to this room_id
@@ -43,7 +45,7 @@ export const getAgoraDetails = async (req, res) => {
         userId, 
         error: roomAccessValidation.error 
       });
-      return res.status(403).json({ error: roomAccessValidation.error });
+      return res.status(403).json(createExpressErrorResponse(roomAccessValidation.error, 403));
     }
 
     // Fetch admin settings from database
@@ -51,7 +53,7 @@ export const getAgoraDetails = async (req, res) => {
     
     if (!adminSettings || Object.keys(adminSettings).length === 0) {
       logError('Admin settings not found in database');
-      return res.status(404).json({ error: 'Admin settings not found' });
+      return res.status(404).json(createExpressErrorResponse('Admin settings not found', 404));
     }
 
     // Extract Agora-related settings
@@ -63,7 +65,7 @@ export const getAgoraDetails = async (req, res) => {
         hasAppId: !!agoraAppId, 
         hasCertificate: !!agoraAppCertificate 
       });
-      return res.status(500).json({ error: 'Agora configuration not available' });
+      return res.status(500).json(createExpressErrorResponse('Agora configuration not available', 500));
     }
 
     // Generate Agora token similar to CallController.php
@@ -84,20 +86,16 @@ export const getAgoraDetails = async (req, res) => {
     logInfo('Successfully generated Agora token and fetched app details', { roomId, uid });
 
     // Return Agora app details with configuration and token
-    return res.json({
-      success: true,
-      message: 'Agora app details retrieved successfully',
-      data: {
-        agoraAppCertificate,
-        agoraAppId,
-        token: agoraToken,
-        uid,
-      }
-    });
+    return res.json(createExpressSuccessResponse('Agora app details retrieved successfully', {
+      agoraAppCertificate,
+      agoraAppId,
+      token: agoraToken,
+      uid,
+    }));
 
   } catch (error) {
     logError('Error fetching Agora app details or generating token:', error);
-    return res.status(500).json({ error: 'Failed to fetch Agora app details or generate token' });
+    return res.status(500).json(createExpressErrorResponse('Failed to fetch Agora app details or generate token', 500));
   }
 };
 

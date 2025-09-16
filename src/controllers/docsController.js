@@ -7,7 +7,7 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { logInfo, logError } from '../utils/common.js';
+import { logInfo, logError, createExpressErrorResponse } from '../utils/common.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -141,10 +141,7 @@ export const getSwaggerUI = async (req, res) => {
     res.send(html);
   } catch (error) {
     logError('Error serving Swagger UI:', error);
-    res.status(500).json({
-      error: 'Error serving API documentation',
-      details: error.message
-    });
+    res.status(500).json(createExpressErrorResponse('Error serving API documentation', 500, { details: error.message }));
   }
 };
 
@@ -166,19 +163,13 @@ export const getSwaggerJSON = async (req, res) => {
       swaggerJson = JSON.parse(swaggerContent);
     } catch (error) {
       logError('Error reading swagger.json:', error);
-      return res.status(500).json({
-        error: 'Error reading API documentation',
-        details: error.message
-      });
+      return res.status(500).json(createExpressErrorResponse('Error reading API documentation', 500, { details: error.message }));
     }
 
     res.setHeader('Content-Type', 'application/json');
     res.json(swaggerJson);
   } catch (error) {
     logError('Error serving Swagger JSON:', error);
-    res.status(500).json({
-      error: 'Error serving API documentation',
-      details: error.message
-    });
+    res.status(500).json(createExpressErrorResponse('Error serving API documentation', 500, { details: error.message }));
   }
 };

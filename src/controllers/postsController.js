@@ -21,7 +21,9 @@ import {
   isEncryptedId,
   encryptId,
   formatRelativeTime,
-  convertLocalToUTC
+  convertLocalToUTC,
+  createExpressSuccessResponse,
+  createExpressErrorResponse
 } from '../utils/common.js';
 import { 
   savePost, 
@@ -217,11 +219,11 @@ export const getPostCreateData = async (req, res) => {
 
     // This endpoint typically returns configuration data for post creation
     // For now, return a simple success response
-    return res.status(200).json(createSuccessResponse('Post create data retrieved successfully', {}));
+    return res.status(200).json(createExpressSuccessResponse('Post create data retrieved successfully', {}));
 
   } catch (error) {
     logError('getPostCreateData error:', error);
-    return res.status(500).json(createErrorResponse(500, 'Internal server error'));
+    return res.status(500).json(createExpressErrorResponse('Internal server error', 500));
   }
 };
 
@@ -239,7 +241,7 @@ export const createPost = async (req, res) => {
     const validation = validatePostInput(requestBody);
     if (!validation.success) {
       logError('Post validation failed:', { errors: validation.errors });
-      return res.status(422).json(createErrorResponse(422, 'Validation failed', validation.errors));
+      return res.status(422).json(createExpressErrorResponse('Validation failed', 422));
     }
 
     const { description, tags, price, post_type, media, scheduled_date, scheduled_time, timezone } = requestBody;
@@ -279,7 +281,7 @@ export const createPost = async (req, res) => {
     const { AWS_BUCKET_NAME: bucketName } = process.env;
     if (!bucketName) {
       logError('S3 bucket configuration missing from environment');
-      return res.status(500).json(createErrorResponse(500, 'Media storage not configured'));
+      return res.status(500).json(createExpressErrorResponse('Media storage not configured', 500));
     }
 
     // Process media files (validate, convert images to WebP)
@@ -291,7 +293,7 @@ export const createPost = async (req, res) => {
         logInfo('Media processing completed successfully');
       } catch (error) {
         logError('Media processing failed:', { error: error.message });
-        return res.status(500).json(createErrorResponse(500, 'Media processing failed', error.message));
+        return res.status(500).json(createExpressErrorResponse('Media processing failed', 500));
       }
     }
 
@@ -314,7 +316,7 @@ export const createPost = async (req, res) => {
       logInfo('Post saved to database successfully');
     } catch (error) {
       logError('Database save operation failed:', { error: error.message });
-      return res.status(500).json(createErrorResponse(500, 'Failed to save post to database', error.message));
+      return res.status(500).json(createExpressErrorResponse('Failed to save post to database', 500));
     }
 
     // Build success response with empty data object
@@ -333,11 +335,11 @@ export const createPost = async (req, res) => {
       calculatedExpiredAt: expired_at
     });
 
-    return res.status(200).json(createSuccessResponse('Post created successfully', responseData));
+    return res.status(200).json(createExpressSuccessResponse('Post created successfully', responseData));
 
   } catch (error) {
     logError('Unexpected error in createPost:', { error: error.message, stack: error.stack });
-    return res.status(500).json(createErrorResponse(500, 'Internal server error', error.message));
+    return res.status(500).json(createExpressErrorResponse('Internal server error', 500));
   }
 };
 
@@ -380,23 +382,23 @@ export const getPostByUsernameAndId = async (req, res) => {
     // Validate path params
     const { username, id } = req.params;
     if (!username || !id) {
-      return res.status(400).json(createErrorResponse(400, 'Username and id are required'));
+      return res.status(400).json(createExpressErrorResponse('Username and id are required', 400));
     }
 
     // Resolve post id
     const updateId = resolveUpdateId(id);
     if (!updateId) {
-      return res.status(400).json(createErrorResponse(400, 'Invalid id format'));
+      return res.status(400).json(createExpressErrorResponse('Invalid id format', 400));
     }
 
     // Fetch owner and post
     const owner = await fetchOwnerByUsername(username);
     if (!owner) {
-      return res.status(404).json(createErrorResponse(404, 'User not found'));
+      return res.status(404).json(createExpressErrorResponse('User not found', 404));
     }
     const post = await fetchPostByIdAndOwner(updateId, owner.id);
     if (!post) {
-      return res.status(404).json(createErrorResponse(404, 'Post not found'));
+      return res.status(404).json(createExpressErrorResponse('Post not found', 404));
     }
 
     // Fetch related data
@@ -436,10 +438,10 @@ export const getPostByUsernameAndId = async (req, res) => {
       post_url: `${appBaseUrl}/posts/${owner.username}/${encryptId(postId)}`
     };
 
-    return res.status(200).json(createSuccessResponse('Post details retrieved', response));
+    return res.status(200).json(createExpressSuccessResponse('Post details retrieved', response));
   } catch (error) {
     logError('Error in getPostByUsernameAndId:', error);
-    return res.status(500).json(createErrorResponse(500, 'Internal server error'));
+    return res.status(500).json(createExpressErrorResponse('Internal server error', 500));
   }
 };
 
@@ -452,17 +454,17 @@ export const addComment = async (req, res) => {
     const { post_id, content } = req.body;
 
     if (!post_id || !content) {
-      return res.status(400).json(createErrorResponse(400, 'Post ID and content are required'));
+      return res.status(400).json(createExpressErrorResponse('Post ID and content are required', 400));
     }
 
     // Add comment logic here - this would need to be implemented in common.js
     // const result = await addPostComment(userId, post_id, content);
     
     logInfo('Comment added successfully', { userId, postId: post_id });
-    return res.json(createSuccessResponse('Comment added successfully'));
+    return res.json(createExpressSuccessResponse('Comment added successfully'));
   } catch (error) {
     logError('Error adding comment:', error);
-    return res.status(500).json(createErrorResponse(500, 'Failed to add comment'));
+    return res.status(500).json(createExpressErrorResponse('Failed to add comment', 500));
   }
 };
 
@@ -475,17 +477,17 @@ export const deleteComment = async (req, res) => {
     const { id: commentId } = req.params;
 
     if (!commentId) {
-      return res.status(400).json(createErrorResponse(400, 'Comment ID is required'));
+      return res.status(400).json(createExpressErrorResponse('Comment ID is required', 400));
     }
 
     // Delete comment logic here - this would need to be implemented in common.js
     // const result = await deletePostComment(userId, commentId);
     
     logInfo('Comment deleted successfully', { userId, commentId });
-    return res.json(createSuccessResponse('Comment deleted successfully'));
+    return res.json(createExpressSuccessResponse('Comment deleted successfully'));
   } catch (error) {
     logError('Error deleting comment:', error);
-    return res.status(500).json(createErrorResponse(500, 'Failed to delete comment'));
+    return res.status(500).json(createExpressErrorResponse('Failed to delete comment', 500));
   }
 };
 
@@ -498,17 +500,17 @@ export const toggleLike = async (req, res) => {
     const { post_id, comment_id, type } = req.body;
 
     if (!post_id && !comment_id) {
-      return res.status(400).json(createErrorResponse(400, 'Post ID or Comment ID is required'));
+      return res.status(400).json(createExpressErrorResponse('Post ID or Comment ID is required', 400));
     }
 
     // Toggle like logic here - this would need to be implemented in common.js
     // const result = await togglePostLike(userId, post_id, comment_id, type);
     
     logInfo('Like toggled successfully', { userId, postId: post_id, commentId: comment_id, type });
-    return res.json(createSuccessResponse('Like toggled successfully'));
+    return res.json(createExpressSuccessResponse('Like toggled successfully'));
   } catch (error) {
     logError('Error toggling like:', error);
-    return res.status(500).json(createErrorResponse(500, 'Failed to toggle like'));
+    return res.status(500).json(createExpressErrorResponse('Failed to toggle like', 500));
   }
 };
 
@@ -521,17 +523,17 @@ export const pinPost = async (req, res) => {
     const { post_id } = req.body;
 
     if (!post_id) {
-      return res.status(400).json(createErrorResponse(400, 'Post ID is required'));
+      return res.status(400).json(createExpressErrorResponse('Post ID is required', 400));
     }
 
     // Pin post logic here - this would need to be implemented in common.js
     // const result = await pinUserPost(userId, post_id);
     
     logInfo('Post pinned successfully', { userId, postId: post_id });
-    return res.json(createSuccessResponse('Post pinned successfully'));
+    return res.json(createExpressSuccessResponse('Post pinned successfully'));
   } catch (error) {
     logError('Error pinning post:', error);
-    return res.status(500).json(createErrorResponse(500, 'Failed to pin post'));
+    return res.status(500).json(createExpressErrorResponse('Failed to pin post', 500));
   }
 };
 
@@ -544,16 +546,16 @@ export const unpinPost = async (req, res) => {
     const { post_id } = req.body;
 
     if (!post_id) {
-      return res.status(400).json(createErrorResponse(400, 'Post ID is required'));
+      return res.status(400).json(createExpressErrorResponse('Post ID is required', 400));
     }
 
     // Unpin post logic here - this would need to be implemented in common.js
     // const result = await unpinUserPost(userId, post_id);
     
     logInfo('Post unpinned successfully', { userId, postId: post_id });
-    return res.json(createSuccessResponse('Post unpinned successfully'));
+    return res.json(createExpressSuccessResponse('Post unpinned successfully'));
   } catch (error) {
     logError('Error unpinning post:', error);
-    return res.status(500).json(createErrorResponse(500, 'Failed to unpin post'));
+    return res.status(500).json(createExpressErrorResponse('Failed to unpin post', 500));
   }
 };
