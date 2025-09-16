@@ -36,11 +36,19 @@ import {
   getAdminSettings,
   getUserCountry,
   processCurrencySettings,
-  upsertFcmTokenRecord
+  upsertFcmTokenRecord,
+  // Added for refresh parity with Lambda
+  getRefreshToken,
+  revokeRefreshToken,
+  isRefreshTokenExpiringSoon,
+  decryptId,
+  isEncryptedId,
+  getSupportUserIds,
+  getSupportCreatorIds
 } from '../utils/common.js';
 import { sendWhatsAppOTP } from '../utils/whatsapp.js';
 import { sendEmailOTP } from '../utils/mail.js';
-import { validateEmail, validateMobile } from '../utils/validations.js';
+import { validateEmail, validateMobile, validatePassword } from '../utils/validations.js';
 
 // Initialize DynamoDB client
 const ddbClient = new DynamoDBClient({ region: process.env.AWS_DEFAULT_REGION });
@@ -266,10 +274,13 @@ export const verifyOtp = async (req, res) => {
     }
     const accessToken = authHeader.replace(/^Bearer\s+/i, '');
     
-    // Verify access token
+    // Verify access token and enforce anonymous only
     const decoded = verifyAccessToken(accessToken);
     if (!decoded) {
       return res.status(401).json(createExpressErrorResponse('Invalid access token', 401));
+    }
+    if (!(decoded.isAnonymous === true || decoded.role === 'anonymous')) {
+      return res.status(403).json(createExpressErrorResponse('Only anonymous access token allowed', 403));
     }
     
     // Parse and destructure body
@@ -467,6 +478,7 @@ export const login = async (req, res) => {
     // OTP-based login flow
     if (is_otp_login) {
       if (phone && country_code && isValidPhoneFormat(phone, country_code)) {
+        // Mobile OTP login
         type = 'mobile_otp';
         identifier = `${country_code}${phone}`;
         loginType = 'mobile';
@@ -476,43 +488,48 @@ export const login = async (req, res) => {
         const otp = await generateOTP(identifier);
         const sent = await sendWhatsAppOTP(phone, country_code, otp);
         if (sent) {
-        return res.json(createExpressSuccessResponse('OTP sent. Please verify to continue.', {
+          return res.json(createExpressSuccessResponse('OTP sent. Please verify to continue.', {
             actionRequired: '2fa_verify'
-        }));
+          }));
         }
         return res.status(500).json(createExpressErrorResponse('Could not send WhatsApp OTP. Please try again later.', 500));
-      } else if (username_email && validateEmail(username_email)) {
+      }
+      if (username_email) {
+        // Email OTP login
         type = 'email_otp';
-        identifier = username_email.toLowerCase();
+        identifier = username_email;
         loginType = 'email';
         user = await findUser(identifier, loginType);
         if (!user) return res.status(404).json(createExpressErrorResponse('Invalid credentials', 404));
         
-        const otp = await generateOTP(identifier);
-        const sent = await sendEmailOTP(identifier, otp, 'login');
+        const otp = await generateOTP(user.email);
+        const sent = await sendEmailOTP(user.email, otp, 'login');
         if (sent) {
-        return res.json(createExpressSuccessResponse('OTP sent to your email. Please verify to continue.', {
+          return res.json(createExpressSuccessResponse('OTP sent. Please verify to continue.', {
             actionRequired: '2fa_verify'
-        }));
+          }));
         }
         return res.status(500).json(createExpressErrorResponse('Could not send OTP. Please try again later.', 500));
-      } else {
-        return res.status(400).json(createExpressErrorResponse('Invalid phone number or email format', 400));
       }
+      return res.status(400).json(createExpressErrorResponse('Email or valid mobile number with country code is required for OTP login.', 400));
     }
 
     // Password-based login flow
-    if (!username_email || !password) {
-      return res.status(400).json(createExpressErrorResponse('Username/email and password are required', 400));
+    if ((!username_email && !(country_code && phone)) || !password) {
+      return res.status(400).json(createExpressErrorResponse('Provide either email/username or country_code and phone, and password for password login.', 400));
     }
-
-    // Determine login type
-    if (validateEmail(username_email)) {
-      loginType = 'email';
-      identifier = username_email.toLowerCase();
-    } else {
-      loginType = 'username';
+    type = 'password_login';
+    if (country_code && phone) {
+      if (!isValidPhoneFormat(phone, country_code)) {
+        return res.status(400).json(createExpressErrorResponse('Invalid phone number format for the provided country code.', 400));
+      }
+      identifier = (country_code ? country_code.replace(/^\+?/, '+') : '') + (phone || '');
+      loginType = 'mobile';
+    } else if (username_email) {
       identifier = username_email;
+      loginType = username_email.includes('@') ? 'email' : 'username';
+    } else {
+      return res.status(400).json(createExpressErrorResponse('Provide either email/username or country_code and phone for login.', 400));
     }
 
     user = await findUser(identifier, loginType);
@@ -520,30 +537,47 @@ export const login = async (req, res) => {
       return res.status(404).json(createExpressErrorResponse('Invalid credentials', 404));
     }
 
-    // Check account status
-    if (user.status === 'deleted') {
-      return res.status(403).json(createExpressErrorResponse('Your account has been deleted.', 403));
-    }
-    if (user.status === 'pending') {
-      return res.status(403).json(createExpressErrorResponse('Your account is pending confirmation.', 403));
-    }
-
-    // Verify password
-    const isValidPassword = await bcrypt.compare(password, user.password);
-    if (!isValidPassword) {
-      return res.status(401).json(createExpressErrorResponse('Invalid credentials', 401));
+    // Check user status
+    switch (user.status) {
+      case 'suspended': 
+        // Allow suspended users to login but mark them as suspended
+        logInfo('Suspended user attempting login:', { userId: user.id, status: user.status });
+        break;
+      case 'pending': return res.status(403).json(createExpressErrorResponse('Your account is pending confirmation.', 403));
+      case 'deleted': return res.status(403).json(createExpressErrorResponse('Your account has been deleted.', 403));
+      case 'active': break;
+      default: return res.status(500).json(createExpressErrorResponse('Unknown account status.', 500));
     }
 
-    // Check if 2FA is enabled
-    if (user.two_factor_enabled === '1') {
-      const otp = await generateOTP(identifier);
-      const sent = await sendEmailOTP(identifier, otp, '2fa');
-      if (sent) {
-        return res.json(createExpressSuccessResponse('2FA code sent. Please verify to continue.', {
-          actionRequired: '2fa_verify'
-        }));
+    // Password login validation
+    if (type === 'password_login') {
+      if (!user.password) {
+        return res.status(401).json(createExpressErrorResponse('Account not set up for password login. Please use OTP login or set a password first.', 401));
       }
-      return res.status(500).json(createExpressErrorResponse('Could not send 2FA code. Please try again later.', 500));
+      try {
+        const isMatch = await bcrypt.compare(password, user.password);
+        if (!isMatch) {
+          return res.status(401).json(createExpressErrorResponse('Invalid credentials', 401));
+        }
+      } catch (compareError) {
+        return res.status(500).json(createExpressErrorResponse('Internal server error', 500));
+      }
+    }
+
+    // 2FA flow
+    if (user.two_factor_auth === 'yes') {
+      try {
+        const otp = await generateOTP(user.email);
+        const sent = await sendEmailOTP(user.email, otp, 'login');
+      if (sent) {
+          return res.json(createExpressSuccessResponse('2FA code sent. Please verify to continue.', {
+          actionRequired: '2fa_verify'
+          }));
+      }
+        return res.status(500).json(createExpressErrorResponse('Could not send 2FA code. Please try again later.', 500));
+      } catch (error) {
+        return res.status(500).json(createExpressErrorResponse('Could not send 2FA code. Please try again later.', 500));
+      }
     }
 
     // Determine effective role for parity with Lambda
@@ -571,22 +605,26 @@ export const login = async (req, res) => {
 
     // Suspended users: success with actionRequired and redirect
     if (user.status === 'suspended') {
-      return res.json(createExpressSuccessResponse('Login successful but account is suspended', {
+    return res.json({
+      success: true,
+        message: 'Login successful but account is suspended',
+        status: 200,
         actionRequired: 'suspended',
         redirectTo: '/auth/suspended',
-        accessToken,
-        refreshToken,
-        user: {
-          id: String(user.id),
-          username: user.username,
-          name: user.name,
-          avatar: user.avatar ? getFile('avatar/' + user.avatar) : null,
+      accessToken,
+      refreshToken,
+      user: {
+        id: String(user.id),
+        username: user.username,
+        name: user.name,
+        avatar: user.avatar ? getFile('avatar/' + user.avatar) : null,
           countries_id: user.countries_id,
-          status: user.status,
+        status: user.status,
           role: effectiveRole
         },
-        currency
-      }));
+        currency,
+        timestamp: new Date().toISOString()
+      });
     }
 
     return res.json(createExpressSuccessResponse('Login successful', {
@@ -614,41 +652,41 @@ export const login = async (req, res) => {
  */
 export const loginVerify = async (req, res) => {
   try {
-    const { username_email, country_code, phone, otp } = req.body;
-
-    if (!otp) {
-      return res.status(400).json(createExpressErrorResponse('OTP is required', 400));
+    const { identifier, otp } = req.body;
+    
+    if (!identifier || !otp) {
+      return res.status(400).json(createExpressErrorResponse('Identifier and OTP are required.', 400));
     }
-
-    let identifier, loginType, user;
-
-    if (phone && country_code) {
-      identifier = `${country_code}${phone}`;
-      loginType = 'mobile';
-    } else if (username_email && validateEmail(username_email)) {
-      identifier = username_email.toLowerCase();
-      loginType = 'email';
-    } else {
-      return res.status(400).json(createExpressErrorResponse('Invalid phone number or email format', 400));
-    }
-
-    user = await findUser(identifier, loginType);
+    
+    // Determine login type
+    const loginType = identifier.includes('@') ? 'email' : 'mobile';
+    
+    // Find user
+    const pool = getDB();
+    const query = `SELECT * FROM users WHERE ${loginType} = ?`;
+    const [rows] = await pool.query(query, [identifier]);
+    const user = rows[0] || null;
+    
     if (!user) {
       return res.status(404).json(createExpressErrorResponse('Invalid credentials', 404));
     }
 
     // Verify OTP
-    const isValid = await verifyEmailOTP(identifier, otp);
-    if (!isValid) {
+    const isOtpValid = await verifyEmailOTP(identifier, otp);
+    if (!isOtpValid) {
       return res.status(401).json(createExpressErrorResponse('Invalid or expired OTP', 401));
     }
-
-    // Check account status
-    if (user.status === 'deleted') {
-      return res.status(403).json(createExpressErrorResponse('Your account has been deleted.', 403));
-    }
-    if (user.status === 'pending') {
-      return res.status(403).json(createExpressErrorResponse('Your account is pending confirmation.', 403));
+    
+    // Check user status
+    switch (user.status) {
+      case 'suspended': 
+        // Allow suspended users to login but mark them as suspended
+        logInfo('Suspended user attempting login:', { userId: user.id, status: user.status });
+        break;
+      case 'pending': return res.status(403).json(createExpressErrorResponse('Your account is pending confirmation.', 403));
+      case 'deleted': return res.status(403).json(createExpressErrorResponse('Your account has been deleted.', 403));
+      case 'active': break;
+      default: return res.status(500).json(createExpressErrorResponse('Unknown account status.', 500));
     }
 
     // Determine effective role and generate tokens
@@ -673,21 +711,25 @@ export const loginVerify = async (req, res) => {
     const { currency } = processCurrencySettings(adminSettings, userCountry);
 
     if (user.status === 'suspended') {
-      return res.json(createExpressSuccessResponse('Login verification successful but account is suspended', {
+    return res.json({
+      success: true,
+        message: 'Login verification successful but account is suspended',
+        status: 200,
         actionRequired: 'suspended',
         redirectTo: '/auth/suspended',
-        accessToken,
-        refreshToken,
-        user: {
-          id: String(user.id),
-          username: user.username,
-          name: user.name,
-          avatar: user.avatar ? getFile('avatar/' + user.avatar) : null,
+      accessToken,
+      refreshToken,
+      user: {
+        id: String(user.id),
+        username: user.username,
+        name: user.name,
+        avatar: user.avatar ? getFile('avatar/' + user.avatar) : null,
           countries_id: user.countries_id,
-          status: user.status,
+        status: user.status,
           role: effectiveRole
-        }
-      }));
+        },
+        timestamp: new Date().toISOString()
+      });
     }
 
     return res.json(createExpressSuccessResponse('Login verification successful', {
@@ -727,34 +769,100 @@ export const refresh = async (req, res) => {
       return res.status(401).json(createExpressErrorResponse('Invalid refresh token', 401));
     }
 
-    // Get user from database
-    const pool = getDB();
-    const [rows] = await pool.query('SELECT * FROM users WHERE id = ?', [decoded.id]);
-    if (rows.length === 0) {
-      return res.status(404).json(createExpressErrorResponse('User not found', 404));
+    // Extract user info from token
+    let { id, role, isAnonymous } = decoded;
+
+    // Decode 24-character IDs when not anonymous
+    if (!isAnonymous && typeof id === 'string' && isEncryptedId && isEncryptedId(id)) {
+      try {
+        id = decryptId(id);
+        logInfo('Decoded 24-character ID from refresh token', { encodedId: decoded.id, decodedId: id });
+      } catch (error) {
+        logError('Failed to decode 24-character ID from refresh token', { encodedId: decoded.id, error: error.message });
+        return res.status(401).json(createExpressErrorResponse('Invalid refresh token format', 401));
+      }
     }
 
-    const user = rows[0];
+    const user = { id, role, isAnonymous: Boolean(isAnonymous) };
+    logInfo('Refresh token verified successfully', user);
 
-    // Check account status
-    if (user.status === 'deleted') {
-      return res.status(403).json(createExpressErrorResponse('Your account has been deleted.', 403));
+    // Current device info
+    const currentDeviceInfo = getDeviceInfo(req);
+    logInfo('Current device info for refresh', {
+      deviceFingerprint: currentDeviceInfo.deviceFingerprint,
+      ipAddress: currentDeviceInfo.ip,
+      app: currentDeviceInfo.appString
+    });
+
+    // Look up stored refresh token session
+    const storedTokenData = await getRefreshToken(refreshToken, id.toString());
+    if (!storedTokenData) {
+      return res.status(401).json(createExpressErrorResponse('Refresh token not found or revoked', 401));
     }
-    if (user.status === 'pending') {
-      return res.status(403).json(createExpressErrorResponse('Your account is pending confirmation.', 403));
+
+    // Should renew if expiring within 7 days
+    const shouldRenew = isRefreshTokenExpiringSoon(storedTokenData.expiresAt, 7);
+
+    // Device fingerprint comparison
+    const deviceFingerprintMatch = storedTokenData.deviceFingerprint === currentDeviceInfo.deviceFingerprint;
+    logInfo('Device fingerprint validation', {
+      stored: storedTokenData.deviceFingerprint,
+      current: currentDeviceInfo.deviceFingerprint,
+      match: deviceFingerprintMatch
+    });
+
+    // Prepare payload
+    const tokenPayload = { ...user };
+
+    // Always new access token
+    const accessToken = generateAccessToken(tokenPayload);
+
+    let action = 'kept';
+    let newRefresh = null;
+
+    if (deviceFingerprintMatch && !shouldRenew) {
+      // Keep existing refresh token
+      action = 'kept';
+    } else if (deviceFingerprintMatch && shouldRenew) {
+      // Renew same-device token near expiry
+      newRefresh = generateRefreshToken(tokenPayload);
+      await revokeRefreshToken(refreshToken, id.toString());
+      const stored = await storeRefreshToken(id.toString(), newRefresh, req);
+      if (!stored) {
+        logError('Failed to store new refresh token');
+        return res.status(500).json(createExpressErrorResponse('Failed to refresh session', 500));
+      }
+      action = 'renewed';
+    } else {
+      // New device/session → create new session record
+      newRefresh = generateRefreshToken(tokenPayload);
+      const stored = await storeRefreshToken(id.toString(), newRefresh, req);
+      if (!stored) {
+        logError('Failed to store new refresh token for new device');
+        return res.status(500).json(createExpressErrorResponse('Failed to create new session', 500));
+      }
+      action = 'new_device';
     }
 
-    // Generate new tokens
-    const newAccessToken = generateAccessToken({ id: parseInt(user.id, 10), role: user.role || 'normal' });
-    const newRefreshToken = generateRefreshToken({ id: parseInt(user.id, 10), role: user.role || 'normal' });
-    
-    // Store new refresh token
-    await storeRefreshToken(String(user.id), newRefreshToken, req);
+    logInfo('Tokens refreshed successfully', {
+      id,
+      newAccessTokenExpiry: '1h',
+      refreshTokenAction: action
+    });
 
-    return res.json(createExpressSuccessResponse('Tokens refreshed successfully', {
-      accessToken: newAccessToken,
-      refreshToken: newRefreshToken
-    }));
+    const data = {
+      accessToken,
+      user: {
+        id: user.id.toString(),
+        role: user.role,
+        isAnonymous: user.isAnonymous
+      }
+    };
+    if (newRefresh) {
+      data.refreshToken = newRefresh;
+    }
+
+    return res.json(createExpressSuccessResponse('Tokens refreshed successfully', data));
   } catch (error) {
     logError('Token refresh error', error);
     return res.status(500).json(createExpressErrorResponse('Internal server error', 500));
@@ -769,20 +877,69 @@ export const refresh = async (req, res) => {
 export const logout = async (req, res) => {
   try {
     const { refreshToken } = req.body;
-    const userId = req.userId;
 
-    if (refreshToken) {
-      // Revoke specific refresh token
-      await revokeRefreshToken(refreshToken, String(userId));
-    } else {
-      // Revoke all user sessions
-      const sessions = await getUserSessionsWithDeviceInfo(String(userId));
-      for (const session of sessions) {
-        await revokeSessionByToken(session.token, String(userId));
-      }
+    // Require refresh token
+    if (!refreshToken || typeof refreshToken !== 'string') {
+      return res.status(400).json(createExpressErrorResponse('Refresh token is required in request body', 400));
     }
 
-    return res.json(createExpressSuccessResponse('Logout successful'));
+    // Require Authorization: Bearer <token>
+    const authHeader = req.headers?.authorization || req.headers?.Authorization;
+    if (!authHeader || !/^Bearer\s+/i.test(authHeader)) {
+      return res.status(401).json(createExpressErrorResponse('Access token required', 401));
+    }
+    const accessToken = authHeader.replace(/^Bearer\s+/i, '');
+
+    // Verify and decode access token
+    const decoded = verifyAccessToken(accessToken);
+    if (!decoded) {
+      return res.status(401).json(createExpressErrorResponse('Invalid access token', 401));
+    }
+
+    // Disallow anonymous tokens for logout (must be an authenticated user)
+    if (decoded.isAnonymous) {
+      return res.status(401).json(createExpressErrorResponse('Authenticated user token required', 401));
+    }
+
+    // Resolve user id (decrypt if non-anonymous and encrypted)
+    let userId = decoded.id;
+    try {
+      if (typeof userId === 'string' && isEncryptedId && isEncryptedId(userId)) {
+        userId = decryptId(userId);
+      }
+    } catch (error) {
+      logError('Failed to decode 24-character ID from logout token', { encodedId: decoded.id, error: error.message });
+      return res.status(401).json(createExpressErrorResponse('Invalid token format', 401));
+    }
+
+    logInfo('Logout request', { userId: String(userId), role: decoded.role });
+
+    // Revoke the specific refresh token; proceed even if it fails
+    try {
+      await revokeRefreshToken(refreshToken, String(userId));
+      logInfo('Revoked refresh token for user', { userId: String(userId) });
+    } catch (e) {
+      logInfo('Refresh token revoke failed or not found; proceeding', { userId: String(userId) });
+    }
+
+    // Generate anonymous session
+    const anonymousUserId = `anon_${Date.now()}_${crypto.randomBytes(6).toString('hex')}`;
+    const anonymousPayload = { id: anonymousUserId, role: 'anonymous', isAnonymous: true };
+    const newAccessToken = generateAccessToken(anonymousPayload);
+    const newRefreshToken = generateRefreshToken(anonymousPayload);
+
+    // Store anonymous refresh token session
+    const stored = await storeRefreshToken(anonymousUserId, newRefreshToken, req);
+    if (!stored) {
+      logInfo('Failed to store anonymous refresh token after logout');
+      return res.json(createExpressSuccessResponse('Logged out successfully'));
+    }
+
+    return res.json(createExpressSuccessResponse('Logged out successfully', {
+      accessToken: newAccessToken,
+      refreshToken: newRefreshToken,
+      anonymousUserId
+    }));
   } catch (error) {
     logError('Logout error', error);
     return res.status(500).json(createExpressErrorResponse('Internal server error', 500));
@@ -796,17 +953,46 @@ export const logout = async (req, res) => {
  */
 export const validate = async (req, res) => {
   try {
-    const user = req.user;
-    
+    const pool = getDB();
+    const userId = req.userId;
+
+    if (!userId) {
+      return res.status(401).json(createExpressErrorResponse('Invalid access token', 401));
+    }
+
+    const [rows] = await pool.query('SELECT id, username, name, avatar, status, role, countries_id FROM users WHERE id = ? LIMIT 1', [userId]);
+    if (!rows.length) {
+      return res.status(404).json(createExpressErrorResponse('User not found', 404));
+    }
+
+    const user = rows[0];
+
+    // Compute currency like Lambda
+    let currency = null;
+    let adminSettings = null;
+    try {
+      adminSettings = await getAdminSettings();
+      const userCountry = await getUserCountry(req, user);
+      currency = processCurrencySettings(adminSettings, userCountry).currency;
+    } catch (e) {
+      logError('validate currency processing error', e);
+    }
+
+    const avatarUrl = user.avatar
+      ? getFile('avatar/' + user.avatar)
+      : (adminSettings?.avatar ? getFile('avatar/' + adminSettings.avatar) : null);
+
     return res.json(createExpressSuccessResponse('Token is valid', {
       user: {
         id: String(user.id),
         username: user.username,
         name: user.name,
-        avatar: user.avatar ? getFile('avatar/' + user.avatar) : null,
+        avatar: avatarUrl,
         status: user.status,
-        role: user.role || 'normal'
-      }
+        role: user.role || 'normal',
+        countries_id: user.countries_id
+      },
+      currency
     }));
   } catch (error) {
     logError('Token validation error', error);
@@ -823,44 +1009,27 @@ export const forgotPasswordRequest = async (req, res) => {
   try {
     const { email } = req.body;
 
+    // Validate email format
     if (!email || !validateEmail(email)) {
-      return res.status(400).json(createExpressErrorResponse('Valid email is required', 400));
-    }
-
-    // Rate limiting
-    const ip = req.ip || req.connection?.remoteAddress || '0.0.0.0';
-    if (!await checkRateLimit(ip, '/auth/forgot-password/otp')) {
-      return res.status(429).json(createExpressErrorResponse('Too many requests', 429));
+      return res.status(400).json(createExpressErrorResponse('Invalid email format', 400));
     }
 
     // Check if user exists
     const pool = getDB();
-    const [rows] = await pool.query('SELECT * FROM users WHERE email = ?', [email.toLowerCase()]);
-    if (rows.length === 0) {
-      return res.status(404).json(createExpressErrorResponse('User not found', 404));
+    const [rows] = await pool.query('SELECT id FROM users WHERE email = ? LIMIT 1', [email.toLowerCase()]);
+    if (!rows.length) {
+      return res.status(404).json(createExpressErrorResponse("Can't find email", 404));
     }
 
-    const user = rows[0];
-
-    // Check account status
-    if (user.status === 'deleted') {
-      return res.status(403).json(createExpressErrorResponse('Your account has been deleted.', 403));
-    }
-    if (user.status === 'pending') {
-      return res.status(403).json(createExpressErrorResponse('Your account is pending confirmation.', 403));
-    }
-
-    // Generate and send OTP
+    // Generate OTP and send via email
     const otp = await generateOTP(email.toLowerCase());
     const sent = await sendEmailOTP(email, otp, 'forgot_password');
-    
-    if (sent) {
-      return res.json(createExpressSuccessResponse('OTP sent to your email. Please verify to reset password.', {
-        actionRequired: 'verify_otp'
-      }));
+    if (!sent) {
+      return res.status(500).json(createExpressErrorResponse('Failed to send OTP. Please try again later.', 500));
     }
-    
-    return res.status(500).json(createExpressErrorResponse('Could not send OTP. Please try again later.', 500));
+
+    logInfo('Forgot password OTP sent', { email: email.toLowerCase() });
+    return res.json(createExpressSuccessResponse('OTP sent successfully'));
   } catch (error) {
     logError('Forgot password request error', error);
     return res.status(500).json(createExpressErrorResponse('Internal server error', 500));
@@ -880,15 +1049,13 @@ export const forgotPasswordVerify = async (req, res) => {
       return res.status(400).json(createExpressErrorResponse('Email and OTP are required', 400));
     }
 
-    // Verify OTP
-    const isValid = await verifyEmailOTP(email.toLowerCase(), otp);
+    const isValid = await verifyEmailOTP(String(email).toLowerCase(), String(otp));
     if (!isValid) {
-      return res.status(401).json(createExpressErrorResponse('Invalid or expired OTP', 401));
+      return res.status(400).json(createExpressErrorResponse('Invalid OTP', 400));
     }
 
-    return res.json(createExpressSuccessResponse('OTP verified successfully. You can now reset your password.', {
-      actionRequired: 'reset_password'
-    }));
+    logInfo('Forgot password OTP verified', { email: String(email).toLowerCase() });
+    return res.json(createExpressSuccessResponse('OTP verified successfully'));
   } catch (error) {
     logError('Forgot password verification error', error);
     return res.status(500).json(createExpressErrorResponse('Internal server error', 500));
@@ -902,28 +1069,32 @@ export const forgotPasswordVerify = async (req, res) => {
  */
 export const forgotPasswordReset = async (req, res) => {
   try {
-    const { email, otp, newPassword } = req.body;
+    const { email, password, confirm_password } = req.body;
 
-    if (!email || !otp || !newPassword) {
-      return res.status(400).json(createExpressErrorResponse('Email, OTP, and new password are required', 400));
+    if (!email || !password || !confirm_password) {
+      return res.status(400).json(createExpressErrorResponse('Email, password, and confirm password are required', 400));
     }
 
-    if (newPassword.length < 6) {
-      return res.status(400).json(createExpressErrorResponse('Password must be at least 6 characters long', 400));
+    if (password !== confirm_password) {
+      return res.status(400).json(createExpressErrorResponse('Passwords do not match', 400));
     }
 
-    // Verify OTP
-    const isValid = await verifyEmailOTP(email.toLowerCase(), otp);
+    // Validate password strength
+    const { isValid, message } = validatePassword(password);
     if (!isValid) {
-      return res.status(401).json(createExpressErrorResponse('Invalid or expired OTP', 401));
+      return res.status(400).json(createExpressErrorResponse(message, 400));
     }
 
-    // Update password
-    const hashedPassword = await bcrypt.hash(newPassword, 12);
+    // Hash and update password
+    const hashedPassword = await bcrypt.hash(password, 12);
     const pool = getDB();
-    await pool.query('UPDATE users SET password = ?, updated_at = NOW() WHERE email = ?', [hashedPassword, email.toLowerCase()]);
+    const [result] = await pool.query('UPDATE users SET password = ? WHERE email = ?', [hashedPassword, email.toLowerCase()]);
+    if (!result.affectedRows) {
+      return res.status(404).json(createExpressErrorResponse('User not found', 404));
+    }
 
-    return res.json(createExpressSuccessResponse('Password reset successfully. You can now login with your new password.'));
+    logInfo('Password reset successfully', { email: email.toLowerCase() });
+    return res.json(createExpressSuccessResponse('Password reset successfully'));
   } catch (error) {
     logError('Password reset error', error);
     return res.status(500).json(createExpressErrorResponse('Internal server error', 500));
@@ -941,6 +1112,12 @@ export const googleSignin = async (req, res) => {
 
     if (!idToken) {
       return res.status(400).json(createExpressErrorResponse('Google ID token is required', 400));
+    }
+
+    // Basic rate limiting per IP and route (parity with Lambda)
+    const ip = req.ip || req.connection?.remoteAddress || '0.0.0.0';
+    if (!await checkRateLimit(ip, '/auth/google')) {
+      return res.status(429).json(createExpressErrorResponse('Too many requests', 429));
     }
 
     // Verify Google ID token
@@ -974,16 +1151,28 @@ export const googleSignin = async (req, res) => {
       return res.status(403).json(createExpressErrorResponse('Your account is pending confirmation.', 403));
     }
 
-    // Generate tokens
-    const accessToken = generateAccessToken({ id: parseInt(user.id, 10), role: user.role || 'normal' });
-    const refreshToken = generateRefreshToken({ id: parseInt(user.id, 10), role: user.role || 'normal' });
-    await storeRefreshToken(String(user.id), refreshToken, req);
+    // Generate tokens and store refresh session
+    const role = user.role || 'normal';
+    const accessToken = generateAccessToken({ id: parseInt(user.id, 10), role });
+    const refreshToken = generateRefreshToken({ id: parseInt(user.id, 10), role });
+    const stored = await storeRefreshToken(String(user.id), refreshToken, req);
+    if (!stored) {
+      return res.status(500).json(createExpressErrorResponse('Failed to create session', 500));
+    }
 
-    // If suspended, respond accordingly but still provide tokens
+    // Compute currency based on admin settings and user country (parity with Lambda)
+    let currency = null;
+    try {
+      const adminSettings = await getAdminSettings();
+      const userCountry = await getUserCountry(req, user);
+      currency = processCurrencySettings(adminSettings, userCountry).currency;
+    } catch (e) {
+      logError('googleSignin currency processing error', e);
+    }
+
+    // If suspended, respond accordingly but still provide tokens (Lambda behavior)
     if (user.status === 'suspended') {
-      return res.json({
-        // success: true, // Replaced with createExpressSuccessResponse
-        message: 'Login successful but account is suspended',
+      return res.json(createExpressSuccessResponse('Login successful but account is suspended', {
         actionRequired: 'suspended',
         redirectTo: '/auth/suspended',
         accessToken,
@@ -993,10 +1182,12 @@ export const googleSignin = async (req, res) => {
           username: user.username,
           name: user.name,
           avatar: user.avatar ? getFile('avatar/' + user.avatar) : null,
+          countries_id: user.countries_id,
           status: user.status,
-          role: user.role || 'normal'
-        }
-      });
+          role
+        },
+        currency
+      }));
     }
 
     return res.json(createExpressSuccessResponse('Google sign in successful', {
@@ -1006,8 +1197,10 @@ export const googleSignin = async (req, res) => {
         id: String(user.id),
         username: user.username,
         name: user.name,
-        avatar: user.avatar ? getFile('avatar/' + user.avatar) : null
-      }
+        avatar: user.avatar ? getFile('avatar/' + user.avatar) : null,
+        countries_id: user.countries_id
+      },
+      currency
     }));
   } catch (error) {
     logError('Google sign-in error', error);
@@ -1124,9 +1317,46 @@ export const appleSignin = async (req, res) => {
  */
 export const suspended = async (req, res) => {
   try {
-    return res.json(createExpressSuccessResponse('Account is suspended', {
-      actionRequired: 'contact_support',
-      supportEmail: process.env.SUPPORT_EMAIL || 'support@bingeme.com'
+    // Require authenticated token (handled by route middleware), use req.userId
+    const userId = req.userId;
+    if (!userId) {
+      return res.status(401).json(createExpressErrorResponse('Access token required', 401));
+    }
+
+    // Check if user is suspended
+    const pool = getDB();
+    const [rows] = await pool.query(
+      `SELECT id, status, role, verified_id FROM users WHERE id = ? AND status = 'suspended'`,
+      [userId]
+    );
+
+    if (!rows.length) {
+      return res.status(403).json(createExpressErrorResponse('User not suspended', 403));
+    }
+
+    const user = rows[0];
+
+    // Fetch support IDs from admin settings
+    const supportUserIds = await getSupportUserIds();
+    const supportUserId = supportUserIds.length > 0 ? supportUserIds[0] : '';
+
+    const creatorSupportIds = await getSupportCreatorIds();
+    const creatorSupportId = creatorSupportIds.length > 0 ? creatorSupportIds[0] : '';
+
+    // Determine URL per Lambda/Templar behavior
+    let url = `messages/${supportUserId}/support`;
+    if (user.role === 'normal' && user.verified_id === 'yes') {
+      url = `messages/${creatorSupportId}/csupport`;
+    }
+
+    logInfo('Suspended support URL determined', { userId: String(userId), url, role: user.role, verified: user.verified_id });
+
+    return res.json(createExpressSuccessResponse('Suspended user support URL retrieved', {
+      url,
+      user: {
+        role: user.role,
+        verified_id: user.verified_id
+      }
     }));
   } catch (error) {
     logError('Suspended handler error', error);
@@ -1248,6 +1478,21 @@ const createReferralRecord = async (userId, referredBy) => {
 const createUser = async ({ name, email, phone, ip }) => {
   try {
     const pool = getDB();
+    
+    // Get default avatar and cover from admin settings
+    let defaultAvatar = '';
+    let defaultCover = '';
+    try {
+      const [settingsRows] = await pool.query('SELECT avatar, cover_default FROM admin_settings LIMIT 1');
+      if (settingsRows.length > 0) {
+        defaultAvatar = settingsRows[0].avatar || '';
+        defaultCover = settingsRows[0].cover_default || '';
+      }
+    } catch (settingsError) {
+      logError('Error fetching default avatar/cover from admin settings:', settingsError);
+      // Continue with empty defaults if settings fetch fails
+    }
+    
     // Parameterized query to prevent SQL injection
     // Provide placeholder defaults for NOT NULL columns without DB defaults
     // - username: use temporary 'ua' then update to `u{userId}` post-insert
@@ -1267,8 +1512,8 @@ const createUser = async ({ name, email, phone, ip }) => {
       telegram, vk, twitch, discord
     ) VALUES (
       ?, 'ua', ?, ?, '',
-      NOW(), '', '', 'active', 'normal', 'none',
-      '', ?, 'google', '', '',
+      NOW(), ?, ?, 'active', 'normal', 'none',
+      '', '', '', '', '',
       'no', '1', ?, 'en', '0', '',
       '', '', '', '', '', '',
       '', '', 0, 0, '', '', '', '',
@@ -1280,7 +1525,8 @@ const createUser = async ({ name, email, phone, ip }) => {
     )
   `;
     const insertParams = [
-      name, phone || '', email.toLowerCase(), '', // empty password
+      name, phone || '', email.toLowerCase(),
+      defaultAvatar, defaultCover, // avatar, cover
       ip || '127.0.0.1'
     ];
 
@@ -1365,3 +1611,111 @@ const findUser = async (identifier, loginType) => {
 
 // Additional helper functions for OAuth providers would go here...
 // (Google, Apple OAuth implementation functions)
+
+/**
+ * Helper: Verify Google ID token via Google's tokeninfo endpoint
+ */
+const verifyGoogleIdToken = async (idToken) => {
+  try {
+    const { data } = await axios.get('https://oauth2.googleapis.com/tokeninfo', {
+      params: { id_token: idToken },
+      timeout: 5000
+    });
+
+    const clientId = process.env.GOOGLE_CLIENT_ID;
+    if (clientId && data.aud !== clientId) {
+      throw new Error('Invalid Google client ID');
+    }
+
+    if (String(data.email_verified) !== 'true') {
+      throw new Error('Google email not verified');
+    }
+
+    return data;
+  } catch (error) {
+    throw new Error(`Google token verification failed: ${error.response?.data?.error_description || error.message}`);
+  }
+};
+
+/**
+ * Helper: Find existing user by Google oauth or email
+ */
+const findUserByOAuthOrEmail = async (oauthUid, email) => {
+  const pool = getDB();
+  const query = `
+    SELECT * FROM users
+    WHERE (oauth_provider = 'google' AND oauth_uid = ?) OR email = ?
+    LIMIT 1
+  `;
+  const [rows] = await pool.query(query, [oauthUid, email.toLowerCase()]);
+  return rows[0] || null;
+};
+
+/**
+ * Helper: Create new user using Google profile data (Lambda parity)
+ */
+const createUserWithGoogle = async ({ name, email, oauthUid, ip }) => {
+  const pool = getDB();
+
+  // Fetch admin default avatar/cover
+  let defaultAvatar = '';
+  let defaultCover = '';
+  try {
+    const adminSettings = await getAdminSettings();
+    defaultAvatar = adminSettings?.avatar || '';
+    defaultCover = adminSettings?.cover_default || '';
+  } catch (e) {
+    logError('createUserWithGoogle admin settings fetch error', e);
+  }
+
+  const insertQuery = `
+    INSERT INTO users (
+      name, username, mobile, email, password,
+      date, avatar, cover, status, role, permission,
+      confirmation_code, oauth_uid, oauth_provider, token, story,
+      verified_id, email_verified, ip, language, mobile_verified, countries_id,
+      remember_token, paypal_account, payment_gateway, bank, about, profession,
+      categories_id, website, price, balance, address, city, zip, facebook,
+      twitter, instagram, youtube, pinterest, github, plan, company, gender,
+      birthdate, wallet, tiktok, snapchat, paystack_plan, paystack_authorization_code,
+      paystack_last4, paystack_exp, paystack_card_brand, last_login, custom_fee,
+      payoneer_account, zelle_account, permissions, blocked_countries, net_earnings, creator_agreement,
+      telegram, vk, twitch, discord
+    ) VALUES (
+      ?, 'ua', '', ?, '',
+      NOW(), ?, ?, 'active', 'normal', 'none',
+      '', ?, 'google', '', '',
+      'no', '1', ?, 'en', '0', '',
+      '', '', '', '', '', '',
+      '', '', 0, 0, '', '', '', '',
+      '', '', '', '', '', '', '','',
+      '', 0.00, '', '', '', '',
+      0, '', '', '', 0,
+      '', '', '', '', 0.00,
+      0, '', '', '', ''
+    )
+  `;
+  const [result] = await pool.query(insertQuery, [name, email.toLowerCase(), defaultAvatar, defaultCover, oauthUid, ip || '127.0.0.1']);
+  const userId = result.insertId;
+  await pool.query('UPDATE users SET username = ? WHERE id = ?', [`u${userId}`, userId]);
+  return {
+    id: userId,
+    email: email.toLowerCase(),
+    username: `u${userId}`,
+    status: 'active',
+    role: 'normal',
+    avatar: defaultAvatar,
+    countries_id: ''
+  };
+};
+
+/**
+ * Helper: Attach Google oauth to existing user
+ */
+const attachGoogleToExistingUser = async (userId, oauthUid) => {
+  const pool = getDB();
+  await pool.query(
+    `UPDATE users SET oauth_uid = ?, oauth_provider = 'google', email_verified = '1', updated_at = NOW() WHERE id = ?`,
+    [oauthUid, userId]
+  );
+};
