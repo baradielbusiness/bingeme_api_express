@@ -1,11 +1,11 @@
 import express from 'express';
 import * as payoutController from '../controllers/payoutController.js';
-import { authMiddleware } from '../middleware/auth.js';
+import { authenticatedOnlyMiddleware } from '../middleware/auth.js';
 import setEdgeCacheHeaders from '../middleware/edgeCacheHeaders.js';
 
 const router = express.Router();
 
-router.use(authMiddleware);
+router.use(authenticatedOnlyMiddleware);
 
 // Payout method endpoints
 router.get('/', setEdgeCacheHeaders, payoutController.getPayoutMethod);

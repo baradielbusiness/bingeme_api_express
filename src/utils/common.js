@@ -792,48 +792,167 @@ export const getGenderOptions = async () => {
 };
 
 /**
- * Get user sales list
+ * Get user sales list - matches Lambda implementation
  */
-export const getUserSalesList = async (userId, skip = 0, limit = 10) => {
+export const getUserSalesList = async (userId, options = {}) => {
   try {
+    const { sort, filter, skip, limit } = options;
     const skipNum = parseInt(skip) || 0;
-    const limitNum = parseInt(limit) || 10;
+    const limitNum = parseInt(limit) || 20;
 
-    const query = `
+    // Build the base query for sales (matches Lambda)
+    let query = `
       SELECT 
-        s.id,
-        s.buyer_id,
-        s.product_id,
-        s.amount,
-        s.status,
-        s.created_at,
+        p.id,
+        p.delivery_status,
+        p.created_at,
+        p.description_custom_content,
         u.username as buyer_username,
-        u.name as buyer_name,
-        p.name as product_name
-      FROM sales s
-      JOIN users u ON s.buyer_id = u.id
-      JOIN products p ON s.product_id = p.id
-      WHERE s.seller_id = ?
-      ORDER BY s.created_at DESC
-      LIMIT ? OFFSET ?
+        u.email as buyer_email,
+        pr.name as product_name,
+        pr.type as product_type,
+        pr.price as product_price
+      FROM purchases p
+      INNER JOIN users u ON p.user_id = u.id
+      INNER JOIN products pr ON p.products_id = pr.id
+      WHERE pr.user_id = ? AND p.status = 1
     `;
+    const queryParams = [userId];
 
-    const [sales] = await pool.query(query, [userId, limitNum, skipNum]);
-    return sales;
+    // Apply filtering by product type
+    if (filter && filter !== 'all') {
+      query += ` AND pr.type = ?`;
+      queryParams.push(filter);
+    }
+
+    // Apply sorting and delivery status filter
+    if (sort) {
+      if (sort === 'oldest') {
+        query += ` ORDER BY p.id ASC`;
+      } else if (sort === 'latest') {
+        query += ` ORDER BY p.id DESC`;
+      } else if (['pending', 'delivered', 'rejected'].includes(sort)) {
+        query += ` AND p.delivery_status = ? ORDER BY p.id DESC`;
+        queryParams.push(sort);
+      } else {
+        query += ` ORDER BY p.id DESC`;
+      }
+    } else {
+      query += ` ORDER BY p.id DESC`;
+    }
+
+    // Add pagination
+    query += ` LIMIT ? OFFSET ?`;
+    queryParams.push(limitNum, skipNum);
+
+    const [rows] = await pool.query(query, queryParams);
+
+    // Format the response data to match Lambda shape
+    const sales = rows.map(row => {
+      // Format created date for sales
+      const salesCreatedDate = new Date(row.created_at);
+      const salesFormattedDate = salesCreatedDate.toLocaleDateString('en-US', {
+        year: 'numeric', month: 'long', day: 'numeric'
+      });
+
+      // Transform product type for display parity
+      let displayProductType = row.product_type;
+      if (row.product_type === 'custom') {
+        displayProductType = 'Custom Content';
+      } else if (row.product_type === 'digital') {
+        displayProductType = 'Digital Products';
+      }
+
+      return {
+        user: {
+          username: row.buyer_username,
+          email: row.buyer_email || ''
+        },
+        sales: {
+          id: encryptId(row.id),
+          delivery_status: row.delivery_status,
+          created_at: salesFormattedDate,
+          description: row.description_custom_content || ''
+        },
+        product: {
+          product_name: row.product_name,
+          product_type: displayProductType,
+          price: Number(row.product_price)
+        }
+      };
+    });
+
+    // Get total count for pagination
+    let countQuery = `
+      SELECT COUNT(*) as total
+      FROM purchases p
+      INNER JOIN products pr ON p.products_id = pr.id
+      WHERE pr.user_id = ? AND p.status = 1
+    `;
+    const countParams = [userId];
+
+    if (filter && filter !== 'all') {
+      countQuery += ` AND pr.type = ?`;
+      countParams.push(filter);
+    }
+
+    if (sort && ['pending', 'delivered', 'rejected'].includes(sort)) {
+      countQuery += ` AND p.delivery_status = ?`;
+      countParams.push(sort);
+    }
+
+    const [countResult] = await pool.query(countQuery, countParams);
+    const totalSales = countResult[0]?.total || 0;
+
+    return { sales, totalSales };
   } catch (error) {
     logError('Error getting user sales list:', error);
-    return [];
+    return { sales: [], totalSales: 0 };
   }
 };
 
 /**
- * Update purchase status
+ * Update purchase status - matches Lambda implementation
  */
-export const updatePurchaseStatus = async (saleId, status) => {
+export const updatePurchaseStatus = async (userId, purchaseId, status) => {
   try {
-    const query = `UPDATE sales SET status = ?, updated_at = NOW() WHERE id = ?`;
-    await pool.query(query, [status, saleId]);
-    logInfo(`Updated purchase status: ${saleId} -> ${status}`);
+    // Validate status
+    if (!['delivered', 'rejected'].includes(status)) {
+      const error = new Error('Invalid status');
+      error.statusCode = 400;
+      throw error;
+    }
+
+    // Find the purchase for this user (as product owner) and status pending
+    const [rows] = await pool.query(
+      `SELECT p.id, p.delivery_status, pr.user_id as owner_id
+       FROM purchases p
+       INNER JOIN products pr ON p.products_id = pr.id
+       WHERE p.id = ? AND pr.user_id = ? AND p.delivery_status = 'pending' AND p.status = 1
+       LIMIT 1`,
+      [purchaseId, userId]
+    );
+
+    if (!rows.length) {
+      const error = new Error('Purchase not found or not eligible for update');
+      error.statusCode = 404;
+      throw error;
+    }
+
+    // Update the delivery status
+    const [result] = await pool.query(
+      'UPDATE purchases SET delivery_status = ?, updated_at = NOW() WHERE id = ? AND delivery_status = \'pending\'',
+      [status, purchaseId]
+    );
+
+    if (result.affectedRows === 0) {
+      const error = new Error('Purchase not found or not eligible for update');
+      error.statusCode = 404;
+      throw error;
+    }
+
+    logInfo(`Updated purchase status: ${purchaseId} -> ${status} for user ${userId}`);
+    return { success: true, affectedRows: result.affectedRows };
   } catch (error) {
     logError('Error updating purchase status:', error);
     throw error;

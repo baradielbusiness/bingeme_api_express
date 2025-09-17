@@ -20,7 +20,7 @@ export const getSales = async (req, res) => {
     // Pagination next URL logic
     let next = '';
     if (skip + limit < totalSales) {
-      next = `/creator/payment-received?skip=${skip + limit}&limit=${limit}`;
+      next = `/sales?skip=${skip + limit}&limit=${limit}&sort=${sort}&filter=${filter}`;
     }
 
     // Return the sales data with pagination

@@ -1,4 +1,5 @@
-import { createSuccessResponse, createErrorResponse, logInfo, logError, getSubscribersList, getSubscribersCount, getUserById, getFile, decryptId, isEncryptedId, verifyAccessToken, getUserPostsList, getUserPostsCount, getUserUpdatesList, getUserUpdatesCount, updateUserPost, deleteUserPost, getPostComments, updateUserSettings, sendOtpToUser, verifyUserOtp, searchUsersByName, changeUserPassword, createPasswordOtpForUser, verifyPasswordOtpForUser, blockUserById, getUserProfileBySlug, createExpressSuccessResponse, createExpressErrorResponse } from '../utils/common.js';
+import { createSuccessResponse, createErrorResponse, logInfo, logError, getSubscribersList, getSubscribersCount, getUserById, getFile, decryptId, isEncryptedId, verifyAccessToken, getUserPostsList, getUserPostsCount, getUserUpdatesList, getUserUpdatesCount, updateUserPost, deleteUserPost, getPostComments, updateUserSettings, sendOtpToUser, verifyUserOtp, searchUsersByName, changeUserPassword, createPasswordOtpForUser, verifyPasswordOtpForUser, blockUserById, getUserProfileBySlug, createExpressSuccessResponse, createExpressErrorResponse, safeDecryptId, encryptId } from '../utils/common.js';
+import { getDB } from '../config/database.js';
 import { processUploadRequest } from '../utils/uploadUtils.js';
 
 /**
@@ -577,17 +578,76 @@ export const createUserAvatar = async (req, res) => {
 export const restrictUser = async (req, res) => {
   try {
     const userId = req.userId;
-    const { id: targetUserId } = req.params;
+    const { id: encryptedTargetId } = req.params;
+    logInfo('restrictUser: received request', {
+      userId: String(userId),
+      encryptedTargetId
+    });
 
-    if (!targetUserId) {
+    if (!encryptedTargetId) {
       return res.status(400).json(createExpressErrorResponse('User ID is required', 400));
     }
 
-    // Restrict user logic here - this would need to be implemented in common.js
-    // const result = await restrictUserById(userId, targetUserId);
-    
-    logInfo('User restricted successfully', { userId, targetUserId });
-    return res.json(createExpressSuccessResponse('User restricted successfully'));
+    // Decrypt target user id
+    let targetUserId;
+    try {
+      targetUserId = safeDecryptId(encryptedTargetId);
+      logInfo('restrictUser: decrypted id', {
+        encryptedTargetId,
+        targetUserId,
+        type: typeof targetUserId
+      });
+    } catch (e) {
+      logError('restrictUser: decrypt error', { encryptedTargetId, error: e.message });
+      return res.status(400).json(createExpressErrorResponse('Invalid user ID format', 400));
+    }
+    if (typeof targetUserId !== 'number' || isNaN(targetUserId)) {
+      logError('restrictUser: decrypted id is not a valid number', {
+        encryptedTargetId,
+        targetUserId,
+        type: typeof targetUserId
+      });
+      return res.status(400).json(createExpressErrorResponse('Invalid user ID format', 400));
+    }
+
+    // Fetch target user
+    const targetUser = await getUserById(targetUserId);
+    if (!targetUser) {
+      return res.status(404).json(createExpressErrorResponse('User not found', 404));
+    }
+
+    // Prevent self restriction
+    if (String(targetUser.id) === String(userId)) {
+      return res.status(400).json(createExpressErrorResponse('Cannot restrict yourself', 400));
+    }
+
+    // Skip super admin
+    if (targetUser.role === 'admin' && Number(targetUser.id) === 1) {
+      return res.json(createExpressSuccessResponse('Restriction updated successfully', {
+        message: 'Restriction updated successfully',
+        status: 200,
+        success: true,
+        timestamp: new Date().toISOString()
+      }));
+    }
+
+    const pool = getDB();
+    // Check if exists
+    const [existsRows] = await pool.query('SELECT id FROM restrictions WHERE user_id = ? AND user_restricted = ?', [userId, targetUserId]);
+
+    if (existsRows.length) {
+      await pool.query('DELETE FROM restrictions WHERE user_id = ? AND user_restricted = ?', [userId, targetUserId]);
+    } else {
+      await pool.query('INSERT INTO restrictions (user_id, user_restricted, created_at, updated_at) VALUES (?, ?, NOW(), NOW())', [userId, targetUserId]);
+      // Optional: subscription cancellation parity is skipped unless required utilities exist
+    }
+
+    return res.json(createExpressSuccessResponse('Restriction updated successfully', {
+      message: 'Restriction updated successfully',
+      status: 200,
+      success: true,
+      timestamp: new Date().toISOString()
+    }));
   } catch (error) {
     logError('Error restricting user:', error);
     return res.status(500).json(createExpressErrorResponse('Failed to restrict user', 500));
@@ -625,14 +685,48 @@ export const getRestrictions = async (req, res) => {
     const userId = req.userId;
     const { skip: skipRaw, limit: limitRaw } = req.query;
     const skip = parseInt(skipRaw) || 0;
-    const limit = parseInt(limitRaw) || 20;
+    const limit = parseInt(limitRaw) || 15;
 
-    // Get restrictions logic here - this would need to be implemented in common.js
-    // const restrictions = await getUserRestrictions(userId, { skip, limit });
-    
-    logInfo('User restrictions retrieved successfully', { userId, count: 0 });
-    return res.json(createExpressSuccessResponse('User restrictions retrieved successfully', {
-      restrictions: []
+    if (skip < 0 || limit < 1 || limit > 100) {
+      return res.status(400).json(createExpressErrorResponse('Invalid pagination parameters. Skip must be >= 0, limit must be between 1-100.', 400));
+    }
+
+    const pool = getDB();
+
+    // Total count
+    const [countRows] = await pool.query(
+      `SELECT COUNT(*) as total FROM restrictions r
+       JOIN users u ON r.user_restricted = u.id
+       WHERE r.user_id = ? AND u.status != 'deleted'`,
+      [userId]
+    );
+    const total = countRows[0]?.total ?? 0;
+
+    // Page
+    const [rows] = await pool.query(
+      `SELECT r.user_restricted as id, u.name, u.username, u.avatar FROM restrictions r
+       JOIN users u ON r.user_restricted = u.id
+       WHERE r.user_id = ? AND u.status != 'deleted'
+       ORDER BY r.id DESC
+       LIMIT ? OFFSET ?`,
+      [userId, limit, skip]
+    );
+
+    const restrictions = rows.map(({ id, name, username, avatar }) => ({
+      id: encryptId(id),
+      name,
+      username,
+      avatar: avatar ? getFile(`avatar/${avatar}`) : null
+    }));
+
+    let next = '';
+    if (skip + limit < total) {
+      next = `/restrict/user?skip=${skip + limit}&limit=${limit}`;
+    }
+
+    return res.json(createExpressSuccessResponse('Restrictions retrieved successfully', {
+      restrictions,
+      pagination: { total, next }
     }));
   } catch (error) {
     logError('Error fetching user restrictions:', error);

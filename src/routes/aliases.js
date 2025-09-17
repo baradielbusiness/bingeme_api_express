@@ -1,5 +1,5 @@
 import express from 'express';
-import { authMiddleware, optionalAuthMiddleware } from '../middleware/auth.js';
+import { authMiddleware, optionalAuthMiddleware, authenticatedOnlyMiddleware } from '../middleware/auth.js';
 import setEdgeCacheHeaders from '../middleware/edgeCacheHeaders.js';
 
 // Controllers needed to mirror serverless.yml paths
@@ -68,9 +68,9 @@ router.post('/user/cover', authMiddleware, userController.createUserCover);
 router.get('/user/avatar/upload-url', authMiddleware, userController.getUserAvatarUploadUrl);
 router.post('/user/avatar', authMiddleware, userController.createUserAvatar);
 router.post('/user/block/:id', authMiddleware, userController.blockUser);
-router.post('/restrict/:id', authMiddleware, userController.restrictUser);
-router.delete('/restrict/:id', authMiddleware, userController.unrestrictUser);
-router.get('/restrict/user', authMiddleware, userController.getRestrictions);
+// Lambda-style restriction endpoints
+router.post('/restrict/user/:id', authenticatedOnlyMiddleware, userController.restrictUser);
+router.get('/restrict/user', authenticatedOnlyMiddleware, userController.getRestrictions);
 router.get('/:slug', optionalAuthMiddleware, userController.getProfile);
 
 // Sales
@@ -105,12 +105,12 @@ router.delete('/notifications/delete/:id', authMiddleware, notificationsControll
 router.delete('/notifications/delete-all', authMiddleware, notificationsController.deleteAllNotifications);
 
 // Payout
-router.get('/payout', authMiddleware, payoutController.getPayoutMethod);
-router.post('/payout/create', authMiddleware, payoutController.createPayoutMethod);
-router.delete('/payout/delete', authMiddleware, payoutController.deletePayoutMethod);
-router.get('/payout/conversations', authMiddleware, payoutController.getPayoutConversations);
-router.post('/payout/conversations/store', authMiddleware, payoutController.storePayoutConversation);
-router.get('/payout/upload-url', authMiddleware, payoutController.getPayoutUploadUrl);
+router.get('/payout', authenticatedOnlyMiddleware, payoutController.getPayoutMethod);
+router.post('/payout/create', authenticatedOnlyMiddleware, payoutController.createPayoutMethod);
+router.delete('/payout/delete', authenticatedOnlyMiddleware, payoutController.deletePayoutMethod);
+router.get('/payout/conversations', authenticatedOnlyMiddleware, payoutController.getPayoutConversations);
+router.post('/payout/conversations/store', authenticatedOnlyMiddleware, payoutController.storePayoutConversation);
+router.get('/payout/upload-url', authenticatedOnlyMiddleware, payoutController.getPayoutUploadUrl);
 
 // Verification
 router.get('/verification/upload-url', authMiddleware, verificationController.getVerificationUploadUrl);

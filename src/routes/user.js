@@ -1,6 +1,6 @@
 import express from 'express';
 import * as userController from '../controllers/userController.js';
-import { authMiddleware } from '../middleware/auth.js';
+import { authenticatedOnlyMiddleware } from '../middleware/auth.js';
 import optionalAuthMiddleware from '../middleware/optionalAuth.js';
 import setEdgeCacheHeaders from '../middleware/edgeCacheHeaders.js';
 
@@ -10,7 +10,7 @@ const router = express.Router();
 router.get('/:slug', setEdgeCacheHeaders, optionalAuthMiddleware, userController.getProfile);
 
 // Protected routes (authentication required)
-router.use(authMiddleware);
+router.use(authenticatedOnlyMiddleware);
 
 // Posts and updates
 router.get('/posts', setEdgeCacheHeaders, userController.getMyPosts);
@@ -41,8 +41,7 @@ router.post('/user/avatar', userController.createUserAvatar);
 
 // User management
 router.post('/user/block/:id', userController.blockUser);
-router.post('/restrict/:id', userController.restrictUser);
-router.delete('/restrict/:id', userController.unrestrictUser);
+router.post('/restrict/user/:id', userController.restrictUser);
 router.get('/restrict/user', setEdgeCacheHeaders, userController.getRestrictions);
 
 // Creator subscribers
