@@ -2,7 +2,16 @@
  * @file pagesController.js
  * @description Optimized controller for pages API endpoint - similar to templar_influencer PagesController
  */
-import { getAuthenticatedUserId, logInfo, logError, getVerifiedUserById } from '../utils/common.js';
+import { 
+  logInfo, 
+  logError, 
+  createErrorResponse, 
+  createSuccessResponse, 
+  createExpressSuccessResponse,
+  createExpressErrorResponse,
+  getAuthenticatedUserId, 
+  getVerifiedUserById 
+} from '../utils/common.js';
 import { getDB } from '../config/database.js';
 
 // Common response headers

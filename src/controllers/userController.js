@@ -1,4 +1,4 @@
-import { createSuccessResponse, createErrorResponse, logInfo, logError, getSubscribersList, getSubscribersCount, getUserById, getFile, decryptId, isEncryptedId, verifyAccessToken, getUserPostsList, getUserPostsCount, getUserUpdatesList, getUserUpdatesCount, updateUserPost, deleteUserPost, getPostComments, updateUserSettings, sendOtpToUser, verifyUserOtp, searchUsersByName, changeUserPassword, createPasswordOtpForUser, verifyPasswordOtpForUser, blockUserById, getUserProfileBySlug, getAuthenticatedUserId, safeDecryptId, encryptId } from '../utils/common.js';
+import { createSuccessResponse, createErrorResponse, logInfo, logError, getSubscribersList, getSubscribersCount, getUserById, getFile, decryptId, isEncryptedId, verifyAccessToken, getUserPostsList, getUserPostsCount, getUserUpdatesList, getUserUpdatesCount, updateUserPost, deleteUserPost, getPostComments, updateUserSettings, sendOtpToUser, verifyUserOtp, searchUsersByName, changeUserPassword, createPasswordOtpForUser, verifyPasswordOtpForUser, blockUserById, getUserProfileBySlug, getAuthenticatedUserId, safeDecryptId, encryptId, createExpressSuccessResponse, createExpressErrorResponse } from '../utils/common.js';
 import { processUploadRequest } from '../utils/uploadUtils.js';
 import { getDB } from '../config/database.js';
 import { cancelSubscriptions } from '../utils/subscription.js';
@@ -15,7 +15,7 @@ export const getSubscribers = async (req, res) => {
 
     // Validate pagination parameters
     if (skip < 0 || limit < 1 || limit > 100) {
-      return res.status(400).json(createErrorResponse(400, 'Invalid pagination parameters. Skip must be >= 0, limit must be between 1-100.'));
+      return res.status(400).json(createExpressErrorResponse('Invalid pagination parameters. Skip must be >= 0, limit must be between 1-100.', 400));
     }
 
     // Get subscribers list and count
@@ -30,13 +30,13 @@ export const getSubscribers = async (req, res) => {
 
     logInfo('Subscribers retrieved successfully', { userId, totalCount, returnedCount: subscribers.length, sort });
 
-    return res.json(createSuccessResponse('Subscribers retrieved successfully', {
+    return res.json(createExpressSuccessResponse('Subscribers retrieved successfully', {
       subscribers,
       pagination: { total: totalCount, skip, limit, hasMore, next }
     }));
   } catch (error) {
     logError('Error fetching subscribers:', error);
-    return res.status(500).json(createErrorResponse(500, 'Failed to fetch subscribers'));
+    return res.status(500).json(createExpressErrorResponse('Failed to fetch subscribers', 500));
   }
 };
 
@@ -62,13 +62,13 @@ export const getMyPosts = async (req, res) => {
 
     logInfo('Posts retrieved successfully', { userId, totalCount, returnedCount: posts.length });
 
-    return res.json(createSuccessResponse('Posts retrieved successfully', {
+    return res.json(createExpressSuccessResponse('Posts retrieved successfully', {
       posts,
       pagination: { total: totalCount, skip, limit, hasMore, next }
     }));
   } catch (error) {
     logError('Error fetching posts:', error);
-    return res.status(500).json(createErrorResponse(500, 'Failed to fetch posts'));
+    return res.status(500).json(createExpressErrorResponse('Failed to fetch posts', 500));
   }
 };
 
@@ -94,13 +94,13 @@ export const getUpdates = async (req, res) => {
 
     logInfo('Updates retrieved successfully', { userId, totalCount, returnedCount: updates.length });
 
-    return res.json(createSuccessResponse('Updates retrieved successfully', {
+    return res.json(createExpressSuccessResponse('Updates retrieved successfully', {
       updates,
       pagination: { total: totalCount, skip, limit, hasMore, next }
     }));
   } catch (error) {
     logError('Error fetching updates:', error);
-    return res.status(500).json(createErrorResponse(500, 'Failed to fetch updates'));
+    return res.status(500).json(createExpressErrorResponse('Failed to fetch updates', 500));
   }
 };
 
@@ -113,19 +113,19 @@ export const editUpdate = async (req, res) => {
     const { id, content } = req.body;
 
     if (!id || !content) {
-      return res.status(400).json(createErrorResponse(400, 'Post ID and content are required'));
+      return res.status(400).json(createExpressErrorResponse('Post ID and content are required', 400));
     }
 
     const success = await updateUserPost(userId, id, content);
     if (!success) {
-      return res.status(404).json(createErrorResponse(404, 'Post not found or not updated'));
+      return res.status(404).json(createExpressErrorResponse('Post not found or not updated', 404));
     }
 
     logInfo('Post updated successfully', { userId, postId: id });
-    return res.json(createSuccessResponse('Post updated successfully'));
+    return res.json(createExpressSuccessResponse('Post updated successfully'));
   } catch (error) {
     logError('Error updating post:', error);
-    return res.status(500).json(createErrorResponse(500, 'Failed to update post'));
+    return res.status(500).json(createExpressErrorResponse('Failed to update post', 500));
   }
 };
 
@@ -138,19 +138,19 @@ export const deleteUpdate = async (req, res) => {
     const { id } = req.params;
 
     if (!id) {
-      return res.status(400).json(createErrorResponse(400, 'Post ID is required'));
+      return res.status(400).json(createExpressErrorResponse('Post ID is required', 400));
     }
 
     const success = await deleteUserPost(userId, id);
     if (!success) {
-      return res.status(404).json(createErrorResponse(404, 'Post not found or not deleted'));
+      return res.status(404).json(createExpressErrorResponse('Post not found or not deleted', 404));
     }
 
     logInfo('Post deleted successfully', { userId, postId: id });
-    return res.json(createSuccessResponse('Post deleted successfully'));
+    return res.json(createExpressSuccessResponse('Post deleted successfully'));
   } catch (error) {
     logError('Error deleting post:', error);
-    return res.status(500).json(createErrorResponse(500, 'Failed to delete post'));
+    return res.status(500).json(createExpressErrorResponse('Failed to delete post', 500));
   }
 };
 
@@ -163,16 +163,16 @@ export const getComments = async (req, res) => {
     const { id } = req.params;
 
     if (!id) {
-      return res.status(400).json(createErrorResponse(400, 'Post ID is required'));
+      return res.status(400).json(createExpressErrorResponse('Post ID is required', 400));
     }
 
     const comments = await getPostComments(id);
     logInfo('Comments retrieved successfully', { userId, postId: id, commentCount: comments.length });
 
-    return res.json(createSuccessResponse('Comments retrieved successfully', { comments }));
+    return res.json(createExpressSuccessResponse('Comments retrieved successfully', { comments }));
   } catch (error) {
     logError('Error fetching comments:', error);
-    return res.status(500).json(createErrorResponse(500, 'Failed to fetch comments'));
+    return res.status(500).json(createExpressErrorResponse('Failed to fetch comments', 500));
   }
 };
 
@@ -185,7 +185,7 @@ export const getSettings = async (req, res) => {
     const user = await getUserById(userId);
     
     if (!user) {
-      return res.status(404).json(createErrorResponse(404, 'User not found'));
+      return res.status(404).json(createExpressErrorResponse('User not found', 404));
     }
 
     // Format user data for settings response
@@ -200,10 +200,10 @@ export const getSettings = async (req, res) => {
     };
 
     logInfo('User settings retrieved successfully', { userId });
-    return res.json(createSuccessResponse('User settings retrieved successfully', { user: settings }));
+    return res.json(createExpressSuccessResponse('User settings retrieved successfully', { user: settings }));
   } catch (error) {
     logError('Error fetching user settings:', error);
-    return res.status(500).json(createErrorResponse(500, 'Failed to fetch user settings'));
+    return res.status(500).json(createExpressErrorResponse('Failed to fetch user settings', 500));
   }
 };
 
@@ -217,14 +217,14 @@ export const postSettings = async (req, res) => {
 
     const success = await updateUserSettings(userId, settingsData);
     if (!success) {
-      return res.status(400).json(createErrorResponse(400, 'Failed to update settings'));
+      return res.status(400).json(createExpressErrorResponse('Failed to update settings', 400));
     }
 
     logInfo('User settings updated successfully', { userId });
-    return res.json(createSuccessResponse('User settings updated successfully'));
+    return res.json(createExpressSuccessResponse('User settings updated successfully'));
   } catch (error) {
     logError('Error updating user settings:', error);
-    return res.status(500).json(createErrorResponse(500, 'Failed to update user settings'));
+    return res.status(500).json(createExpressErrorResponse('Failed to update user settings', 500));
   }
 };
 
@@ -237,19 +237,19 @@ export const sendOtp = async (req, res) => {
     const { type } = req.body;
 
     if (!type) {
-      return res.status(400).json(createErrorResponse(400, 'OTP type is required'));
+      return res.status(400).json(createExpressErrorResponse('OTP type is required', 400));
     }
 
     const result = await sendOtpToUser(userId, type);
     if (!result.success) {
-      return res.status(400).json(createErrorResponse(400, result.message));
+      return res.status(400).json(createExpressErrorResponse(result.message, 400));
     }
 
     logInfo('OTP sent successfully', { userId, type });
-    return res.json(createSuccessResponse(result.message));
+    return res.json(createExpressSuccessResponse(result.message));
   } catch (error) {
     logError('Error sending OTP:', error);
-    return res.status(500).json(createErrorResponse(500, 'Failed to send OTP'));
+    return res.status(500).json(createExpressErrorResponse('Failed to send OTP', 500));
   }
 };
 
@@ -262,19 +262,19 @@ export const verifyOtp = async (req, res) => {
     const { otp, type } = req.body;
 
     if (!otp || !type) {
-      return res.status(400).json(createErrorResponse(400, 'OTP and type are required'));
+      return res.status(400).json(createExpressErrorResponse('OTP and type are required', 400));
     }
 
     const result = await verifyUserOtp(userId, otp, type);
     if (!result.success) {
-      return res.status(400).json(createErrorResponse(400, result.message));
+      return res.status(400).json(createExpressErrorResponse(result.message, 400));
     }
 
     logInfo('OTP verified successfully', { userId, type });
-    return res.json(createSuccessResponse(result.message));
+    return res.json(createExpressSuccessResponse(result.message));
   } catch (error) {
     logError('Error verifying OTP:', error);
-    return res.status(500).json(createErrorResponse(500, 'Failed to verify OTP'));
+    return res.status(500).json(createExpressErrorResponse('Failed to verify OTP', 500));
   }
 };
 
@@ -287,7 +287,7 @@ export const getUserInfo = async (req, res) => {
     const user = await getUserById(userId);
     
     if (!user || user.status === 'deleted') {
-      return res.status(404).json(createErrorResponse(404, 'User not found'));
+      return res.status(404).json(createExpressErrorResponse('User not found', 404));
     }
 
     // Format user data for response
@@ -298,10 +298,10 @@ export const getUserInfo = async (req, res) => {
     };
 
     logInfo('User info retrieved successfully', { userId });
-    return res.json(createSuccessResponse('User info retrieved successfully', { user: userInfo }));
+    return res.json(createExpressSuccessResponse('User info retrieved successfully', { user: userInfo }));
   } catch (error) {
     logError('Error fetching user info:', error);
-    return res.status(500).json(createErrorResponse(500, 'Failed to fetch user info'));
+    return res.status(500).json(createExpressErrorResponse('Failed to fetch user info', 500));
   }
 };
 
@@ -316,16 +316,16 @@ export const searchUsers = async (req, res) => {
     const limit = parseInt(limitRaw) || 20;
 
     if (!query) {
-      return res.status(400).json(createErrorResponse(400, 'Search query is required'));
+      return res.status(400).json(createExpressErrorResponse('Search query is required', 400));
     }
 
     const users = await searchUsersByName(query, { skip, limit });
     logInfo('Users search completed', { userId, query, resultCount: users.length });
 
-    return res.json(createSuccessResponse('Users search completed', { users }));
+    return res.json(createExpressSuccessResponse('Users search completed', { users }));
   } catch (error) {
     logError('Error searching users:', error);
-    return res.status(500).json(createErrorResponse(500, 'Failed to search users'));
+    return res.status(500).json(createExpressErrorResponse('Failed to search users', 500));
   }
 };
 
@@ -338,19 +338,19 @@ export const changePassword = async (req, res) => {
     const { currentPassword, newPassword } = req.body;
 
     if (!currentPassword || !newPassword) {
-      return res.status(400).json(createErrorResponse(400, 'Current password and new password are required'));
+      return res.status(400).json(createExpressErrorResponse('Current password and new password are required', 400));
     }
 
     const result = await changeUserPassword(userId, currentPassword, newPassword);
     if (!result.success) {
-      return res.status(400).json(createErrorResponse(400, result.message));
+      return res.status(400).json(createExpressErrorResponse(result.message, 400));
     }
 
     logInfo('Password changed successfully', { userId });
-    return res.json(createSuccessResponse('Password changed successfully'));
+    return res.json(createExpressSuccessResponse('Password changed successfully'));
   } catch (error) {
     logError('Error changing password:', error);
-    return res.status(500).json(createErrorResponse(500, 'Failed to change password'));
+    return res.status(500).json(createExpressErrorResponse('Failed to change password', 500));
   }
 };
 
@@ -363,14 +363,14 @@ export const createPasswordOtp = async (req, res) => {
     const result = await createPasswordOtpForUser(userId);
     
     if (!result.success) {
-      return res.status(400).json(createErrorResponse(400, result.message));
+      return res.status(400).json(createExpressErrorResponse(result.message, 400));
     }
 
     logInfo('Password creation OTP sent', { userId });
-    return res.json(createSuccessResponse(result.message));
+    return res.json(createExpressSuccessResponse(result.message));
   } catch (error) {
     logError('Error creating password OTP:', error);
-    return res.status(500).json(createErrorResponse(500, 'Failed to create password OTP'));
+    return res.status(500).json(createExpressErrorResponse('Failed to create password OTP', 500));
   }
 };
 
@@ -383,19 +383,19 @@ export const verifyPasswordOtp = async (req, res) => {
     const { otp, password } = req.body;
 
     if (!otp || !password) {
-      return res.status(400).json(createErrorResponse(400, 'OTP and password are required'));
+      return res.status(400).json(createExpressErrorResponse('OTP and password are required', 400));
     }
 
     const result = await verifyPasswordOtpForUser(userId, otp, password);
     if (!result.success) {
-      return res.status(400).json(createErrorResponse(400, result.message));
+      return res.status(400).json(createExpressErrorResponse(result.message, 400));
     }
 
     logInfo('Password created successfully', { userId });
-    return res.json(createSuccessResponse('Password created successfully'));
+    return res.json(createExpressSuccessResponse('Password created successfully'));
   } catch (error) {
     logError('Error verifying password OTP:', error);
-    return res.status(500).json(createErrorResponse(500, 'Failed to verify password OTP'));
+    return res.status(500).json(createExpressErrorResponse('Failed to verify password OTP', 500));
   }
 };
 
@@ -408,19 +408,19 @@ export const blockUser = async (req, res) => {
     const { id: targetUserId } = req.params;
 
     if (!targetUserId) {
-      return res.status(400).json(createErrorResponse(400, 'User ID is required'));
+      return res.status(400).json(createExpressErrorResponse('User ID is required', 400));
     }
 
     const result = await blockUserById(userId, targetUserId);
     if (!result.success) {
-      return res.status(400).json(createErrorResponse(400, result.message));
+      return res.status(400).json(createExpressErrorResponse(result.message, 400));
     }
 
     logInfo('User blocked successfully', { userId, targetUserId });
-    return res.json(createSuccessResponse('User blocked successfully'));
+    return res.json(createExpressSuccessResponse('User blocked successfully'));
   } catch (error) {
     logError('Error blocking user:', error);
-    return res.status(500).json(createErrorResponse(500, 'Failed to block user'));
+    return res.status(500).json(createExpressErrorResponse('Failed to block user', 500));
   }
 };
 
@@ -433,19 +433,19 @@ export const getProfile = async (req, res) => {
     const requestingUserId = req.userId; // May be null for public access
 
     if (!slug) {
-      return res.status(400).json(createErrorResponse(400, 'Profile slug is required'));
+      return res.status(400).json(createExpressErrorResponse('Profile slug is required', 400));
     }
 
     const profile = await getUserProfileBySlug(slug, requestingUserId);
     if (!profile) {
-      return res.status(404).json(createErrorResponse(404, 'Profile not found'));
+      return res.status(404).json(createExpressErrorResponse('Profile not found', 404));
     }
 
     logInfo('Profile retrieved successfully', { slug, requestingUserId });
-    return res.json(createSuccessResponse('Profile retrieved successfully', { profile }));
+    return res.json(createExpressSuccessResponse('Profile retrieved successfully', { profile }));
   } catch (error) {
     logError('Error fetching profile:', error);
-    return res.status(500).json(createErrorResponse(500, 'Failed to fetch profile'));
+    return res.status(500).json(createExpressErrorResponse('Failed to fetch profile', 500));
   }
 };
 
@@ -458,20 +458,20 @@ export const darkMode = async (req, res) => {
     const { mode } = req.params;
 
     if (!mode || !['light', 'dark'].includes(mode)) {
-      return res.status(400).json(createErrorResponse(400, 'Valid mode (light/dark) is required'));
+      return res.status(400).json(createExpressErrorResponse('Valid mode (light/dark) is required', 400));
     }
 
     // Update user's dark mode preference
     const result = await updateUserSettings(userId, { dark_mode: mode });
     if (!result) {
-      return res.status(400).json(createErrorResponse(400, 'Failed to update dark mode preference'));
+      return res.status(400).json(createExpressErrorResponse('Failed to update dark mode preference', 400));
     }
 
     logInfo('Dark mode updated successfully', { userId, mode });
-    return res.json(createSuccessResponse(`Dark mode set to ${mode}`));
+    return res.json(createExpressSuccessResponse(`Dark mode set to ${mode}`));
   } catch (error) {
     logError('Error updating dark mode:', error);
-    return res.status(500).json(createErrorResponse(500, 'Failed to update dark mode'));
+    return res.status(500).json(createExpressErrorResponse('Failed to update dark mode', 500));
   }
 };
 
@@ -494,7 +494,7 @@ export const getUserCoverUploadUrl = async (req, res) => {
     return res.json(result);
   } catch (error) {
     logError('Error generating cover upload URL:', error);
-    return res.status(500).json(createErrorResponse(500, 'Failed to generate cover upload URL'));
+    return res.status(500).json(createExpressErrorResponse('Failed to generate cover upload URL', 500));
   }
 };
 
@@ -507,20 +507,20 @@ export const createUserCover = async (req, res) => {
     const { file } = req.body;
 
     if (!file) {
-      return res.status(400).json(createErrorResponse(400, 'Cover file is required'));
+      return res.status(400).json(createExpressErrorResponse('Cover file is required', 400));
     }
 
     // Update user's cover image
     const result = await updateUserSettings(userId, { cover: file });
     if (!result) {
-      return res.status(400).json(createErrorResponse(400, 'Failed to update cover image'));
+      return res.status(400).json(createExpressErrorResponse('Failed to update cover image', 400));
     }
 
     logInfo('Cover image updated successfully', { userId });
-    return res.json(createSuccessResponse('Cover image updated successfully'));
+    return res.json(createExpressSuccessResponse('Cover image updated successfully'));
   } catch (error) {
     logError('Error updating cover image:', error);
-    return res.status(500).json(createErrorResponse(500, 'Failed to update cover image'));
+    return res.status(500).json(createExpressErrorResponse('Failed to update cover image', 500));
   }
 };
 
@@ -543,7 +543,7 @@ export const getUserAvatarUploadUrl = async (req, res) => {
     return res.json(result);
   } catch (error) {
     logError('Error generating avatar upload URL:', error);
-    return res.status(500).json(createErrorResponse(500, 'Failed to generate avatar upload URL'));
+    return res.status(500).json(createExpressErrorResponse('Failed to generate avatar upload URL', 500));
   }
 };
 
@@ -556,20 +556,20 @@ export const createUserAvatar = async (req, res) => {
     const { file } = req.body;
 
     if (!file) {
-      return res.status(400).json(createErrorResponse(400, 'Avatar file is required'));
+      return res.status(400).json(createExpressErrorResponse('Avatar file is required', 400));
     }
 
     // Update user's avatar image
     const result = await updateUserSettings(userId, { avatar: file });
     if (!result) {
-      return res.status(400).json(createErrorResponse(400, 'Failed to update avatar image'));
+      return res.status(400).json(createExpressErrorResponse('Failed to update avatar image', 400));
     }
 
     logInfo('Avatar image updated successfully', { userId });
-    return res.json(createSuccessResponse('Avatar image updated successfully'));
+    return res.json(createExpressSuccessResponse('Avatar image updated successfully'));
   } catch (error) {
     logError('Error updating avatar image:', error);
-    return res.status(500).json(createErrorResponse(500, 'Failed to update avatar image'));
+    return res.status(500).json(createExpressErrorResponse('Failed to update avatar image', 500));
   }
 };
 

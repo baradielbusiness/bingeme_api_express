@@ -90,23 +90,44 @@ export const getAdminSettings = async () => {
 };
 
 /**
- * Get file from S3
+ * Build CDN URL for uploaded files (parity with Lambda/CDN behavior)
+ * Avoids direct S3 calls and returns a public URL string.
  */
-export const getFile = async (fileKey) => {
+export const getFile = (path) => {
   try {
-    const { S3Client, GetObjectCommand } = await import('@aws-sdk/client-s3');
-    const s3Client = new S3Client({ region: process.env.AWS_DEFAULT_REGION });
-    
-    const command = new GetObjectCommand({
-      Bucket: process.env.S3_BUCKET_NAME,
-      Key: fileKey
-    });
-    
-    const response = await s3Client.send(command);
-    return response;
+    if (!path) return '';
+
+    const cdnEnv = process.env.CDN_ENV ?? 'bingeme';
+    const cdnBase = `https://cdn.${cdnEnv}.com/uploads`;
+
+    // Normalize leading slashes
+    const normalized = String(path).replace(/^\/+/, '');
+
+    // Media in updates
+    if (
+      normalized.startsWith('images/') ||
+      normalized.startsWith('videos/') ||
+      normalized.startsWith('music/') ||
+      normalized.startsWith('files/')
+    ) {
+      return `${cdnBase}/updates/${normalized}`;
+    }
+
+    // Direct paths
+    if (
+      normalized.startsWith('avatar/') ||
+      normalized.startsWith('cover/') ||
+      normalized.startsWith('messages/') ||
+      normalized.startsWith('shop/')
+    ) {
+      return `${cdnBase}/${normalized}`;
+    }
+
+    // Default to updates bucket path
+    return `${cdnBase}/updates/${normalized}`;
   } catch (error) {
-    logError('Error getting file from S3:', error);
-    return null;
+    logError('Error building CDN file URL:', error);
+    return '';
   }
 };
 
@@ -127,41 +148,48 @@ export const getUserById = async (userId) => {
 /**
  * Get user country
  */
-export const getUserCountry = async (req, user) => {
+export const getUserCountry = async (req, authUser = null) => {
   try {
-    // Try to get country from user profile first
-    if (user && user.country) {
-      return user.country;
+    // 1) Prefer authenticated user's countries_id (parity with Lambda)
+    if (authUser && authUser.countries_id) {
+      if (authUser.countries_id === '99') {
+        return 'IN';
+      }
+      return 'US';
     }
-    
-    // Fallback to IP-based geolocation or default
-    return 'US'; // Default country
+
+    // 2) Check CloudFront viewer country header fallbacks
+    const cloudFrontCountry = req?.headers?.['cloudfront-viewer-country'] ||
+                              req?.headers?.['Cloudfront-Viewer-Country'] ||
+                              req?.headers?.['http_cloudfront_viewer_country'];
+    if (cloudFrontCountry) {
+      return cloudFrontCountry === 'IN' ? 'IN' : 'US';
+    }
+
+    // 3) Default to IN (matches Lambda default)
+    return 'IN';
   } catch (error) {
-    logError('Error getting user country:', error);
-    return 'US';
+    logError('[getUserCountry] Error determining user country:', error);
+    return 'IN';
   }
 };
 
 /**
  * Process currency settings
  */
-export const processCurrencySettings = (adminSettings, userCountry) => {
+export const processCurrencySettings = (adminSettings = {}, userCountry) => {
   try {
-    const defaultCurrency = {
-      code: 'USD',
-      symbol: '$',
-      coin_conversion_rate: 1
+    const isUS = userCountry === 'US';
+    const coin_conversion_USD = Number(adminSettings.coin_conversion_USD) || 50;
+    const currency = {
+      symbol: isUS ? '$' : '₹',
+      code: isUS ? 'USD' : 'INR',
+      coin_conversion_rate: isUS ? (1 / coin_conversion_USD) : 1
     };
-    
-    // This would process currency settings based on admin settings and user country
-    return defaultCurrency;
+    return { currency };
   } catch (error) {
     logError('Error processing currency settings:', error);
-    return {
-      code: 'USD',
-      symbol: '$',
-      coin_conversion_rate: 1
-    };
+    return { currency: { code: 'USD', symbol: '$', coin_conversion_rate: 1 } };
   }
 };
 
@@ -1733,6 +1761,25 @@ export const createSuccessResponse = (message, data = null) => {
   return createResponse(200, message, data);
 };
 
+// Express.js response format (for direct JSON responses)
+export const createExpressSuccessResponse = (message, data = null) => {
+  return {
+    message,
+    status: 200,
+    ...(data && { data }),
+    timestamp: new Date().toISOString()
+  };
+};
+
+export const createExpressErrorResponse = (message, statusCode = 400, error = null) => {
+  return {
+    message,
+    status: statusCode,
+    ...(error && { error }),
+    timestamp: new Date().toISOString()
+  };
+};
+
 export const verifyEmailOTP = async (identifier, otp) => {
   try {
     const tableName = `otp-${process.env.NODE_ENV || 'dev'}`; // Fixed table name
@@ -1776,9 +1823,9 @@ export const verifyEmailOTP = async (identifier, otp) => {
       return false;
     }
     
-    // Check if OTP is expired (10-minute window)
-    const tenMinutes = 10 * 60 * 1000;
-    if (Date.now() - otpRecord.timestamp > tenMinutes) {
+    // Check if OTP is expired (5-minute window) - parity with Lambda
+    const fiveMinutes = 5 * 60 * 1000;
+    if (Date.now() - otpRecord.timestamp > fiveMinutes) {
       logError('OTP expired:', { identifier, age: Date.now() - otpRecord.timestamp });
       return false;
     }

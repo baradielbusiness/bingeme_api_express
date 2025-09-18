@@ -15,10 +15,10 @@ const __dirname = path.dirname(__filename);
 
 console.log(process.env)
 // Determine host and port based on NODE_ENV
-const NODE_ENV = process.env.NODE_ENV || 'development';
-const PORT = process.env.PORT || (NODE_ENV === 'development' ? 4000 : 3000);
-const HOST = NODE_ENV === 'development' ? 'localhost:4000' : 'api.bingeme.com';
-const PROTOCOL = NODE_ENV === 'development' ? 'https' : 'http';
+const NODE_ENV = process.env.NODE_ENV || 'dev';
+const PORT = process.env.PORT || (NODE_ENV === 'dev' ? 4000 : 3000);
+const HOST = NODE_ENV === 'prod' ? 'api.bingeme.com' : 'localhost:4000';
+const PROTOCOL = NODE_ENV === 'prod' ? 'https' : 'http';
 // Update swagger.json with dynamic host (only if changed)
 const swaggerPath = path.join(__dirname, '..', 'swagger.json');
 let swaggerData;
@@ -59,7 +59,7 @@ try {
 
 // Update swagger configuration
 const newHost = HOST;
-const newSchemes = NODE_ENV === 'development' ? ['https'] : ['https'];
+const newSchemes = NODE_ENV === 'prod' ? ['https'] : ['http'];
 
 // Only write if content has actually changed to prevent nodemon restart loop
 if (swaggerData.host !== newHost || JSON.stringify(swaggerData.schemes) !== JSON.stringify(newSchemes)) {
@@ -112,25 +112,19 @@ const startServer = async () => {
     logInfo('Database connected successfully');
 
 
-    // Start Express server with HTTPS
-    if (NODE_ENV === 'development') {
-      // Load SSL certificates for development
-      const sslOptions = {
-        key: fs.readFileSync(path.join(__dirname, '..', 'ssl', 'key.pem')),
-        cert: fs.readFileSync(path.join(__dirname, '..', 'ssl', 'cert.pem'))
-      };
-      
-      https.createServer(sslOptions, app).listen(PORT, () => {
-        logInfo(`🚀 Bingeme API Express server running on port ${PORT} (HTTPS)`);
+    // Start Express server
+    if (NODE_ENV === 'prod') {
+      // Production server (HTTP)
+      app.listen(PORT, () => {
+        logInfo(`🚀 Bingeme API Express server running on port ${PORT}`);
         logInfo(`🌍 Environment: ${NODE_ENV}`);
         logInfo(`🔗 API Base URL: ${PROTOCOL}://${HOST}`);
         logInfo(`📚 Swagger UI available at: ${PROTOCOL}://${HOST}/docs`);
         logInfo(`📋 Swagger JSON available at: ${PROTOCOL}://${HOST}/swagger`);
         logInfo(`🏥 Health check available at: ${PROTOCOL}://${HOST}/health`);
-        logInfo(`🔒 SSL Certificate: Self-signed (development only)`);
       });
     } else {
-      // Production server (can be HTTP or HTTPS depending on deployment)
+      // Development server (HTTP)
       app.listen(PORT, () => {
         logInfo(`🚀 Bingeme API Express server running on port ${PORT}`);
         logInfo(`🌍 Environment: ${NODE_ENV}`);

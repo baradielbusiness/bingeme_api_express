@@ -8,9 +8,96 @@ import { getDB } from '../config/database.js';
 import { 
   logInfo, 
   logError, 
-  getAdminSettings 
+  getAdminSettings,
+  createExpressSuccessResponse,
+  createExpressErrorResponse
 } from '../utils/common.js';
 import { RtcTokenBuilder, Role } from '../agora/RtcTokenBuilder2.js';
+
+/**
+ * Get Agora details for video call configuration
+ * @param {object} req - Express request object
+ * @param {object} res - Express response object
+ */
+export const getAgoraDetails = async (req, res) => {
+  try {
+    logInfo('Fetching Agora app details for video call configuration');
+
+    // Extract room_id and userId from query parameters
+    const { room_id: roomId, user_id: userId } = req.query;
+    const uid = Math.floor(Math.random() * 10000);
+
+    // Validate that we have the required parameters
+    if (!roomId) {
+      logError('Missing required parameters', { roomId });
+      return res.status(400).json(createExpressErrorResponse('Missing required parameters: room_id is required', 400));
+    }
+    if (!userId) {
+      logError('Missing required parameters', { userId });
+      return res.status(400).json(createExpressErrorResponse('Missing required parameters: user_id is required', 400));
+    }
+
+    // Validate that the user has access to this room_id
+    const roomAccessValidation = await validateRoomAccess(roomId, userId);
+    if (!roomAccessValidation.hasAccess) {
+      logError('Room access validation failed', { 
+        roomId, 
+        userId, 
+        error: roomAccessValidation.error 
+      });
+      return res.status(403).json(createExpressErrorResponse(roomAccessValidation.error, 403));
+    }
+
+    // Fetch admin settings from database
+    const adminSettings = await getAdminSettings();
+    
+    if (!adminSettings || Object.keys(adminSettings).length === 0) {
+      logError('Admin settings not found in database');
+      return res.status(404).json(createExpressErrorResponse('Admin settings not found', 404));
+    }
+
+    // Extract Agora-related settings
+    const { agora_app_id: agoraAppId, agora_app_certificate: agoraAppCertificate } = adminSettings;
+
+    // Validate that we have the required Agora credentials
+    if (!agoraAppId || !agoraAppCertificate) {
+      logError('Agora credentials not found in admin settings', { 
+        hasAppId: !!agoraAppId, 
+        hasCertificate: !!agoraAppCertificate 
+      });
+      return res.status(500).json(createExpressErrorResponse('Agora configuration not available', 500));
+    }
+
+    // Generate Agora token similar to CallController.php
+    const currentUtcTimestamp = Math.floor(Date.now() / 1000);
+    const tokenExpirationTime = currentUtcTimestamp + 216000; // 60 hours
+    const publisherRole = Role.PUBLISHER; // Use the Role constant from RtcTokenBuilder2
+    
+    // Generate the token using the parameters from the request
+    const agoraToken = RtcTokenBuilder.buildTokenWithUid(
+      agoraAppId,
+      agoraAppCertificate,
+      roomId, // Use room_id from request
+      uid, //
+      publisherRole,
+      tokenExpirationTime
+    );
+
+    logInfo('Successfully generated Agora token and fetched app details', { roomId, uid });
+
+    // Return Agora app details with configuration and token
+    return res.json(createExpressSuccessResponse('Agora app details retrieved successfully', {
+      agoraAppCertificate,
+      agoraAppId,
+      token: agoraToken,
+      uid,
+    }));
+
+  } catch (error) {
+    logError('Error fetching Agora app details or generating token:', error);
+    return res.status(500).json(createExpressErrorResponse('Failed to fetch Agora app details or generate token', 500));
+  }
+};
 
 /**
  * Validate if user has access to the specified room_id

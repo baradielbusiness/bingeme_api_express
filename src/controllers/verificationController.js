@@ -255,9 +255,9 @@ const processVerificationFiles = (userId, body, fileFields) => {
  */
 export const getVerificationUploadUrl = async (req, res) => {
   // Configuration options for verification upload processing with destructuring
-  const uploadOptions = {
-    action: 'getVerificationUploadUrl',
-    basePath: 'uploads/verification',
+    const uploadOptions = {
+      action: 'getVerificationUploadUrl',
+      basePath: 'uploads/verification',
     useFolderOrganization: false, // Verification uses flat structure without folder organization
     successMessage: 'Pre-signed verification upload URLs generated',
     getAuthenticatedUserId,
@@ -267,7 +267,7 @@ export const getVerificationUploadUrl = async (req, res) => {
   
   // Use shared upload processing utility and return result directly
   // TODO: Convert processUploadRequest(event, uploadOptions) to processUploadRequest(req, uploadOptions)
-  const result = await processUploadRequest(req, uploadOptions);
+    const result = await processUploadRequest(req, uploadOptions);
   
   // TODO: Convert Lambda response format to Express response format
   if (result.statusCode === 200) {
