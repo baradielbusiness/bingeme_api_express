@@ -7,7 +7,7 @@ let redisClient = null;
  * Create Redis client
  * Establishes connection to Redis server
  */
-export const createRedisClient = () => {
+const createRedisClient = () => {
   if (redisClient) {
     return redisClient;
   }
@@ -62,7 +62,7 @@ export const createRedisClient = () => {
  * Connect to Redis
  * Establishes connection to Redis server
  */
-export const connectRedis = async () => {
+const connectRedis = async () => {
   try {
     const client = createRedisClient();
     
@@ -90,7 +90,7 @@ export const connectRedis = async () => {
  * Get Redis client
  * Returns the existing Redis client
  */
-export const getRedis = () => {
+const getRedis = () => {
   if (!redisClient) {
     throw new Error('Redis not initialized. Call connectRedis() first.');
   }
@@ -101,10 +101,18 @@ export const getRedis = () => {
  * Close Redis connection
  * Gracefully closes Redis connection
  */
-export const closeRedis = async () => {
+const closeRedis = async () => {
   if (redisClient) {
     await redisClient.quit();
     redisClient = null;
     logInfo('Redis connection closed');
   }
+};
+
+// Export all functions at the end
+export {
+  createRedisClient,
+  connectRedis,
+  getRedis,
+  closeRedis
 };

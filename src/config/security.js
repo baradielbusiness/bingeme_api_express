@@ -9,7 +9,7 @@ import { logInfo, logError } from '../utils/common.js';
 /**
  * Security configuration
  */
-export const securityConfig = {
+const securityConfig = {
   // Password requirements
   password: {
     minLength: 8,
@@ -64,7 +64,7 @@ export const securityConfig = {
  * @param {string} password - Password to validate
  * @returns {Object} Validation result with isValid and errors
  */
-export const validatePasswordStrength = (password) => {
+const validatePasswordStrength = (password) => {
   const errors = [];
   const config = securityConfig.password;
   
@@ -111,7 +111,7 @@ export const validatePasswordStrength = (password) => {
  * @param {number} length - Length of the string
  * @returns {string} Random string
  */
-export const generateSecureRandomString = (length = 32) => {
+const generateSecureRandomString = (length = 32) => {
   return crypto.randomBytes(length).toString('hex');
 };
 
@@ -120,7 +120,7 @@ export const generateSecureRandomString = (length = 32) => {
  * @param {string} password - Plain text password
  * @returns {Promise<string>} Hashed password
  */
-export const hashPassword = async (password) => {
+const hashPassword = async (password) => {
   try {
     const bcrypt = await import('bcryptjs');
     const saltRounds = 12;
@@ -137,7 +137,7 @@ export const hashPassword = async (password) => {
  * @param {string} hash - Hashed password
  * @returns {Promise<boolean>} True if password matches
  */
-export const verifyPassword = async (password, hash) => {
+const verifyPassword = async (password, hash) => {
   try {
     const bcrypt = await import('bcryptjs');
     return await bcrypt.compare(password, hash);
@@ -153,7 +153,7 @@ export const verifyPassword = async (password, hash) => {
  * @param {string} key - Encryption key
  * @returns {string} Encrypted text
  */
-export const encryptSensitiveData = (text, key = process.env.ENCRYPT_SECRET_ID) => {
+const encryptSensitiveData = (text, key = process.env.ENCRYPT_SECRET_ID) => {
   try {
     if (!key) {
       throw new Error('Encryption key not provided');
@@ -179,7 +179,7 @@ export const encryptSensitiveData = (text, key = process.env.ENCRYPT_SECRET_ID) 
  * @param {string} key - Decryption key
  * @returns {string} Decrypted text
  */
-export const decryptSensitiveData = (encryptedText, key = process.env.ENCRYPT_SECRET_ID) => {
+const decryptSensitiveData = (encryptedText, key = process.env.ENCRYPT_SECRET_ID) => {
   try {
     if (!key) {
       throw new Error('Decryption key not provided');
@@ -206,7 +206,7 @@ export const decryptSensitiveData = (encryptedText, key = process.env.ENCRYPT_SE
  * @param {string} input - Input string
  * @returns {string} Sanitized string
  */
-export const sanitizeInput = (input) => {
+const sanitizeInput = (input) => {
   if (typeof input !== 'string') {
     return input;
   }
@@ -223,7 +223,7 @@ export const sanitizeInput = (input) => {
  * @param {string} email - Email to validate
  * @returns {boolean} True if valid email
  */
-export const isValidEmail = (email) => {
+const isValidEmail = (email) => {
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   return emailRegex.test(email);
 };
@@ -233,7 +233,7 @@ export const isValidEmail = (email) => {
  * @param {string} phone - Phone number to validate
  * @returns {boolean} True if valid phone number
  */
-export const isValidPhoneNumber = (phone) => {
+const isValidPhoneNumber = (phone) => {
   const phoneRegex = /^\+?[1-9]\d{1,14}$/;
   return phoneRegex.test(phone);
 };
@@ -243,7 +243,7 @@ export const isValidPhoneNumber = (phone) => {
  * @param {number} length - Token length
  * @returns {string} Secure token
  */
-export const generateSecureToken = (length = 32) => {
+const generateSecureToken = (length = 32) => {
   return crypto.randomBytes(length).toString('base64url');
 };
 
@@ -252,7 +252,7 @@ export const generateSecureToken = (length = 32) => {
  * @param {string} origin - Request origin
  * @returns {boolean} True if allowed
  */
-export const isAllowedOrigin = (origin) => {
+const isAllowedOrigin = (origin) => {
   const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || ['*'];
   
   if (allowedOrigins.includes('*')) {
@@ -266,7 +266,7 @@ export const isAllowedOrigin = (origin) => {
  * Get security headers for responses
  * @returns {Object} Security headers
  */
-export const getSecurityHeaders = () => {
+const getSecurityHeaders = () => {
   return {
     'X-Content-Type-Options': 'nosniff',
     'X-Frame-Options': 'DENY',
@@ -275,4 +275,21 @@ export const getSecurityHeaders = () => {
     'Referrer-Policy': 'strict-origin-when-cross-origin',
     'Content-Security-Policy': "default-src 'self'"
   };
+};
+
+// Export all functions at the end
+export {
+  securityConfig,
+  validatePasswordStrength,
+  generateSecureRandomString,
+  hashPassword,
+  verifyPassword,
+  encryptSensitiveData,
+  decryptSensitiveData,
+  sanitizeInput,
+  isValidEmail,
+  isValidPhoneNumber,
+  generateSecureToken,
+  isAllowedOrigin,
+  getSecurityHeaders
 };

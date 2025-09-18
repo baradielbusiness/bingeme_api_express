@@ -4,7 +4,7 @@ import { logInfo, logError } from './common.js';
 /**
  * Get user messages by ID
  */
-export const getUserMessagesById = async (userId, otherUserId, skip = 0, limit = 20) => {
+const getUserMessagesById = async (userId, otherUserId, skip = 0, limit = 20) => {
   try {
     const skipNum = parseInt(skip) || 0;
     const limitNum = parseInt(limit) || 20;
@@ -45,7 +45,7 @@ export const getUserMessagesById = async (userId, otherUserId, skip = 0, limit =
 /**
  * Get user messages by username
  */
-export const getUserMessagesByUsername = async (userId, username, skip = 0, limit = 20) => {
+const getUserMessagesByUsername = async (userId, username, skip = 0, limit = 20) => {
   try {
     const skipNum = parseInt(skip) || 0;
     const limitNum = parseInt(limit) || 20;
@@ -88,7 +88,7 @@ export const getUserMessagesByUsername = async (userId, username, skip = 0, limi
 /**
  * Format messages by date
  */
-export const formatMessagesByDate = (messages) => {
+const formatMessagesByDate = (messages) => {
   const groupedMessages = {};
   
   messages.forEach(message => {
@@ -105,7 +105,7 @@ export const formatMessagesByDate = (messages) => {
 /**
  * Validate user access to message
  */
-export const validateUserAccess = async (messageId, userId) => {
+const validateUserAccess = async (messageId, userId) => {
   try {
     const query = `
       SELECT id FROM messages 
@@ -123,7 +123,7 @@ export const validateUserAccess = async (messageId, userId) => {
 /**
  * Validate user by username
  */
-export const validateUserByUsername = async (username) => {
+const validateUserByUsername = async (username) => {
   try {
     const query = `SELECT id, username, name, avatar, verified_id FROM users WHERE username = ?`;
     const [rows] = await pool.query(query, [username]);
@@ -137,7 +137,7 @@ export const validateUserByUsername = async (username) => {
 /**
  * Get message by ID
  */
-export const getMessageById = async (messageId) => {
+const getMessageById = async (messageId) => {
   try {
     const query = `
       SELECT 
@@ -171,7 +171,7 @@ export const getMessageById = async (messageId) => {
 /**
  * Mark message as deleted
  */
-export const markMessageDeleted = async (messageId) => {
+const markMessageDeleted = async (messageId) => {
   try {
     const query = `UPDATE messages SET deleted = 1 WHERE id = ?`;
     await pool.query(query, [messageId]);
@@ -185,7 +185,7 @@ export const markMessageDeleted = async (messageId) => {
 /**
  * Mark media messages as deleted
  */
-export const markMediaMessagesDeleted = async (messageId) => {
+const markMediaMessagesDeleted = async (messageId) => {
   try {
     const query = `UPDATE media_messages SET deleted = 1 WHERE message_id = ?`;
     await pool.query(query, [messageId]);
@@ -199,7 +199,7 @@ export const markMediaMessagesDeleted = async (messageId) => {
 /**
  * Remove message notifications
  */
-export const removeMessageNotifications = async (messageId) => {
+const removeMessageNotifications = async (messageId) => {
   try {
     const query = `DELETE FROM notifications WHERE message_id = ?`;
     await pool.query(query, [messageId]);
@@ -213,7 +213,7 @@ export const removeMessageNotifications = async (messageId) => {
 /**
  * Count active messages
  */
-export const countActiveMessages = async (conversationId) => {
+const countActiveMessages = async (conversationId) => {
   try {
     const query = `SELECT COUNT(*) as count FROM messages WHERE conversations_id = ? AND status != "deleted"`;
     const [rows] = await pool.query(query, [conversationId]);
@@ -227,7 +227,7 @@ export const countActiveMessages = async (conversationId) => {
 /**
  * Count active messages on a specific day
  */
-export const countActiveMessagesOnDay = async (conversationId, date) => {
+const countActiveMessagesOnDay = async (conversationId, date) => {
   try {
     const query = `
       SELECT COUNT(*) as count 
@@ -246,7 +246,7 @@ export const countActiveMessagesOnDay = async (conversationId, date) => {
 /**
  * Get conversation by ID
  */
-export const getConversationById = async (conversationId) => {
+const getConversationById = async (conversationId) => {
   try {
     const query = `SELECT * FROM conversations WHERE id = ?`;
     const [rows] = await pool.query(query, [conversationId]);
@@ -260,7 +260,7 @@ export const getConversationById = async (conversationId) => {
 /**
  * Set conversation as inactive
  */
-export const setConversationInactive = async (conversationId) => {
+const setConversationInactive = async (conversationId) => {
   try {
     const query = `UPDATE conversations SET active = 0 WHERE id = ?`;
     await pool.query(query, [conversationId]);
@@ -274,7 +274,7 @@ export const setConversationInactive = async (conversationId) => {
 /**
  * Update conversation timestamp
  */
-export const updateConversationTimestamp = async (conversationId, timestamp) => {
+const updateConversationTimestamp = async (conversationId, timestamp) => {
   try {
     const query = `UPDATE conversations SET updated_at = ? WHERE id = ?`;
     await pool.query(query, [timestamp, conversationId]);
@@ -288,7 +288,7 @@ export const updateConversationTimestamp = async (conversationId, timestamp) => 
 /**
  * Get latest message time
  */
-export const getLatestMessageTime = async (conversationId) => {
+const getLatestMessageTime = async (conversationId) => {
   try {
     const query = `
       SELECT MAX(created_at) as latest_time 
@@ -306,7 +306,7 @@ export const getLatestMessageTime = async (conversationId) => {
 /**
  * Get message by ID with details
  */
-export const getMessageByIdWithDetails = async (messageId) => {
+const getMessageByIdWithDetails = async (messageId) => {
   try {
     const query = `
       SELECT 
@@ -345,4 +345,24 @@ export const getMessageByIdWithDetails = async (messageId) => {
     logError('Error getting message by ID with details:', error);
     return null;
   }
+};
+
+// Export all functions at the end
+export {
+  getUserMessagesById,
+  getUserMessagesByUsername,
+  formatMessagesByDate,
+  validateUserAccess,
+  validateUserByUsername,
+  getMessageById,
+  markMessageDeleted,
+  markMediaMessagesDeleted,
+  removeMessageNotifications,
+  countActiveMessages,
+  countActiveMessagesOnDay,
+  getConversationById,
+  setConversationInactive,
+  updateConversationTimestamp,
+  getLatestMessageTime,
+  getMessageByIdWithDetails
 };

@@ -10,9 +10,7 @@ import {
   createErrorResponse, 
   createSuccessResponse, 
   getAuthenticatedUserId,
-  getUserById,
-  createExpressSuccessResponse,
-  createExpressErrorResponse
+  getUserById
 } from '../utils/common.js';
 import { 
   fetchPrivacySecurityDetails, 
@@ -35,7 +33,7 @@ import {
  * @param {Object} req - Express request object
  * @param {Object} res - Express response object
  */
-export const getPrivacySecurity = async (req, res) => {
+const getPrivacySecurity = async (req, res) => {
   try {
     const userId = req.userId;
 
@@ -43,7 +41,7 @@ export const getPrivacySecurity = async (req, res) => {
     const privacyData = await fetchPrivacySecurityDetails(userId);
     if (!privacyData) {
       logError('User not found:', { userId });
-      return res.status(404).json(createExpressErrorResponse('User not found', 404));
+      return res.status(404).json(createErrorResponse(404, 'User not found'));
     }
 
     // hasPassword indicates whether the user has a password configured (true/false)
@@ -54,7 +52,7 @@ export const getPrivacySecurity = async (req, res) => {
     privacyData.hasPassword = hasPassword;
 
     logInfo('Privacy & Security data retrieved successfully:', { userId });
-    return res.json(createExpressSuccessResponse('Privacy & Security retrieved successfully', { Privacy: privacyData }));
+    return res.json(createSuccessResponse('Privacy & Security retrieved successfully', { Privacy: privacyData }));
   } catch (error) {
     logError('Privacy & Security error:', error);
     return res.status(500).json(createErrorResponse(500, 'Internal server error'));
@@ -66,7 +64,7 @@ export const getPrivacySecurity = async (req, res) => {
  * @param {Object} req - Express request object
  * @param {Object} res - Express response object
  */
-export const updatePrivacySecurity = async (req, res) => {
+const updatePrivacySecurity = async (req, res) => {
   try {
     const userId = req.userId;
     const requestBody = req.body;
@@ -74,18 +72,18 @@ export const updatePrivacySecurity = async (req, res) => {
     // Validate request body using the validation utility function
     const validationResult = validatePrivacySecurityUpdateRequest(requestBody);
     if (!validationResult.isValid) {
-      return res.status(400).json(createExpressErrorResponse('Validation failed', 400));
+      return res.status(400).json(createErrorResponse(400, 'Validation failed'));
     }
 
     // Update privacy/security details using the DB utility function
     const success = await updatePrivacySecurityDetails(userId, requestBody);
     if (!success) {
       logError('User not found for update:', { userId });
-      return res.status(404).json(createExpressErrorResponse('User not found', 404));
+      return res.status(404).json(createErrorResponse(404, 'User not found'));
     }
 
     logInfo('Privacy & Security settings updated successfully:', { userId });
-    return res.json(createExpressSuccessResponse('Privacy & Security settings updated successfully'));
+    return res.json(createSuccessResponse('Privacy & Security settings updated successfully'));
   } catch (error) {
     logError('Privacy & Security update error:', error);
     return res.status(500).json(createErrorResponse(500, 'Internal server error'));
@@ -97,7 +95,7 @@ export const updatePrivacySecurity = async (req, res) => {
  * @param {Object} req - Express request object
  * @param {Object} res - Express response object
  */
-export const clearSessions = async (req, res) => {
+const clearSessions = async (req, res) => {
   try {
     const userId = req.userId;
 
@@ -108,14 +106,14 @@ export const clearSessions = async (req, res) => {
 
     if (clearResult.success) {
       logInfo('Sessions cleared successfully:', { userId, clearResult });
-      return res.json(createExpressSuccessResponse('All sessions cleared successfully', {
+      return res.json(createSuccessResponse('All sessions cleared successfully', {
         mysqlDeleted: clearResult.mysqlDeleted,
         dynamoDeleted: clearResult.dynamoDeleted,
         totalDeleted: clearResult.totalDeleted
       }));
     } else {
       logError('Failed to clear sessions:', { userId, clearResult });
-      return res.status(500).json(createExpressErrorResponse('Failed to clear some sessions', 500));
+      return res.status(500).json(createErrorResponse(500, 'Failed to clear some sessions'));
     }
 
   } catch (error) {
@@ -129,20 +127,20 @@ export const clearSessions = async (req, res) => {
  * @param {Object} req - Express request object
  * @param {Object} res - Express response object
  */
-export const getAccountDeletionStatus = async (req, res) => {
+const getAccountDeletionStatus = async (req, res) => {
   try {
     const userId = req.userId;
 
     // Get user details to check deletion status
     const user = await getUserById(userId);
     if (!user) {
-      return res.status(404).json(createExpressErrorResponse('User not found', 404));
+      return res.status(404).json(createErrorResponse(404, 'User not found'));
     }
 
     // Check if account is already soft deleted
     if (user.deleted_at) {
       logInfo('Account deletion status retrieved - account is delete:', { userId, deletedAt: user.deleted_at });
-      return res.json(createExpressSuccessResponse('Account deletion status retrieved', {
+      return res.json(createSuccessResponse('Account deletion status retrieved', {
         isDelete: true,
         deletedAt: user.deleted_at,
         deletionReason: user.deletion_reason || 'Account delete'
@@ -151,7 +149,7 @@ export const getAccountDeletionStatus = async (req, res) => {
 
     // Account is active - return essential information with note message
     logInfo('Account deletion status retrieved - account is active:', { userId });
-    return res.json(createExpressSuccessResponse('Account deletion status retrieved', {
+    return res.json(createSuccessResponse('Account deletion status retrieved', {
       noteMsg: "We are sorry that you want to delete your account. This action cannot be reversed. All your data, posts, and subscriptions will be deleted after 30 days. If you decide to proceed, please enter your password in the field below. If you don't have a password, click Delete with OTP.",
       hasPassword: !!user.password
     }));
@@ -167,7 +165,7 @@ export const getAccountDeletionStatus = async (req, res) => {
  * @param {Object} req - Express request object
  * @param {Object} res - Express response object
  */
-export const deleteAccount = async (req, res) => {
+const deleteAccount = async (req, res) => {
   try {
     const userId = req.userId;
     const requestBody = req.body;
@@ -175,42 +173,42 @@ export const deleteAccount = async (req, res) => {
     // Validate request body
     const validationResult = validateAccountDeletionRequest(requestBody);
     if (!validationResult.isValid) {
-      return res.status(400).json(createExpressErrorResponse('Validation failed', 400));
+      return res.status(400).json(createErrorResponse(400, 'Validation failed'));
     }
 
     // Get user details to check if they have a password
     const user = await getUserById(userId);
     if (!user) {
-      return res.status(404).json(createExpressErrorResponse('User not found', 404));
+      return res.status(404).json(createErrorResponse(404, 'User not found'));
     }
 
     // Check if user has a password
     if (user.password) {
       // User has password - verify password
       if (!requestBody.password) {
-        return res.status(400).json(createExpressErrorResponse('Password is required for account deletion', 400));
+        return res.status(400).json(createErrorResponse(400, 'Password is required for account deletion'));
       }
 
       // Verify password
       const bcrypt = await import('bcryptjs');
       const isPasswordValid = await bcrypt.default.compare(requestBody.password, user.password);
       if (!isPasswordValid) {
-        return res.status(400).json(createExpressErrorResponse('Invalid password', 400));
+        return res.status(400).json(createErrorResponse(400, 'Invalid password'));
       }
 
       // Password is valid - proceed with account deletion
       const deletionResult = await softDeleteUserAccount(userId, 'User requested account deletion with password verification');
       if (!deletionResult.success) {
-        return res.status(500).json(createExpressErrorResponse('Failed to delete account', 500));
+        return res.status(500).json(createErrorResponse(500, 'Failed to delete account'));
       }
 
       logInfo('Account delete successfully with password verification:', { userId });
-      return res.json(createExpressSuccessResponse('Account delete successfully'));
+      return res.json(createSuccessResponse('Account delete successfully'));
     } else {
       // User doesn't have password - generate OTP
       const otpResult = await generateAccountDeletionOTP(userId, 'User requested account deletion');
       if (!otpResult.success) {
-        return res.status(500).json(createExpressErrorResponse('Failed to generate OTP for account deletion', 500));
+        return res.status(500).json(createErrorResponse(500, 'Failed to generate OTP for account deletion'));
       }
 
       // Create the masked message with email and mobile
@@ -232,7 +230,7 @@ export const deleteAccount = async (req, res) => {
       }
 
       logInfo('Account deletion OTP generated successfully:', { userId });
-      return res.json(createExpressSuccessResponse(maskedMessage));
+      return res.json(createSuccessResponse(maskedMessage));
     }
   } catch (error) {
     logError('Account deletion error:', error);
@@ -245,7 +243,7 @@ export const deleteAccount = async (req, res) => {
  * @param {Object} req - Express request object
  * @param {Object} res - Express response object
  */
-export const deleteAccountWithOtp = async (req, res) => {
+const deleteAccountWithOtp = async (req, res) => {
   try {
     const userId = req.userId;
     const requestBody = req.body;
@@ -253,34 +251,34 @@ export const deleteAccountWithOtp = async (req, res) => {
     // Validate request body
     const validationResult = validateAccountDeletionOTPRequest(requestBody);
     if (!validationResult.isValid) {
-      return res.status(400).json(createExpressErrorResponse('Validation failed', 400));
+      return res.status(400).json(createErrorResponse(400, 'Validation failed'));
     }
 
     // Get user details to check if they have a password
     const user = await getUserById(userId);
     if (!user) {
-      return res.status(404).json(createExpressErrorResponse('User not found', 404));
+      return res.status(404).json(createErrorResponse(404, 'User not found'));
     }
 
     // If user has password, they should use password verification instead
     if (user.password) {
-      return res.status(400).json(createExpressErrorResponse('Password verification is required for this account. Please use password instead of OTP.', 400));
+      return res.status(400).json(createErrorResponse(400, 'Password verification is required for this account. Please use password instead of OTP.'));
     }
 
     // Verify OTP for account deletion
     const otpVerification = await verifyAccountDeletionOTP(userId, requestBody.otp);
     if (!otpVerification.success) {
-      return res.status(400).json(createExpressErrorResponse('Invalid or expired OTP', 400));
+      return res.status(400).json(createErrorResponse(400, 'Invalid or expired OTP'));
     }
 
     // Perform soft delete of user account
     const deletionResult = await softDeleteUserAccount(userId, 'User requested account deletion with OTP verification');
     if (!deletionResult.success) {
-      return res.status(500).json(createExpressErrorResponse('Failed to delete account', 500));
+      return res.status(500).json(createErrorResponse(500, 'Failed to delete account'));
     }
 
     logInfo('Account delete successfully with OTP verification:', { userId });
-    return res.json(createExpressSuccessResponse('Account delete successfully'));
+    return res.json(createSuccessResponse('Account delete successfully'));
   } catch (error) {
     logError('Account deletion with OTP error:', error);
     return res.status(500).json(createErrorResponse(500, 'Internal server error'));
@@ -292,7 +290,7 @@ export const deleteAccountWithOtp = async (req, res) => {
  * @param {Object} req - Express request object
  * @param {Object} res - Express response object
  */
-export const getAccountRetrieve = async (req, res) => {
+const getAccountRetrieve = async (req, res) => {
   try {
     const userId = req.userId;
 
@@ -304,7 +302,7 @@ export const getAccountRetrieve = async (req, res) => {
     }
 
     logInfo('Account retrieve info retrieved successfully:', { userId, remainingDays: retrieveInfo.remainingDays });
-    return res.json(createExpressSuccessResponse('Account retrieve information retrieved successfully', {
+    return res.json(createSuccessResponse('Account retrieve information retrieved successfully', {
       canRetrieve: retrieveInfo.canRetrieve,
       remainingDays: retrieveInfo.remainingDays,
       deletionDate: retrieveInfo.deletionDate,
@@ -321,7 +319,7 @@ export const getAccountRetrieve = async (req, res) => {
  * @param {Object} req - Express request object
  * @param {Object} res - Express response object
  */
-export const retrieveAccount = async (req, res) => {
+const retrieveAccount = async (req, res) => {
   try {
     const userId = req.userId;
     const requestBody = req.body;
@@ -337,13 +335,25 @@ export const retrieveAccount = async (req, res) => {
     const reactivationResult = await reactivateUserAccount(userId);
     if (!reactivationResult.success) {
       logError('Failed to reactivate account:', { userId, error: reactivationResult.error });
-      return res.status(500).json(createExpressErrorResponse('Failed to reactivate account', 500));
+      return res.status(500).json(createErrorResponse(500, 'Failed to reactivate account'));
     }
 
     logInfo('Account retrieved successfully:', { userId });
-    return res.json(createExpressSuccessResponse('Account retrieved successfully. Welcome back!'));
+    return res.json(createSuccessResponse('Account retrieved successfully. Welcome back!'));
   } catch (error) {
     logError('Account retrieve error:', error);
     return res.status(500).json(createErrorResponse(500, 'Internal server error'));
   }
+};
+
+// Export all functions at the end
+export {
+  getPrivacySecurity,
+  updatePrivacySecurity,
+  clearSessions,
+  getAccountDeletionStatus,
+  deleteAccount,
+  deleteAccountWithOtp,
+  getAccountRetrieve,
+  retrieveAccount
 };

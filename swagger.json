@@ -11,7 +11,7 @@
   "host": "localhost:4000",
   "basePath": "/",
   "schemes": [
-    "https"
+    "http"
   ],
   "produces": [
     "application/json"

@@ -18,13 +18,11 @@ import {
   checkAudioCallAccess, 
   checkPaidChatAccess,
   getFile,
-  createExpressSuccessResponse,
-  createExpressErrorResponse,
   createSuccessResponse,
   createErrorResponse
 } from '../utils/common.js';
 import { getUserSubscriptionPlans, updateSubscriptionPlan, updateSubscriptionMessage, updateUserFreeSubscription } from '../utils/subscription.js';
-import { checkFileExists, downloadFile, uploadFile } from '../utils/s3Utils.js';
+import { checkFileExists, deleteFile, downloadFile, uploadFile } from '../utils/s3Utils.js';
 import { checkFaceVisibility } from '../utils/faceDetection.js';
 import { generateCreatorAgreementPDF } from '../utils/pdfGenerator.js';
 import { processMediaFiles, cleanupS3Files } from '../utils/mediaProcessing.js';
@@ -37,7 +35,80 @@ import { processUploadRequest } from '../utils/uploadUtils.js';
  * @param {object} res - Express response object
  * @returns {object} API response
  */
-export const getCreatorSettings = async (req, res) => {
+/**
+ * Get creator dashboard data
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ */
+const getDashboard = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    
+    // Get basic creator stats
+    const [stats] = await Promise.all([
+      getCreatorStats(userId)
+    ]);
+    
+    const dashboardData = {
+      stats: stats,
+      recent_activity: [],
+      notifications: []
+    };
+    
+    logInfo('Creator dashboard data retrieved', { userId });
+    return res.json(createSuccessResponse('Dashboard data retrieved successfully', dashboardData));
+  } catch (error) {
+    logError('Error getting creator dashboard:', error);
+    return res.status(500).json(createErrorResponse(500, 'Failed to retrieve dashboard data'));
+  }
+};
+
+/**
+ * Get creator stats
+ * @param {number} userId - User ID
+ * @returns {Promise<object>} Creator stats
+ */
+const getCreatorStats = async (userId) => {
+  try {
+    const db = await getDB();
+    
+    // Get total subscribers
+    const [subscribersResult] = await db.execute(`
+      SELECT COUNT(*) as total_subscribers 
+      FROM subscriptions 
+      WHERE creator_id = ? AND status = 'active'
+    `, [userId]);
+    
+    // Get total earnings
+    const [earningsResult] = await db.execute(`
+      SELECT COALESCE(SUM(amount), 0) as total_earnings 
+      FROM payments 
+      WHERE creator_id = ? AND status = 'completed'
+    `, [userId]);
+    
+    // Get total posts
+    const [postsResult] = await db.execute(`
+      SELECT COUNT(*) as total_posts 
+      FROM posts 
+      WHERE user_id = ? AND status = 'active'
+    `, [userId]);
+    
+    return {
+      total_subscribers: subscribersResult[0]?.total_subscribers || 0,
+      total_earnings: earningsResult[0]?.total_earnings || 0,
+      total_posts: postsResult[0]?.total_posts || 0
+    };
+  } catch (error) {
+    logError('Error getting creator stats:', error);
+    return {
+      total_subscribers: 0,
+      total_earnings: 0,
+      total_posts: 0
+    };
+  }
+};
+
+const getCreatorSettings = async (req, res) => {
   // Extract and validate authenticated user
   // TODO: Convert getAuthenticatedUserId(event, { action: 'creator_settings getCreatorSettingsHandler' }) to getAuthenticatedUserId(req, { action: 'creator_settings getCreatorSettingsHandler' })
   const { userId, errorResponse } = getAuthenticatedUserId(req, { action: 'creator_settings getCreatorSettingsHandler' });
@@ -290,7 +361,7 @@ export const getCreatorSettings = async (req, res) => {
  * @param {object} res - Express response object
  * @returns {object} API response
  */
-export const updateCreatorSettings = async (req, res) => {
+const updateCreatorSettings = async (req, res) => {
   // Extract and validate authenticated user
   // TODO: Convert getAuthenticatedUserId(event, { action: 'creator_settings updateCreatorSettingsHandler' }) to getAuthenticatedUserId(req, { action: 'creator_settings updateCreatorSettingsHandler' })
   const { userId, errorResponse } = getAuthenticatedUserId(req, { action: 'creator_settings updateCreatorSettingsHandler' });
@@ -497,7 +568,7 @@ const getBlockedCountriesByUserId = async (userId) => {
  * @param {object} res - Express response object
  * @returns {object} API response
  */
-export const getBlockedCountries = async (req, res) => {
+const getBlockedCountries = async (req, res) => {
   try {
     // Authenticate and get user ID
     // TODO: Convert getAuthenticatedUserId(event, { action: 'block_countries GET handler' }) to getAuthenticatedUserId(req, { action: 'block_countries GET handler' })
@@ -573,7 +644,7 @@ const validateCountryCodes = async (countries) => {
  * @param {object} res - Express response object
  * @returns {object} API response
  */
-export const updateBlockedCountries = async (req, res) => {
+const updateBlockedCountries = async (req, res) => {
   try {
     // Authenticate and get user ID
     // TODO: Convert getAuthenticatedUserId(event, { action: 'block_countries POST handler' }) to getAuthenticatedUserId(req, { action: 'block_countries POST handler' })
@@ -800,7 +871,7 @@ const processSubscriptionPlanUpdates = async (userId, requestBody) => {
  * @param {object} res - Express response object
  * @returns {object} API response with subscription data or error
  */
-export const getSubscriptionSettings = async (req, res) => {
+const getSubscriptionSettings = async (req, res) => {
   try {
     // TODO: Convert getAuthenticatedUserId(event, { action: 'fetch subscription settings' }) to getAuthenticatedUserId(req, { action: 'fetch subscription settings' })
     const { userId, errorResponse } = getAuthenticatedUserId(req, { action: 'fetch subscription settings' });
@@ -846,7 +917,7 @@ export const getSubscriptionSettings = async (req, res) => {
  * @param {object} res - Express response object
  * @returns {object} API response with success status or error
  */
-export const updateSubscriptionSettings = async (req, res) => {
+const updateSubscriptionSettings = async (req, res) => {
   try {
     // TODO: Convert getAuthenticatedUserId(event, { action: 'update subscription settings' }) to getAuthenticatedUserId(req, { action: 'update subscription settings' })
     const { userId, errorResponse } = getAuthenticatedUserId(req, { action: 'update subscription settings' });
@@ -942,7 +1013,7 @@ export const updateSubscriptionSettings = async (req, res) => {
  * @param {object} res - Express response object
  * @returns {object} Response object with user details and company info
  */
-export const getCreatorAgreement = async (req, res) => {
+const getCreatorAgreement = async (req, res) => {
   try {
     logInfo('Creator agreement GET handler called', { event: req });
 
@@ -1092,7 +1163,7 @@ const sendAgreementNotification = async (userId) => {
  * @param {object} res - Express response object
  * @returns {object} Response object with success/error message
  */
-export const postCreatorAgreement = async (req, res) => {
+const postCreatorAgreement = async (req, res) => {
   try {
     // Authenticate user and get user ID
     // TODO: Convert getAuthenticatedUserId(event, { action: 'creator agreement submission' }) to getAuthenticatedUserId(req, { action: 'creator agreement submission' })
@@ -1290,7 +1361,7 @@ export const postCreatorAgreement = async (req, res) => {
  * @param {object} res - Express response object
  * @returns {Promise<object>} API response with pre-signed URLs or error
  */
-export const getUploadUrl = async (req, res) => {
+const getUploadUrl = async (req, res) => {
   // Configuration options for creator agreement upload processing with destructuring
   const uploadOptions = {
     action: 'getCreatorAgreementUploadUrl',
@@ -1320,7 +1391,7 @@ export const getUploadUrl = async (req, res) => {
  * @param {object} res - Express response object
  * @returns {object} Response object with PDF file or error message
  */
-export const downloadCreatorAgreementPdf = async (req, res) => {
+const downloadCreatorAgreementPdf = async (req, res) => {
   try {
     // Authenticate user and get user ID
     // TODO: Convert getAuthenticatedUserId(event, { action: 'creator agreement PDF download' }) to getAuthenticatedUserId(req, { action: 'creator agreement PDF download' })
@@ -1392,7 +1463,7 @@ export const downloadCreatorAgreementPdf = async (req, res) => {
  * @param {object} res - Express response object
  * @returns {object} API response with payments data
  */
-export const getPaymentsReceived = async (req, res) => {
+const getPaymentsReceived = async (req, res) => {
   try {
     // TODO: Convert getAuthenticatedUserId(event, { action: 'get payments received' }) to getAuthenticatedUserId(req, { action: 'get payments received' })
     const { userId, errorResponse } = getAuthenticatedUserId(req, { action: 'get payments received' });
@@ -1451,7 +1522,7 @@ export const getPaymentsReceived = async (req, res) => {
  * @param {object} res - Express response object
  * @returns {object} API response with withdrawals data
  */
-export const getWithdrawals = async (req, res) => {
+const getWithdrawals = async (req, res) => {
   try {
     // TODO: Convert getAuthenticatedUserId(event, { action: 'get withdrawals' }) to getAuthenticatedUserId(req, { action: 'get withdrawals' })
     const { userId, errorResponse } = getAuthenticatedUserId(req, { action: 'get withdrawals' });
@@ -1498,3 +1569,28 @@ export const getWithdrawals = async (req, res) => {
     return res.status(500).json(createErrorResponse(500, 'Internal server error'));
   }
 }
+
+// Export all functions at the end
+export {
+  getDashboard,
+  getCreatorStats,
+  getCreatorSettings,
+  updateCreatorSettings,
+  getBlockedCountriesByUserId,
+  getBlockedCountries,
+  updateBlockedCountriesByUserId,
+  validateCountryCodes,
+  updateBlockedCountries,
+  processSubscriptionPlanUpdates,
+  getSubscriptionSettings,
+  updateSubscriptionSettings,
+  getCreatorAgreement,
+  updateUserAgreementDate,
+  createTicketConversations,
+  sendAgreementNotification,
+  postCreatorAgreement,
+  getUploadUrl,
+  downloadCreatorAgreementPdf,
+  getPaymentsReceived,
+  getWithdrawals
+};

@@ -11,7 +11,7 @@ const s3Client = new S3Client({
 /**
  * Process media files - convert images to WebP and optimize
  */
-export const processMediaFiles = async (fileKeys) => {
+const processMediaFiles = async (fileKeys) => {
   try {
     const processedFiles = [];
     
@@ -89,7 +89,7 @@ export const processMediaFiles = async (fileKeys) => {
 /**
  * Cleanup S3 files
  */
-export const cleanupS3Files = async (fileKeys) => {
+const cleanupS3Files = async (fileKeys) => {
   try {
     for (const fileKey of fileKeys) {
       try {
@@ -114,7 +114,7 @@ export const cleanupS3Files = async (fileKeys) => {
  * Validate an array of media paths for posts/uploads
  * Returns { success: boolean, errors: string[] }
  */
-export const validateMediaArray = (media, basePath = 'uploads/updates/', context = 'post') => {
+const validateMediaArray = (media, basePath = 'uploads/updates/', context = 'post') => {
   const errors = [];
   if (!Array.isArray(media)) {
     return { success: false, errors: ['media must be an array'] };
@@ -178,4 +178,11 @@ const convertToWebP = async (buffer) => {
     logError('Error converting to WebP:', error);
     throw error;
   }
+};
+
+// Export all functions at the end
+export {
+  processMediaFiles,
+  cleanupS3Files,
+  validateMediaArray
 };

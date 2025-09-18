@@ -13,7 +13,7 @@ const ddbClient = new DynamoDBClient({
 const docClient = DynamoDBDocumentClient.from(ddbClient);
 
 // DynamoDB-based rate limiting middleware
-export const createDynamoDBRateLimit = (options = {}) => {
+const createDynamoDBRateLimit = (options = {}) => {
   const {
     windowMs = 15 * 60 * 1000, // 15 minutes default
     maxRequests = 100,
@@ -153,23 +153,31 @@ export const createDynamoDBRateLimit = (options = {}) => {
 };
 
 // Pre-configured limiters
-export const apiLimiter = createDynamoDBRateLimit({
+const apiLimiter = createDynamoDBRateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   maxRequests: 100,
   prefix: 'rl',
   message: 'Too many requests, please try again later.'
 });
 
-export const sensitiveLimiter = createDynamoDBRateLimit({
+const sensitiveLimiter = createDynamoDBRateLimit({
   windowMs: 10 * 60 * 1000, // 10 minutes
   maxRequests: 50,
   prefix: 'rls',
   message: 'Too many attempts, please slow down.'
 });
 
-export const authLimiter = createDynamoDBRateLimit({
+const authLimiter = createDynamoDBRateLimit({
   windowMs: 5 * 60 * 1000, // 5 minutes
   maxRequests: 20,
   prefix: 'auth',
   message: 'Too many authentication attempts, please try again later.'
 });
+
+// Export all functions at the end
+export {
+  createDynamoDBRateLimit,
+  apiLimiter,
+  sensitiveLimiter,
+  authLimiter
+};

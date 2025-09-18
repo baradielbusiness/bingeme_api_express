@@ -29,9 +29,7 @@ import {
   getUserSettings,
   getRestrictedUserIds,
   safeDecryptId,
-  getCommentLikesCount,
-  createExpressSuccessResponse,
-  createExpressErrorResponse
+  getCommentLikesCount
 } from '../utils/common.js';
 import { 
   savePost, 
@@ -853,7 +851,7 @@ const computeRemainingTime = (expiredAt, isUtcFlag) => {
  * @param {Object} res - Express response object
  * @returns {Object} Express response with form data or error
  */
-export const getPostCreateData = async (req, res) => {
+const getPostCreateData = async (req, res) => {
   const startTime = Date.now();
   
   try {
@@ -952,7 +950,7 @@ export const getPostCreateData = async (req, res) => {
  * @param {Object} req.headers - Request headers including authorization
  * @returns {Object} Express response object
  */
-export const createPost = async (req, res) => {
+const createPost = async (req, res) => {
   try {
     logInfo('Post creation request initiated');
 
@@ -988,7 +986,7 @@ export const createPost = async (req, res) => {
     const validation = validatePostInput(requestBody);
     if (!validation.success) {
       logError('Post validation failed:', { errors: validation.errors });
-      return res.status(422).json(createExpressErrorResponse('Validation failed', 422));
+      return res.status(422).json(createErrorResponse(422, 'Validation failed'));
     }
 
     const { description, tags, price, post_type, media, scheduled_date, scheduled_time, timezone } = requestBody;
@@ -1028,7 +1026,7 @@ export const createPost = async (req, res) => {
     const { AWS_BUCKET_NAME: bucketName } = process.env;
     if (!bucketName) {
       logError('S3 bucket configuration missing from environment');
-      return res.status(500).json(createExpressErrorResponse('Media storage not configured', 500));
+      return res.status(500).json(createErrorResponse(500, 'Media storage not configured'));
     }
 
     // Step 7.1: Resolve watermark settings without altering existing behaviors
@@ -1067,7 +1065,7 @@ export const createPost = async (req, res) => {
         logInfo('Media processing completed successfully');
       } catch (error) {
         logError('Media processing failed:', { error: error.message });
-        return res.status(500).json(createExpressErrorResponse('Media processing failed', 500));
+        return res.status(500).json(createErrorResponse(500, 'Media processing failed'));
       }
     }
 
@@ -1090,7 +1088,7 @@ export const createPost = async (req, res) => {
       logInfo('Post saved to database successfully');
     } catch (error) {
       logError('Database save operation failed:', { error: error.message });
-      return res.status(500).json(createExpressErrorResponse('Failed to save post to database', 500));
+      return res.status(500).json(createErrorResponse(500, 'Failed to save post to database'));
     }
 
     // Step 10: Build success response with empty data object
@@ -1125,7 +1123,7 @@ export const createPost = async (req, res) => {
  * @param {object} res - Express response object
  * @returns {Promise<object>} Express response with pre-signed URLs or error
  */
-export const getPostUploadUrl = async (req, res) => {
+const getPostUploadUrl = async (req, res) => {
   // Configuration options for posts upload processing with destructuring
     const uploadOptions = {
       action: 'getPostUploadUrl',
@@ -1151,7 +1149,7 @@ export const getPostUploadUrl = async (req, res) => {
  * GET /posts/{username}/{id}
  * Returns post details by username and id (encrypted or numeric).
  */
-export const getPostByUsernameAndId = async (req, res) => {
+const getPostByUsernameAndId = async (req, res) => {
   try {
     // 1) Authenticate request
     // TODO: Convert getAuthenticatedUserId(event, { action: 'get_post_by_username_and_id' }) to getAuthenticatedUserId(req, { action: 'get_post_by_username_and_id' })
@@ -1165,23 +1163,23 @@ export const getPostByUsernameAndId = async (req, res) => {
     // TODO: Convert event.pathParameters to req.params
     const { username, id } = req.params;
     if (!username || !id) {
-      return res.status(400).json(createExpressErrorResponse('Username and id are required', 400));
+      return res.status(400).json(createErrorResponse(400, 'Username and id are required'));
     }
 
     // 3) Resolve post id
     const updateId = resolveUpdateId(id);
     if (!updateId) {
-      return res.status(400).json(createExpressErrorResponse('Invalid id format', 400));
+      return res.status(400).json(createErrorResponse(400, 'Invalid id format'));
     }
 
     // 4) Fetch owner and post
     const owner = await fetchOwnerByUsername(username);
     if (!owner) {
-      return res.status(404).json(createExpressErrorResponse('User not found', 404));
+      return res.status(404).json(createErrorResponse(404, 'User not found'));
     }
     const post = await fetchPostByIdAndOwner(updateId, owner.id);
     if (!post) {
-      return res.status(404).json(createExpressErrorResponse('Post not found', 404));
+      return res.status(404).json(createErrorResponse(404, 'Post not found'));
     }
 
     // 5) Fetch related data
@@ -1221,7 +1219,7 @@ export const getPostByUsernameAndId = async (req, res) => {
       post_url: `${appBaseUrl}/posts/${owner.username}/${encryptId(postId)}`
     };
 
-    return res.status(200).json(createExpressSuccessResponse('Post details retrieved', response));
+    return res.status(200).json(createSuccessResponse('Post details retrieved', response));
   } catch (error) {
     logError('Error in getPostByUsernameAndId:', error);
     return res.status(500).json(createErrorResponse(500, 'Internal server error'));
@@ -1234,7 +1232,7 @@ export const getPostByUsernameAndId = async (req, res) => {
  * @param {Object} res - Express response object
  * @returns {Promise<Object>} API response
  */
-export const addComment = async (req, res) => {
+const addComment = async (req, res) => {
   try {
     // Get authenticated user ID
     // TODO: Convert getAuthenticatedUserId(event, { action: 'store_comment' }) to getAuthenticatedUserId(req, { action: 'store_comment' })
@@ -1331,7 +1329,7 @@ export const addComment = async (req, res) => {
  * @param {Object} res - Express response object
  * @returns {Promise<Object>} API response
  */
-export const deleteComment = async (req, res) => {
+const deleteComment = async (req, res) => {
   try {
     // Get authenticated user ID
     // TODO: Convert getAuthenticatedUserId(event, { action: 'delete_comment' }) to getAuthenticatedUserId(req, { action: 'delete_comment' })
@@ -1426,7 +1424,7 @@ export const deleteComment = async (req, res) => {
  * @param {Object} res - Express response object
  * @returns {Promise<Object>} API response
  */
-export const toggleLike = async (req, res) => {
+const toggleLike = async (req, res) => {
   try {
     // Get authenticated user ID
     // TODO: Convert getAuthenticatedUserId(event, { action: 'post_like' }) to getAuthenticatedUserId(req, { action: 'post_like' })
@@ -1534,7 +1532,7 @@ export const toggleLike = async (req, res) => {
  * @param {Object} res - Express response object
  * @returns {Promise<Object>} API response
  */
-export const toggleCommentLike = async (req, res) => {
+const toggleCommentLike = async (req, res) => {
   try {
     // Get authenticated user ID
     // TODO: Convert getAuthenticatedUserId(event, { action: 'comment_like' }) to getAuthenticatedUserId(req, { action: 'comment_like' })
@@ -1630,7 +1628,7 @@ export const toggleCommentLike = async (req, res) => {
  * @param {Object} res - Express response object
  * @returns {Object} API response
  */
-export const pinPost = async (req, res) => {
+const pinPost = async (req, res) => {
   try {
     // Step 1: Authenticate user
     // TODO: Convert getAuthenticatedUserId(event, { allowAnonymous: false, action: 'pin post' }) to getAuthenticatedUserId(req, { allowAnonymous: false, action: 'pin post' })
@@ -1764,4 +1762,41 @@ const pinPostHelper = async (userId, updateId) => {
   } finally {
     connection.release();
   }
+};
+
+// Export all functions at the end
+export {
+  getAvailableTags,
+  getAdminSettingsForPosts,
+  fetchOwnerByUsername,
+  fetchPostByIdAndOwner,
+  fetchMediaForPost,
+  fetchCounts,
+  fetchTags,
+  getUpdateDetails,
+  storeComment,
+  getCommentDetails,
+  deleteCommentHelper,
+  getCommentCount,
+  sendNotification,
+  getNewComment,
+  getPostLike,
+  getCommentLike,
+  togglePostLike,
+  toggleCommentLikeHelper,
+  getPostLikesCount,
+  sendPostLikeNotification,
+  sendCommentLikeNotification,
+  deletePostLikeNotification,
+  deleteCommentLikeNotification,
+  getPostCreateData,
+  createPost,
+  getPostUploadUrl,
+  getPostByUsernameAndId,
+  addComment,
+  deleteComment,
+  toggleLike,
+  toggleCommentLike,
+  pinPost,
+  pinPostHelper
 };

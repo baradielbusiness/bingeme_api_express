@@ -4,7 +4,7 @@ import { logInfo, logError, generateOTP, verifyEmailOTP } from './common.js';
 /**
  * Fetch privacy and security details for user
  */
-export const fetchPrivacySecurityDetails = async (userId) => {
+const fetchPrivacySecurityDetails = async (userId) => {
   try {
     const query = `
       SELECT 
@@ -33,7 +33,7 @@ export const fetchPrivacySecurityDetails = async (userId) => {
 /**
  * Update privacy and security details
  */
-export const updatePrivacySecurityDetails = async (userId, settings) => {
+const updatePrivacySecurityDetails = async (userId, settings) => {
   try {
     const { privacy_settings, security_settings } = settings;
     
@@ -54,7 +54,7 @@ export const updatePrivacySecurityDetails = async (userId, settings) => {
 /**
  * Generate account deletion OTP
  */
-export const generateAccountDeletionOTP = async (userId) => {
+const generateAccountDeletionOTP = async (userId) => {
   try {
     const identifier = `delete_account_${userId}`;
     const otp = await generateOTP(identifier);
@@ -70,7 +70,7 @@ export const generateAccountDeletionOTP = async (userId) => {
 /**
  * Verify account deletion OTP
  */
-export const verifyAccountDeletionOTP = async (userId, otp) => {
+const verifyAccountDeletionOTP = async (userId, otp) => {
   try {
     const identifier = `delete_account_${userId}`;
     const isValid = await verifyEmailOTP(identifier, otp);
@@ -89,7 +89,7 @@ export const verifyAccountDeletionOTP = async (userId, otp) => {
 /**
  * Soft delete user account
  */
-export const softDeleteUserAccount = async (userId) => {
+const softDeleteUserAccount = async (userId) => {
   try {
     // Mark user as deleted
     const userQuery = `UPDATE users SET deleted = 1, deleted_at = NOW() WHERE id = ?`;
@@ -117,7 +117,7 @@ export const softDeleteUserAccount = async (userId) => {
 /**
  * Get account retrieve info
  */
-export const getAccountRetrieveInfo = async (userId) => {
+const getAccountRetrieveInfo = async (userId) => {
   try {
     const query = `
       SELECT 
@@ -142,7 +142,7 @@ export const getAccountRetrieveInfo = async (userId) => {
 /**
  * Reactivate user account
  */
-export const reactivateUserAccount = async (userId) => {
+const reactivateUserAccount = async (userId) => {
   try {
     const query = `UPDATE users SET status = "active", updated_at = NOW() WHERE id = ?`;
     await pool.query(query, [userId]);
@@ -157,7 +157,7 @@ export const reactivateUserAccount = async (userId) => {
 /**
  * Clear user sessions
  */
-export const clearUserSessions = async (userId) => {
+const clearUserSessions = async (userId) => {
   try {
     // Clear from sessions table (if using MySQL)
     const sessionsQuery = `DELETE FROM sessions WHERE user_id = ?`;
@@ -171,4 +171,16 @@ export const clearUserSessions = async (userId) => {
     logError('Error clearing user sessions:', error);
     throw error;
   }
+};
+
+// Export all functions at the end
+export {
+  fetchPrivacySecurityDetails,
+  updatePrivacySecurityDetails,
+  generateAccountDeletionOTP,
+  verifyAccountDeletionOTP,
+  softDeleteUserAccount,
+  getAccountRetrieveInfo,
+  reactivateUserAccount,
+  clearUserSessions
 };

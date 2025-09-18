@@ -1,5 +1,5 @@
-import { createSuccessResponse, createErrorResponse, logInfo, logError, getUserCountry, getUserById, processCurrencySettings, getFile, createExpressSuccessResponse, createExpressErrorResponse, getAuthenticatedUserId, decryptId, isEncryptedId } from '../utils/common.js';
-import { validateProductInput, validateProductId } from '../validate/products.js';
+import { createSuccessResponse, createErrorResponse, logInfo, logError, getUserCountry, getUserById, processCurrencySettings, getAuthenticatedUserId, decryptId, isEncryptedId } from '../utils/common.js';
+import { validateProductInput } from '../validate/products.js';
 import { getUserProducts, getProductByIdForUser, createProduct, updateProduct, softDeleteProduct, insertProductMedia, mapProductType, formatProductsForResponse, formatProductForEdit, processFileUploadData, handleMediaProcessing, cleanupMediaFiles, getAvailableProductTags, getProductAdminSettings, processProductAdminSettings } from '../utils/product.js';
 import { processUploadRequest } from '../utils/uploadUtils.js';
 
@@ -35,7 +35,7 @@ const decryptProductId = (encryptedId) => {
  * @param {Object} res - Express response object
  * @returns {Promise<Object>} Express response with product creation form data
  */
-export const getProductCreateData = async (req, res) => {
+const getProductCreateData = async (req, res) => {
   const startTime = Date.now();
   
   try {
@@ -106,7 +106,7 @@ export const getProductCreateData = async (req, res) => {
  * @param {Object} res - Express response object
  * @returns {Promise<Object>} Express response with products and pagination info
  */
-export const getProducts = async (req, res) => {
+const getProducts = async (req, res) => {
   try {
     // Extract and validate user authentication
     // TODO: Convert getAuthenticatedUserId(event, { action: 'products' }) to getAuthenticatedUserId(req, { action: 'products' })
@@ -151,7 +151,7 @@ export const getProducts = async (req, res) => {
  * @param {Object} res - Express response object
  * @returns {Promise<Object>} Express response with created product info
  */
-export const createProduct = async (req, res) => {
+const createProductHandler = async (req, res) => {
   logInfo('Add product request received');
   try {
     // Authenticate user
@@ -285,7 +285,7 @@ export const createProduct = async (req, res) => {
  * @param {Object} res - Express response object
  * @returns {Promise<Object>} Express response with product data
  */
-export const getProductById = async (req, res) => {
+const getProductById = async (req, res) => {
   try {
     // Authenticate user
     // TODO: Convert getAuthenticatedUserId(event, { action: 'edit' }) to getAuthenticatedUserId(req, { action: 'edit' })
@@ -337,7 +337,7 @@ export const getProductById = async (req, res) => {
  * @param {Object} res - Express response object
  * @returns {Promise<Object>} Express response with updated product data
  */
-export const updateProduct = async (req, res) => {
+const updateProductHandler = async (req, res) => {
   try {
     // Authenticate user
     // TODO: Convert getAuthenticatedUserId(event, { action: 'edit' }) to getAuthenticatedUserId(req, { action: 'edit' })
@@ -423,7 +423,7 @@ export const updateProduct = async (req, res) => {
  * @param {Object} res - Express response object
  * @returns {Promise<Object>} Express response confirming deletion
  */
-export const deleteProduct = async (req, res) => {
+const deleteProductHandler = async (req, res) => {
   try {
     // Authenticate user
     // TODO: Convert getAuthenticatedUserId(event, { action: 'delete' }) to getAuthenticatedUserId(req, { action: 'delete' })
@@ -486,7 +486,7 @@ export const deleteProduct = async (req, res) => {
  * @param {Object} res - Express response object
  * @returns {Promise<Object>} Express response with pre-signed URLs or error
  */
-export const getProductUploadUrl = async (req, res) => {
+const getProductUploadUrl = async (req, res) => {
   try {
     // Configuration options for products upload processing with destructuring
     const uploadOptions = {
@@ -512,4 +512,15 @@ export const getProductUploadUrl = async (req, res) => {
     // TODO: Convert createErrorResponse(500, 'Failed to generate upload URLs') to res.status(500).json({ error: 'Failed to generate upload URLs' })
     return res.status(500).json(createErrorResponse(500, 'Failed to generate upload URLs'));
   }
+};
+
+// Export all functions at the end
+export {
+  getProductCreateData,
+  getProducts,
+  createProductHandler,
+  getProductById,
+  updateProductHandler,
+  deleteProductHandler,
+  getProductUploadUrl
 };

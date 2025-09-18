@@ -4,7 +4,7 @@ import { logInfo, logError } from './common.js';
 /**
  * Save message media
  */
-export const saveMessageMedia = async (messageId, mediaData) => {
+const saveMessageMedia = async (messageId, mediaData) => {
   try {
     const { media_path, media_type, media_size } = mediaData;
     
@@ -25,7 +25,7 @@ export const saveMessageMedia = async (messageId, mediaData) => {
 /**
  * Save message
  */
-export const saveMessage = async (messageData) => {
+const saveMessage = async (messageData) => {
   try {
     const { 
       from_user_id, 
@@ -61,7 +61,7 @@ export const saveMessage = async (messageData) => {
 /**
  * Delete message
  */
-export const deleteMessage = async (messageId) => {
+const deleteMessage = async (messageId) => {
   try {
     const query = `UPDATE messages SET deleted = 1 WHERE id = ?`;
     await pool.query(query, [messageId]);
@@ -70,4 +70,11 @@ export const deleteMessage = async (messageId) => {
     logError('Error deleting message:', error);
     throw error;
   }
+};
+
+// Export all functions at the end
+export {
+  saveMessageMedia,
+  saveMessage,
+  deleteMessage
 };

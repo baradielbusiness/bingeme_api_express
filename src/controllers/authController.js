@@ -16,8 +16,6 @@ import {
   logError, 
   createErrorResponse, 
   createSuccessResponse, 
-  createExpressSuccessResponse,
-  createExpressErrorResponse,
   generateAccessToken, 
   generateRefreshToken, 
   storeRefreshToken, 
@@ -59,12 +57,12 @@ const docClient = DynamoDBDocumentClient.from(ddbClient);
  * @param {object} req - Express request object
  * @param {object} res - Express response object
  */
-export const init = async (req, res) => {
+const init = async (req, res) => {
   try {
     // Rate limit per IP and route
     const ip = req.ip || req.connection?.remoteAddress || '0.0.0.0';
     if (!await checkRateLimit(ip, '/auth/init')) {
-      return res.status(429).json(createExpressErrorResponse('Too many requests', 429));
+      return res.status(429).json(createErrorResponse(429, 'Too many requests'));
     }
 
     // Parse request body
@@ -92,7 +90,7 @@ export const init = async (req, res) => {
     if (isSwagger) {
       const session = await issueAnonymousSession(req);
       if (session.error) return res.status(500).json(createErrorResponse(500, session.error.message || session.error.error));
-      return res.json(createExpressSuccessResponse('Swagger session initialized', {
+      return res.json(createSuccessResponse('Swagger session initialized', {
         ...session,
         client: 'swagger'
       }));
@@ -100,7 +98,7 @@ export const init = async (req, res) => {
 
     // Android client: placeholder, no-op for now
     if (isAndroid) {
-      return res.json(createExpressSuccessResponse('Android init acknowledged', {
+      return res.json(createSuccessResponse('Android init acknowledged', {
         client: 'android',
         action: 'noop'
       }));
@@ -110,7 +108,7 @@ export const init = async (req, res) => {
     if (unsupported === true) {
       const session = await issueAnonymousSession(req);
       if (session.error) return res.status(500).json(createErrorResponse(500, session.error.message || session.error.error));
-      return res.json(createExpressSuccessResponse('Anonymous session initialized (fallback)', {
+      return res.json(createSuccessResponse('Anonymous session initialized (fallback)', {
         ...session,
         fallback: true
       }));
@@ -118,7 +116,7 @@ export const init = async (req, res) => {
 
     // Basic input checks
     if (!keyId || !attestationObject || !clientDataHash || !challenge) {
-      return res.status(400).json(createExpressErrorResponse('Missing required fields', 400));
+      return res.status(400).json(createErrorResponse(400, 'Missing required fields'));
     }
 
     // Decode base64 inputs
@@ -126,24 +124,24 @@ export const init = async (req, res) => {
     const clientHashBuf = decodeBase64(clientDataHash);
     const challengeBuf = decodeBase64(challenge);
     if (!attObjBuf || !clientHashBuf || !challengeBuf) {
-      return res.status(400).json(createExpressErrorResponse('Invalid base64 encoding', 400));
+      return res.status(400).json(createErrorResponse(400, 'Invalid base64 encoding'));
     }
 
     // Ensure challenge is 32 bytes
     if (challengeBuf.length !== 32) {
-      return res.status(400).json(createExpressErrorResponse('Invalid challenge length', 400));
+      return res.status(400).json(createErrorResponse(400, 'Invalid challenge length'));
     }
 
     // Challenge freshness and replay protection
     const fresh = await consumeChallengeIfFresh(challenge);
     if (!fresh) {
-      return res.status(400).json(createExpressErrorResponse('Challenge already used or invalid', 400));
+      return res.status(400).json(createErrorResponse(400, 'Challenge already used or invalid'));
     }
 
     const session = await issueAnonymousSession(req);
     if (session.error) return res.status(500).json(createErrorResponse(500, session.error.message || session.error.error));
     
-    return res.json(createExpressSuccessResponse('Anonymous session initialized', {
+    return res.json(createSuccessResponse('Anonymous session initialized', {
       ...session,
       appAttestVerified: true,
       bundleId: bundleId || null,
@@ -161,7 +159,7 @@ export const init = async (req, res) => {
  * @param {object} req - Express request object
  * @param {object} res - Express response object
  */
-export const register = async (req, res) => {
+const register = async (req, res) => {
   try {
     logInfo('Register handler invoked');
     
@@ -171,7 +169,7 @@ export const register = async (req, res) => {
       body = req.body;
     } catch (parseErr) {
       logError('Failed to parse request body', { error: parseErr });
-      return res.status(400).json(createExpressErrorResponse('Invalid JSON in request body', 400));
+      return res.status(400).json(createErrorResponse(400, 'Invalid JSON in request body'));
     }
     
     // Destructure and set defaults
@@ -187,19 +185,19 @@ export const register = async (req, res) => {
     logInfo('Checking rate limit');
     if (!await checkRateLimit(ip, '/auth/signup')) {
       logError('Rate limit exceeded', { ip });
-      return res.status(429).json(createExpressErrorResponse('Too many requests', 429));
+      return res.status(429).json(createErrorResponse(429, 'Too many requests'));
     }
 
     // At least one contact method must be provided
     if (!name || terms !== '1' || (!email && (!phone || !countryCode))) {
       logError('Missing required fields', { name, email, phone, countryCode, terms });
-      return res.status(400).json(createExpressErrorResponse('Missing required fields', 400));
+      return res.status(400).json(createErrorResponse(400, 'Missing required fields'));
     }
     
     // If phone is provided, countryCode is required
     if (phone && !countryCode) {
       logError('Country code required when phone number is provided', { phone });
-      return res.status(400).json(createExpressErrorResponse('Country code is required when providing phone number', 400));
+      return res.status(400).json(createErrorResponse(400, 'Country code is required when providing phone number'));
     }
 
     // Email-specific validation (run in parallel for performance)
@@ -215,15 +213,15 @@ export const register = async (req, res) => {
         logInfo('Email validation results', { domainValid, emailValidation, listCleanValid });
         if (domainValid.status === 'fulfilled' && !domainValid.value) {
           logError('Invalid email domain');
-          return res.status(403).json(createExpressErrorResponse('Invalid email domain', 403));
+          return res.status(403).json(createErrorResponse(403, 'Invalid email domain'));
         }
         if (emailValidation.status === 'fulfilled' && emailValidation.value?.status === 'error') {
           logError('Unable to send OTP to this email');
-          return res.status(400).json(createExpressErrorResponse('Unable to send OTP to this email', 400));
+          return res.status(400).json(createErrorResponse(400, 'Unable to send OTP to this email'));
         }
         if (listCleanValid.status === 'fulfilled' && !listCleanValid.value) {
           logError('Invalid email address (ListClean)');
-          return res.status(400).json(createExpressErrorResponse('Invalid email address', 400));
+          return res.status(400).json(createErrorResponse(400, 'Invalid email address'));
         }
         // Log any failed validations for monitoring (do not expose to client)
         [domainValid, emailValidation, listCleanValid].forEach((result, index) => {
@@ -241,7 +239,7 @@ export const register = async (req, res) => {
     logInfo('Checking for duplicate account');
     if (await checkDuplicateAccount(email, phone)) {
       logError('Account already exists');
-      return res.status(409).json(createExpressErrorResponse('Account already exists', 409));
+      return res.status(409).json(createErrorResponse(409, 'Account already exists'));
     }
 
     // Generate OTP securely
@@ -253,7 +251,7 @@ export const register = async (req, res) => {
     // Send OTP asynchronously (fire-and-forget)
     await sendOtpAsync({ email, phone, countryCode, otp: generatedOTP });
     logInfo('OTP sent successfully');
-    return res.json(createExpressSuccessResponse('OTP sent successfully'));
+    return res.json(createSuccessResponse('OTP sent successfully'));
   } catch (error) {
     logError('Signup error:', error);
     return res.status(500).json(createErrorResponse(500, 'Internal server error'));
@@ -265,22 +263,22 @@ export const register = async (req, res) => {
  * @param {object} req - Express request object
  * @param {object} res - Express response object
  */
-export const verifyOtp = async (req, res) => {
+const verifyOtp = async (req, res) => {
   try {
     // Destructure headers for Authorization
     const authHeader = req.headers?.authorization || req.headers?.Authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.status(401).json(createExpressErrorResponse('Access token required', 401));
+      return res.status(401).json(createErrorResponse(401, 'Access token required'));
     }
     const accessToken = authHeader.replace(/^Bearer\s+/i, '');
     
     // Verify access token and enforce anonymous only
     const decoded = verifyAccessToken(accessToken);
     if (!decoded) {
-      return res.status(401).json(createExpressErrorResponse('Invalid access token', 401));
+      return res.status(401).json(createErrorResponse(401, 'Invalid access token'));
     }
     if (!(decoded.isAnonymous === true || decoded.role === 'anonymous')) {
-      return res.status(403).json(createExpressErrorResponse('Only anonymous access token allowed', 403));
+      return res.status(403).json(createErrorResponse(403, 'Only anonymous access token allowed'));
     }
     
     // Parse and destructure body
@@ -295,10 +293,10 @@ export const verifyOtp = async (req, res) => {
     
     // Validate required fields
     if (!identifier || !otp) {
-      return res.status(400).json(createExpressErrorResponse('Identifier and OTP are required', 400));
+      return res.status(400).json(createErrorResponse(400, 'Identifier and OTP are required'));
     }
     if (typeof otp !== 'string' || !/^\d{5,8}$/.test(otp)) {
-      return res.status(400).json(createExpressErrorResponse('Invalid OTP format', 400));
+      return res.status(400).json(createErrorResponse(400, 'Invalid OTP format'));
     }
     
     // Fetch OTP record from DynamoDB
@@ -309,12 +307,12 @@ export const verifyOtp = async (req, res) => {
     }));
     
     if (!otpRecord) {
-      return res.status(404).json(createExpressErrorResponse('OTP not found or has expired', 404));
+      return res.status(404).json(createErrorResponse(404, 'OTP not found or has expired'));
     }
     
     // Check for too many attempts (max 5)
     if (otpRecord.attempts >= 5) {
-      return res.status(429).json(createExpressErrorResponse('Too many failed OTP attempts. Please request a new OTP.', 429));
+      return res.status(429).json(createErrorResponse(429, 'Too many failed OTP attempts. Please request a new OTP.'));
     }
     
     // Validate the OTP
@@ -330,13 +328,13 @@ export const verifyOtp = async (req, res) => {
       } catch (updateError) {
         logError('Failed to increment OTP attempt counter:', updateError);
       }
-      return res.status(400).json(createExpressErrorResponse('Invalid OTP', 400));
+      return res.status(400).json(createErrorResponse(400, 'Invalid OTP'));
     }
     
     // Check if OTP is expired (10-minute window)
     const tenMinutes = 10 * 60 * 1000;
     if (Date.now() - otpRecord.timestamp > tenMinutes) {
-      return res.status(400).json(createExpressErrorResponse('OTP has expired', 400));
+      return res.status(400).json(createErrorResponse(400, 'OTP has expired'));
     }
     
     // OTP is valid, proceed to create user
@@ -349,7 +347,7 @@ export const verifyOtp = async (req, res) => {
     
     // Ensure we have an email or phone to create the user
     if (!userData.email && !userData.phone) {
-      return res.status(400).json(createExpressErrorResponse('Cannot create user without an email or phone number.', 400));
+      return res.status(400).json(createErrorResponse(400, 'Cannot create user without an email or phone number.'));
     }
     
     const createdUser = await createUser(userData);
@@ -406,7 +404,7 @@ export const verifyOtp = async (req, res) => {
     const storeResult = await storeRefreshToken(createdUser.id.toString(), newRefreshToken, req);
     if (!storeResult) {
       logError('Failed to store refresh token for new user');
-      return res.status(500).json(createExpressErrorResponse('Failed to create session', 500));
+      return res.status(500).json(createErrorResponse(500, 'Failed to create session'));
     }
     
     // Upsert FCM token if provided (signup verify path)
@@ -438,7 +436,7 @@ export const verifyOtp = async (req, res) => {
       // ignore currency errors
     }
 
-    return res.json(createExpressSuccessResponse('OTP verified successfully. User account created.', {
+    return res.json(createSuccessResponse('OTP verified successfully. User account created.', {
       accessToken: newAccessToken,
       refreshToken: newRefreshToken,
       // Include basic profile details for client UI
@@ -464,12 +462,12 @@ export const verifyOtp = async (req, res) => {
  * @param {object} req - Express request object
  * @param {object} res - Express response object
  */
-export const login = async (req, res) => {
+const login = async (req, res) => {
   try {
     const { username_email, country_code, phone, password, is_otp_login } = req.body;
 
     if (typeof is_otp_login !== 'boolean') {
-      return res.status(400).json(createExpressErrorResponse('is_otp_login field is required and must be a boolean.', 400));
+      return res.status(400).json(createErrorResponse(400, 'is_otp_login field is required and must be a boolean.'));
     }
 
     let identifier, loginType, type;
@@ -483,16 +481,16 @@ export const login = async (req, res) => {
         identifier = `${country_code}${phone}`;
         loginType = 'mobile';
         user = await findUser(identifier, loginType);
-        if (!user) return res.status(404).json(createExpressErrorResponse('Invalid credentials', 404));
+        if (!user) return res.status(404).json(createErrorResponse(404, 'Invalid credentials'));
         
         const otp = await generateOTP(identifier);
         const sent = await sendWhatsAppOTP(phone, country_code, otp);
         if (sent) {
-          return res.json(createExpressSuccessResponse('OTP sent. Please verify to continue.', {
+          return res.json(createSuccessResponse('OTP sent. Please verify to continue.', {
             actionRequired: '2fa_verify'
           }));
         }
-        return res.status(500).json(createExpressErrorResponse('Could not send WhatsApp OTP. Please try again later.', 500));
+        return res.status(500).json(createErrorResponse(500, 'Could not send WhatsApp OTP. Please try again later.'));
       }
       if (username_email) {
         // Email OTP login
@@ -500,28 +498,28 @@ export const login = async (req, res) => {
         identifier = username_email;
         loginType = 'email';
         user = await findUser(identifier, loginType);
-        if (!user) return res.status(404).json(createExpressErrorResponse('Invalid credentials', 404));
+        if (!user) return res.status(404).json(createErrorResponse(404, 'Invalid credentials'));
         
         const otp = await generateOTP(user.email);
         const sent = await sendEmailOTP(user.email, otp, 'login');
         if (sent) {
-          return res.json(createExpressSuccessResponse('OTP sent. Please verify to continue.', {
+          return res.json(createSuccessResponse('OTP sent. Please verify to continue.', {
             actionRequired: '2fa_verify'
           }));
         }
-        return res.status(500).json(createExpressErrorResponse('Could not send OTP. Please try again later.', 500));
+        return res.status(500).json(createErrorResponse(500, 'Could not send OTP. Please try again later.'));
       }
-      return res.status(400).json(createExpressErrorResponse('Email or valid mobile number with country code is required for OTP login.', 400));
+      return res.status(400).json(createErrorResponse(400, 'Email or valid mobile number with country code is required for OTP login.'));
     }
 
     // Password-based login flow
     if ((!username_email && !(country_code && phone)) || !password) {
-      return res.status(400).json(createExpressErrorResponse('Provide either email/username or country_code and phone, and password for password login.', 400));
+      return res.status(400).json(createErrorResponse(400, 'Provide either email/username or country_code and phone, and password for password login.'));
     }
     type = 'password_login';
     if (country_code && phone) {
       if (!isValidPhoneFormat(phone, country_code)) {
-        return res.status(400).json(createExpressErrorResponse('Invalid phone number format for the provided country code.', 400));
+        return res.status(400).json(createErrorResponse(400, 'Invalid phone number format for the provided country code.'));
       }
       identifier = (country_code ? country_code.replace(/^\+?/, '+') : '') + (phone || '');
       loginType = 'mobile';
@@ -529,12 +527,12 @@ export const login = async (req, res) => {
       identifier = username_email;
       loginType = username_email.includes('@') ? 'email' : 'username';
     } else {
-      return res.status(400).json(createExpressErrorResponse('Provide either email/username or country_code and phone for login.', 400));
+      return res.status(400).json(createErrorResponse(400, 'Provide either email/username or country_code and phone for login.'));
     }
 
     user = await findUser(identifier, loginType);
     if (!user) {
-      return res.status(404).json(createExpressErrorResponse('Invalid credentials', 404));
+      return res.status(404).json(createErrorResponse(404, 'Invalid credentials'));
     }
 
     // Check user status
@@ -543,21 +541,21 @@ export const login = async (req, res) => {
         // Allow suspended users to login but mark them as suspended
         logInfo('Suspended user attempting login:', { userId: user.id, status: user.status });
         break;
-      case 'pending': return res.status(403).json(createExpressErrorResponse('Your account is pending confirmation.', 403));
-      case 'deleted': return res.status(403).json(createExpressErrorResponse('Your account has been deleted.', 403));
+      case 'pending': return res.status(403).json(createErrorResponse(403, 'Your account is pending confirmation.'));
+      case 'deleted': return res.status(403).json(createErrorResponse(403, 'Your account has been deleted.'));
       case 'active': break;
-      default: return res.status(500).json(createExpressErrorResponse('Unknown account status.', 500));
+      default: return res.status(500).json(createErrorResponse(500, 'Unknown account status.'));
     }
 
     // Password login validation
     if (type === 'password_login') {
       if (!user.password) {
-        return res.status(401).json(createExpressErrorResponse('Account not set up for password login. Please use OTP login or set a password first.', 401));
+        return res.status(401).json(createErrorResponse(401, 'Account not set up for password login. Please use OTP login or set a password first.'));
       }
       try {
         const isMatch = await bcrypt.compare(password, user.password);
         if (!isMatch) {
-          return res.status(401).json(createExpressErrorResponse('Invalid credentials', 401));
+          return res.status(401).json(createErrorResponse(401, 'Invalid credentials'));
         }
       } catch (compareError) {
         return res.status(500).json(createErrorResponse(500, 'Internal server error'));
@@ -570,13 +568,13 @@ export const login = async (req, res) => {
         const otp = await generateOTP(user.email);
         const sent = await sendEmailOTP(user.email, otp, 'login');
       if (sent) {
-          return res.json(createExpressSuccessResponse('2FA code sent. Please verify to continue.', {
+          return res.json(createSuccessResponse('2FA code sent. Please verify to continue.', {
           actionRequired: '2fa_verify'
           }));
       }
-        return res.status(500).json(createExpressErrorResponse('Could not send 2FA code. Please try again later.', 500));
+        return res.status(500).json(createErrorResponse(500, 'Could not send 2FA code. Please try again later.'));
       } catch (error) {
-        return res.status(500).json(createExpressErrorResponse('Could not send 2FA code. Please try again later.', 500));
+        return res.status(500).json(createErrorResponse(500, 'Could not send 2FA code. Please try again later.'));
       }
     }
 
@@ -605,7 +603,7 @@ export const login = async (req, res) => {
 
     // Suspended users: success with actionRequired and redirect
     if (user.status === 'suspended') {
-      return res.json(createExpressSuccessResponse('Login successful but account is suspended', {
+      return res.json(createSuccessResponse('Login successful but account is suspended', {
         actionRequired: 'suspended',
         redirectTo: '/auth/suspended',
         accessToken,
@@ -624,7 +622,7 @@ export const login = async (req, res) => {
       }));
     }
 
-    return res.json(createExpressSuccessResponse('Login successful', {
+    return res.json(createSuccessResponse('Login successful', {
       accessToken,
       refreshToken,
       user: {
@@ -647,12 +645,12 @@ export const login = async (req, res) => {
  * @param {object} req - Express request object
  * @param {object} res - Express response object
  */
-export const loginVerify = async (req, res) => {
+const loginVerify = async (req, res) => {
   try {
     const { identifier, otp } = req.body;
     
     if (!identifier || !otp) {
-      return res.status(400).json(createExpressErrorResponse('Identifier and OTP are required.', 400));
+      return res.status(400).json(createErrorResponse(400, 'Identifier and OTP are required.'));
     }
     
     // Determine login type
@@ -665,13 +663,13 @@ export const loginVerify = async (req, res) => {
     const user = rows[0] || null;
     
     if (!user) {
-      return res.status(404).json(createExpressErrorResponse('Invalid credentials', 404));
+      return res.status(404).json(createErrorResponse(404, 'Invalid credentials'));
     }
 
     // Verify OTP
     const isOtpValid = await verifyEmailOTP(identifier, otp);
     if (!isOtpValid) {
-      return res.status(401).json(createExpressErrorResponse('Invalid or expired OTP', 401));
+      return res.status(401).json(createErrorResponse(401, 'Invalid or expired OTP'));
     }
     
     // Check user status
@@ -680,10 +678,10 @@ export const loginVerify = async (req, res) => {
         // Allow suspended users to login but mark them as suspended
         logInfo('Suspended user attempting login:', { userId: user.id, status: user.status });
         break;
-      case 'pending': return res.status(403).json(createExpressErrorResponse('Your account is pending confirmation.', 403));
-      case 'deleted': return res.status(403).json(createExpressErrorResponse('Your account has been deleted.', 403));
+      case 'pending': return res.status(403).json(createErrorResponse(403, 'Your account is pending confirmation.'));
+      case 'deleted': return res.status(403).json(createErrorResponse(403, 'Your account has been deleted.'));
       case 'active': break;
-      default: return res.status(500).json(createExpressErrorResponse('Unknown account status.', 500));
+      default: return res.status(500).json(createErrorResponse(500, 'Unknown account status.'));
     }
 
     // Determine effective role and generate tokens
@@ -708,7 +706,7 @@ export const loginVerify = async (req, res) => {
     const { currency } = processCurrencySettings(adminSettings, userCountry);
 
     if (user.status === 'suspended') {
-      return res.json(createExpressSuccessResponse('Login verification successful but account is suspended', {
+      return res.json(createSuccessResponse('Login verification successful but account is suspended', {
         actionRequired: 'suspended',
         redirectTo: '/auth/suspended',
         accessToken,
@@ -726,7 +724,7 @@ export const loginVerify = async (req, res) => {
       }));
     }
 
-    return res.json(createExpressSuccessResponse('Login verification successful', {
+    return res.json(createSuccessResponse('Login verification successful', {
       accessToken,
       refreshToken,
       user: {
@@ -749,18 +747,18 @@ export const loginVerify = async (req, res) => {
  * @param {object} req - Express request object
  * @param {object} res - Express response object
  */
-export const refresh = async (req, res) => {
+const refresh = async (req, res) => {
   try {
     const { refreshToken } = req.body;
 
     if (!refreshToken) {
-      return res.status(400).json(createExpressErrorResponse('Refresh token is required', 400));
+      return res.status(400).json(createErrorResponse(400, 'Refresh token is required'));
     }
 
     // Verify refresh token
     const decoded = verifyRefreshToken(refreshToken);
     if (!decoded) {
-      return res.status(401).json(createExpressErrorResponse('Invalid refresh token', 401));
+      return res.status(401).json(createErrorResponse(401, 'Invalid refresh token'));
     }
 
     // Extract user info from token
@@ -773,7 +771,7 @@ export const refresh = async (req, res) => {
         logInfo('Decoded 24-character ID from refresh token', { encodedId: decoded.id, decodedId: id });
       } catch (error) {
         logError('Failed to decode 24-character ID from refresh token', { encodedId: decoded.id, error: error.message });
-        return res.status(401).json(createExpressErrorResponse('Invalid refresh token format', 401));
+        return res.status(401).json(createErrorResponse(401, 'Invalid refresh token format'));
       }
     }
 
@@ -791,7 +789,7 @@ export const refresh = async (req, res) => {
     // Look up stored refresh token session
     const storedTokenData = await getRefreshToken(refreshToken, id.toString());
     if (!storedTokenData) {
-      return res.status(401).json(createExpressErrorResponse('Refresh token not found or revoked', 401));
+      return res.status(401).json(createErrorResponse(401, 'Refresh token not found or revoked'));
     }
 
     // Should renew if expiring within 7 days
@@ -824,7 +822,7 @@ export const refresh = async (req, res) => {
       const stored = await storeRefreshToken(id.toString(), newRefresh, req);
       if (!stored) {
         logError('Failed to store new refresh token');
-        return res.status(500).json(createExpressErrorResponse('Failed to refresh session', 500));
+        return res.status(500).json(createErrorResponse(500, 'Failed to refresh session'));
       }
       action = 'renewed';
     } else {
@@ -833,7 +831,7 @@ export const refresh = async (req, res) => {
       const stored = await storeRefreshToken(id.toString(), newRefresh, req);
       if (!stored) {
         logError('Failed to store new refresh token for new device');
-        return res.status(500).json(createExpressErrorResponse('Failed to create new session', 500));
+        return res.status(500).json(createErrorResponse(500, 'Failed to create new session'));
       }
       action = 'new_device';
     }
@@ -856,7 +854,7 @@ export const refresh = async (req, res) => {
       data.refreshToken = newRefresh;
     }
 
-    return res.json(createExpressSuccessResponse('Tokens refreshed successfully', data));
+    return res.json(createSuccessResponse('Tokens refreshed successfully', data));
   } catch (error) {
     logError('Token refresh error', error);
     return res.status(500).json(createErrorResponse(500, 'Internal server error'));
@@ -868,31 +866,31 @@ export const refresh = async (req, res) => {
  * @param {object} req - Express request object
  * @param {object} res - Express response object
  */
-export const logout = async (req, res) => {
+const logout = async (req, res) => {
   try {
     const { refreshToken } = req.body;
 
     // Require refresh token
     if (!refreshToken || typeof refreshToken !== 'string') {
-      return res.status(400).json(createExpressErrorResponse('Refresh token is required in request body', 400));
+      return res.status(400).json(createErrorResponse(400, 'Refresh token is required in request body'));
     }
 
     // Require Authorization: Bearer <token>
     const authHeader = req.headers?.authorization || req.headers?.Authorization;
     if (!authHeader || !/^Bearer\s+/i.test(authHeader)) {
-      return res.status(401).json(createExpressErrorResponse('Access token required', 401));
+      return res.status(401).json(createErrorResponse(401, 'Access token required'));
     }
     const accessToken = authHeader.replace(/^Bearer\s+/i, '');
 
     // Verify and decode access token
     const decoded = verifyAccessToken(accessToken);
     if (!decoded) {
-      return res.status(401).json(createExpressErrorResponse('Invalid access token', 401));
+      return res.status(401).json(createErrorResponse(401, 'Invalid access token'));
     }
 
     // Disallow anonymous tokens for logout (must be an authenticated user)
     if (decoded.isAnonymous) {
-      return res.status(401).json(createExpressErrorResponse('Authenticated user token required', 401));
+      return res.status(401).json(createErrorResponse(401, 'Authenticated user token required'));
     }
 
     // Resolve user id (decrypt if non-anonymous and encrypted)
@@ -903,7 +901,7 @@ export const logout = async (req, res) => {
       }
     } catch (error) {
       logError('Failed to decode 24-character ID from logout token', { encodedId: decoded.id, error: error.message });
-      return res.status(401).json(createExpressErrorResponse('Invalid token format', 401));
+      return res.status(401).json(createErrorResponse(401, 'Invalid token format'));
     }
 
     logInfo('Logout request', { userId: String(userId), role: decoded.role });
@@ -926,10 +924,10 @@ export const logout = async (req, res) => {
     const stored = await storeRefreshToken(anonymousUserId, newRefreshToken, req);
     if (!stored) {
       logInfo('Failed to store anonymous refresh token after logout');
-      return res.json(createExpressSuccessResponse('Logged out successfully'));
+      return res.json(createSuccessResponse('Logged out successfully'));
     }
 
-    return res.json(createExpressSuccessResponse('Logged out successfully', {
+    return res.json(createSuccessResponse('Logged out successfully', {
       accessToken: newAccessToken,
       refreshToken: newRefreshToken,
       anonymousUserId
@@ -945,18 +943,18 @@ export const logout = async (req, res) => {
  * @param {object} req - Express request object
  * @param {object} res - Express response object
  */
-export const validate = async (req, res) => {
+const validate = async (req, res) => {
   try {
     const pool = getDB();
     const userId = req.userId;
 
     if (!userId) {
-      return res.status(401).json(createExpressErrorResponse('Invalid access token', 401));
+      return res.status(401).json(createErrorResponse(401, 'Invalid access token'));
     }
 
     const [rows] = await pool.query('SELECT id, username, name, avatar, status, role, countries_id FROM users WHERE id = ? LIMIT 1', [userId]);
     if (!rows.length) {
-      return res.status(404).json(createExpressErrorResponse('User not found', 404));
+      return res.status(404).json(createErrorResponse(404, 'User not found'));
     }
 
     const user = rows[0];
@@ -976,7 +974,7 @@ export const validate = async (req, res) => {
       ? getFile('avatar/' + user.avatar)
       : (adminSettings?.avatar ? getFile('avatar/' + adminSettings.avatar) : null);
 
-    return res.json(createExpressSuccessResponse('Token is valid', {
+    return res.json(createSuccessResponse('Token is valid', {
       user: {
         id: String(user.id),
         username: user.username,
@@ -999,31 +997,31 @@ export const validate = async (req, res) => {
  * @param {object} req - Express request object
  * @param {object} res - Express response object
  */
-export const forgotPasswordRequest = async (req, res) => {
+const forgotPasswordRequest = async (req, res) => {
   try {
     const { email } = req.body;
 
     // Validate email format
     if (!email || !validateEmail(email)) {
-      return res.status(400).json(createExpressErrorResponse('Invalid email format', 400));
+      return res.status(400).json(createErrorResponse(400, 'Invalid email format'));
     }
 
     // Check if user exists
     const pool = getDB();
     const [rows] = await pool.query('SELECT id FROM users WHERE email = ? LIMIT 1', [email.toLowerCase()]);
     if (!rows.length) {
-      return res.status(404).json(createExpressErrorResponse("Can't find email", 404));
+      return res.status(404).json(createErrorResponse("Can't find email", 404));
     }
 
     // Generate OTP and send via email
     const otp = await generateOTP(email.toLowerCase());
     const sent = await sendEmailOTP(email, otp, 'forgot_password');
     if (!sent) {
-      return res.status(500).json(createExpressErrorResponse('Failed to send OTP. Please try again later.', 500));
+      return res.status(500).json(createErrorResponse(500, 'Failed to send OTP. Please try again later.'));
     }
 
     logInfo('Forgot password OTP sent', { email: email.toLowerCase() });
-    return res.json(createExpressSuccessResponse('OTP sent successfully'));
+    return res.json(createSuccessResponse('OTP sent successfully'));
   } catch (error) {
     logError('Forgot password request error', error);
     return res.status(500).json(createErrorResponse(500, 'Internal server error'));
@@ -1035,21 +1033,21 @@ export const forgotPasswordRequest = async (req, res) => {
  * @param {object} req - Express request object
  * @param {object} res - Express response object
  */
-export const forgotPasswordVerify = async (req, res) => {
+const forgotPasswordVerify = async (req, res) => {
   try {
     const { email, otp } = req.body;
 
     if (!email || !otp) {
-      return res.status(400).json(createExpressErrorResponse('Email and OTP are required', 400));
+      return res.status(400).json(createErrorResponse(400, 'Email and OTP are required'));
     }
 
     const isValid = await verifyEmailOTP(String(email).toLowerCase(), String(otp));
     if (!isValid) {
-      return res.status(400).json(createExpressErrorResponse('Invalid OTP', 400));
+      return res.status(400).json(createErrorResponse(400, 'Invalid OTP'));
     }
 
     logInfo('Forgot password OTP verified', { email: String(email).toLowerCase() });
-    return res.json(createExpressSuccessResponse('OTP verified successfully'));
+    return res.json(createSuccessResponse('OTP verified successfully'));
   } catch (error) {
     logError('Forgot password verification error', error);
     return res.status(500).json(createErrorResponse(500, 'Internal server error'));
@@ -1061,22 +1059,22 @@ export const forgotPasswordVerify = async (req, res) => {
  * @param {object} req - Express request object
  * @param {object} res - Express response object
  */
-export const forgotPasswordReset = async (req, res) => {
+const forgotPasswordReset = async (req, res) => {
   try {
     const { email, password, confirm_password } = req.body;
 
     if (!email || !password || !confirm_password) {
-      return res.status(400).json(createExpressErrorResponse('Email, password, and confirm password are required', 400));
+      return res.status(400).json(createErrorResponse(400, 'Email, password, and confirm password are required'));
     }
 
     if (password !== confirm_password) {
-      return res.status(400).json(createExpressErrorResponse('Passwords do not match', 400));
+      return res.status(400).json(createErrorResponse(400, 'Passwords do not match'));
     }
 
     // Validate password strength
     const { isValid, message } = validatePassword(password);
     if (!isValid) {
-      return res.status(400).json(createExpressErrorResponse(message, 400));
+      return res.status(400).json(createErrorResponse(message, 400));
     }
 
     // Hash and update password
@@ -1084,11 +1082,11 @@ export const forgotPasswordReset = async (req, res) => {
     const pool = getDB();
     const [result] = await pool.query('UPDATE users SET password = ? WHERE email = ?', [hashedPassword, email.toLowerCase()]);
     if (!result.affectedRows) {
-      return res.status(404).json(createExpressErrorResponse('User not found', 404));
+      return res.status(404).json(createErrorResponse(404, 'User not found'));
     }
 
     logInfo('Password reset successfully', { email: email.toLowerCase() });
-    return res.json(createExpressSuccessResponse('Password reset successfully'));
+    return res.json(createSuccessResponse('Password reset successfully'));
   } catch (error) {
     logError('Password reset error', error);
     return res.status(500).json(createErrorResponse(500, 'Internal server error'));
@@ -1100,18 +1098,18 @@ export const forgotPasswordReset = async (req, res) => {
  * @param {object} req - Express request object
  * @param {object} res - Express response object
  */
-export const googleSignin = async (req, res) => {
+const googleSignin = async (req, res) => {
   try {
     const { idToken } = req.body;
 
     if (!idToken) {
-      return res.status(400).json(createExpressErrorResponse('Google ID token is required', 400));
+      return res.status(400).json(createErrorResponse(400, 'Google ID token is required'));
     }
 
     // Basic rate limiting per IP and route (parity with Lambda)
     const ip = req.ip || req.connection?.remoteAddress || '0.0.0.0';
     if (!await checkRateLimit(ip, '/auth/google')) {
-      return res.status(429).json(createExpressErrorResponse('Too many requests', 429));
+      return res.status(429).json(createErrorResponse(429, 'Too many requests'));
     }
 
     // Verify Google ID token
@@ -1121,7 +1119,7 @@ export const googleSignin = async (req, res) => {
     const name = payload.name || 'User';
 
     if (!email) {
-      return res.status(400).json(createExpressErrorResponse('Email is required from Google token', 400));
+      return res.status(400).json(createErrorResponse(400, 'Email is required from Google token'));
     }
 
     // Find or create user
@@ -1139,10 +1137,10 @@ export const googleSignin = async (req, res) => {
 
     // Check account status
     if (user.status === 'deleted') {
-      return res.status(403).json(createExpressErrorResponse('Your account has been deleted.', 403));
+      return res.status(403).json(createErrorResponse(403, 'Your account has been deleted.'));
     }
     if (user.status === 'pending') {
-      return res.status(403).json(createExpressErrorResponse('Your account is pending confirmation.', 403));
+      return res.status(403).json(createErrorResponse(403, 'Your account is pending confirmation.'));
     }
 
     // Generate tokens and store refresh session
@@ -1151,7 +1149,7 @@ export const googleSignin = async (req, res) => {
     const refreshToken = generateRefreshToken({ id: parseInt(user.id, 10), role });
     const stored = await storeRefreshToken(String(user.id), refreshToken, req);
     if (!stored) {
-      return res.status(500).json(createExpressErrorResponse('Failed to create session', 500));
+      return res.status(500).json(createErrorResponse(500, 'Failed to create session'));
     }
 
     // Compute currency based on admin settings and user country (parity with Lambda)
@@ -1166,7 +1164,7 @@ export const googleSignin = async (req, res) => {
 
     // If suspended, respond accordingly but still provide tokens (Lambda behavior)
     if (user.status === 'suspended') {
-      return res.json(createExpressSuccessResponse('Login successful but account is suspended', {
+      return res.json(createSuccessResponse('Login successful but account is suspended', {
         actionRequired: 'suspended',
         redirectTo: '/auth/suspended',
         accessToken,
@@ -1184,7 +1182,7 @@ export const googleSignin = async (req, res) => {
       }));
     }
 
-    return res.json(createExpressSuccessResponse('Google sign in successful', {
+    return res.json(createSuccessResponse('Google sign in successful', {
       accessToken,
       refreshToken,
       user: {
@@ -1207,13 +1205,13 @@ export const googleSignin = async (req, res) => {
  * @param {object} req - Express request object
  * @param {object} res - Express response object
  */
-export const appleSignin = async (req, res) => {
+const appleSignin = async (req, res) => {
   try {
     const { idToken, code, redirectUri, email: bodyEmail, name: bodyName, clientId: clientIdFromBody } = req.body;
 
     // Support two inputs: direct idToken or OAuth code
     if (!idToken && !code) {
-      return res.status(400).json(createExpressErrorResponse('idToken or code is required', 400));
+      return res.status(400).json(createErrorResponse(400, 'idToken or code is required'));
     }
 
     // Resolve clientId for verification/audience checks
@@ -1227,7 +1225,7 @@ export const appleSignin = async (req, res) => {
         idTokenToVerify = tokenResponse.id_token;
       } catch (err) {
         logError('Apple code exchange failed', err);
-        return res.status(401).json(createExpressErrorResponse('Apple code exchange failed', 401));
+        return res.status(401).json(createErrorResponse(401, 'Apple code exchange failed'));
       }
     }
 
@@ -1239,7 +1237,7 @@ export const appleSignin = async (req, res) => {
 
     // Email can be absent on subsequent Apple logins require it from body if not present
     if (!email) {
-      return res.status(400).json(createExpressErrorResponse('Email is required from Apple token or body', 400));
+      return res.status(400).json(createErrorResponse(400, 'Email is required from Apple token or body'));
     }
 
     // Find or create user
@@ -1257,10 +1255,10 @@ export const appleSignin = async (req, res) => {
 
     // Check account status
     if (user.status === 'deleted') {
-      return res.status(403).json(createExpressErrorResponse('Your account has been deleted.', 403));
+      return res.status(403).json(createErrorResponse(403, 'Your account has been deleted.'));
     }
     if (user.status === 'pending') {
-      return res.status(403).json(createExpressErrorResponse('Your account is pending confirmation.', 403));
+      return res.status(403).json(createErrorResponse(403, 'Your account is pending confirmation.'));
     }
 
     // Generate tokens
@@ -1270,7 +1268,7 @@ export const appleSignin = async (req, res) => {
 
     // If suspended, respond accordingly but still provide tokens
     if (user.status === 'suspended') {
-      return res.json(createExpressSuccessResponse('Login successful but account is suspended', {
+      return res.json(createSuccessResponse('Login successful but account is suspended', {
         actionRequired: 'suspended',
         redirectTo: '/auth/suspended',
         accessToken,
@@ -1286,7 +1284,7 @@ export const appleSignin = async (req, res) => {
       }));
     }
 
-    return res.json(createExpressSuccessResponse('Apple sign in successful', {
+    return res.json(createSuccessResponse('Apple sign in successful', {
       accessToken,
       refreshToken,
       user: {
@@ -1307,12 +1305,12 @@ export const appleSignin = async (req, res) => {
  * @param {object} req - Express request object
  * @param {object} res - Express response object
  */
-export const suspended = async (req, res) => {
+const suspended = async (req, res) => {
   try {
     // Require authenticated token (handled by route middleware), use req.userId
     const userId = req.userId;
     if (!userId) {
-      return res.status(401).json(createExpressErrorResponse('Access token required', 401));
+      return res.status(401).json(createErrorResponse(401, 'Access token required'));
     }
 
     // Check if user is suspended
@@ -1323,7 +1321,7 @@ export const suspended = async (req, res) => {
     );
 
     if (!rows.length) {
-      return res.status(403).json(createExpressErrorResponse('User not suspended', 403));
+      return res.status(403).json(createErrorResponse(403, 'User not suspended'));
     }
 
     const user = rows[0];
@@ -1343,7 +1341,7 @@ export const suspended = async (req, res) => {
 
     logInfo('Suspended support URL determined', { userId: String(userId), url, role: user.role, verified: user.verified_id });
 
-    return res.json(createExpressSuccessResponse('Suspended user support URL retrieved', {
+    return res.json(createSuccessResponse('Suspended user support URL retrieved', {
       url,
       user: {
         role: user.role,
@@ -1710,4 +1708,32 @@ const attachGoogleToExistingUser = async (userId, oauthUid) => {
     `UPDATE users SET oauth_uid = ?, oauth_provider = 'google', email_verified = '1', updated_at = NOW() WHERE id = ?`,
     [oauthUid, userId]
   );
+};
+
+// Export all functions at the end
+export {
+  init,
+  register,
+  verifyOtp,
+  login,
+  loginVerify,
+  refresh,
+  logout,
+  validate,
+  forgotPasswordRequest,
+  forgotPasswordVerify,
+  forgotPasswordReset,
+  googleSignin,
+  appleSignin,
+  suspended,
+  consumeChallengeIfFresh,
+  issueAnonymousSession,
+  createReferralRecord,
+  createUser,
+  sendOtpAsync,
+  findUser,
+  verifyGoogleIdToken,
+  findUserByOAuthOrEmail,
+  createUserWithGoogle,
+  attachGoogleToExistingUser
 };

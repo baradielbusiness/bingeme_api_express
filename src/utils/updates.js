@@ -6,7 +6,7 @@ import { validateMediaArray } from './mediaProcessing.js';
 /**
  * Get user updates list
  */
-export const getUserUpdatesList = async (userId, skip = 0, limit = 10) => {
+const getUserUpdatesList = async (userId, skip = 0, limit = 10) => {
   try {
     const skipNum = parseInt(skip) || 0;
     const limitNum = parseInt(limit) || 10;
@@ -37,7 +37,7 @@ export const getUserUpdatesList = async (userId, skip = 0, limit = 10) => {
 /**
  * Get user updates count
  */
-export const getUserUpdatesCount = async (userId) => {
+const getUserUpdatesCount = async (userId) => {
   try {
     const query = `
       SELECT COUNT(*) as count 
@@ -56,7 +56,7 @@ export const getUserUpdatesCount = async (userId) => {
 /**
  * Create user update
  */
-export const createUserUpdate = async (updateData) => {
+const createUserUpdate = async (updateData) => {
   try {
     const { user_id, title, content, image = null } = updateData;
     
@@ -77,7 +77,7 @@ export const createUserUpdate = async (updateData) => {
 /**
  * Update user update
  */
-export const updateUserUpdate = async (updateId, updateData) => {
+const updateUserUpdate = async (updateId, updateData) => {
   try {
     const { title, content, image } = updateData;
     
@@ -98,7 +98,7 @@ export const updateUserUpdate = async (updateId, updateData) => {
 /**
  * Delete user update
  */
-export const deleteUserUpdate = async (updateId) => {
+const deleteUserUpdate = async (updateId) => {
   try {
     const query = `UPDATE updates SET deleted = 1 WHERE id = ?`;
     await pool.query(query, [updateId]);
@@ -112,7 +112,7 @@ export const deleteUserUpdate = async (updateId) => {
 /**
  * Get update by ID
  */
-export const getUpdateById = async (updateId) => {
+const getUpdateById = async (updateId) => {
   try {
     const query = `
       SELECT 
@@ -139,7 +139,7 @@ export const getUpdateById = async (updateId) => {
  * Save a new post/update to the database (parity with Lambda)
  * Handles tags, media, scheduling and expiry
  */
-export const savePost = async (postData) => {
+const savePost = async (postData) => {
   try {
     const {
       description,
@@ -244,7 +244,7 @@ export const savePost = async (postData) => {
 /**
  * Process and save tags for a post
  */
-export const processTags = async (postId, tagsString) => {
+const processTags = async (postId, tagsString) => {
   try {
     const tags = tagsString
       .split(/\s+/)
@@ -282,7 +282,7 @@ export const processTags = async (postId, tagsString) => {
 /**
  * Process and save media files for a post
  */
-export const processMedia = async (postId, userId, mediaPaths, convertedPaths = []) => {
+const processMedia = async (postId, userId, mediaPaths, convertedPaths = []) => {
   try {
     logInfo('Processing media for post:', { postId, mediaCount: mediaPaths.length });
 
@@ -368,7 +368,7 @@ export const processMedia = async (postId, userId, mediaPaths, convertedPaths = 
 /**
  * Validate post input payload
  */
-export const validatePostInput = (data) => {
+const validatePostInput = (data) => {
   const errors = [];
   if (!data.description || typeof data.description !== 'string' || data.description.trim().length === 0) {
     errors.push('description is required and must be a non-empty string');
@@ -440,4 +440,18 @@ export const validatePostInput = (data) => {
     }
   }
   return { success: errors.length === 0, errors };
+};
+
+// Export all functions at the end
+export {
+  getUserUpdatesList,
+  getUserUpdatesCount,
+  createUserUpdate,
+  updateUserUpdate,
+  deleteUserUpdate,
+  getUpdateById,
+  savePost,
+  processTags,
+  processMedia,
+  validatePostInput
 };

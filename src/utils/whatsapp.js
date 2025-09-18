@@ -39,7 +39,7 @@ const getWhatsAppAccessToken = async () => {
  * @param {string} otp - OTP to send
  * @returns {Promise<boolean>} True if sent successfully
  */
-export const sendWhatsAppOTP = async (phone, countryCode, otp) => {
+const sendWhatsAppOTP = async (phone, countryCode, otp) => {
   logInfo('sendWhatsAppOTP called', { phone, countryCode, otp });
   const recipient = countryCode + phone;
   const startTime = Date.now();
@@ -241,4 +241,9 @@ export const sendWhatsAppOTP = async (phone, countryCode, otp) => {
 
     return false;
   }
+};
+
+// Export all functions at the end
+export {
+  sendWhatsAppOTP
 };

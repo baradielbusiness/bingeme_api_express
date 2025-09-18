@@ -372,7 +372,7 @@ const markNotificationsAsSeen = async (userId) => {
  * @param {Object} res - Express response object
  * @returns {Object} API response with notifications data or error response
  */
-export const getNotifications = async (req, res) => {
+const getNotifications = async (req, res) => {
   try {
     // Step 1: Extract and validate user authentication
     // TODO: Convert getAuthenticatedUserId(event, { action: 'notifications' }) to getAuthenticatedUserId(req, { action: 'notifications' })
@@ -459,7 +459,7 @@ export const getNotifications = async (req, res) => {
  * @param {Object} res - Express response object
  * @returns {Object} API response with notification settings
  */
-export const getNotificationSettings = async (req, res) => {
+const getNotificationSettings = async (req, res) => {
   try {
     // Extract and validate user authentication
     // TODO: Convert getAuthenticatedUserId(event, { action: 'notification settings' }) to getAuthenticatedUserId(req, { action: 'notification settings' })
@@ -620,7 +620,7 @@ const getNotificationSettingsHelper = async (userId) => {
  * @param {Object} res - Express response object
  * @returns {Object} API response with update result
  */
-export const updateNotificationSettings = async (req, res) => {
+const updateNotificationSettings = async (req, res) => {
   try {
     // Extract and validate user authentication
     // TODO: Convert getAuthenticatedUserId(event, { action: 'notification settings' }) to getAuthenticatedUserId(req, { action: 'notification settings' })
@@ -727,7 +727,7 @@ const updateNotificationSettingsHelper = async (userId, req) => {
  * @param {Object} res - Express response object
  * @returns {Object} API response with deleted notification data or error
  */
-export const deleteNotificationById = async (req, res) => {
+const deleteNotificationById = async (req, res) => {
   try {
     // Extract and validate user authentication
     // TODO: Convert getAuthenticatedUserId(event, { action: 'delete notification' }) to getAuthenticatedUserId(req, { action: 'delete notification' })
@@ -818,7 +818,7 @@ export const deleteNotificationById = async (req, res) => {
  * @param {Object} res - Express response object
  * @returns {Object} API response with deletion confirmation or error
  */
-export const deleteAllNotifications = async (req, res) => {
+const deleteAllNotifications = async (req, res) => {
   try {
     // Extract and validate user authentication
     // TODO: Convert getAuthenticatedUserId(event, { action: 'delete all notifications' }) to getAuthenticatedUserId(req, { action: 'delete all notifications' })
@@ -866,4 +866,18 @@ export const deleteAllNotifications = async (req, res) => {
     // TODO: Convert createErrorResponse(500, error.message || 'Internal server error') to res.status(500).json({ error: error.message || 'Internal server error' })
     return res.status(500).json(createErrorResponse(500, error.message || 'Internal server error'));
   }
+};
+
+// Export all functions at the end
+export {
+  fetchNotifications,
+  countNotifications,
+  markNotificationsAsSeen,
+  getNotifications,
+  getNotificationSettings,
+  getNotificationSettingsHelper,
+  updateNotificationSettings,
+  updateNotificationSettingsHelper,
+  deleteNotificationById,
+  deleteAllNotifications
 };

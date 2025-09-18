@@ -8,7 +8,7 @@
  * @param {Object} input - Search input data
  * @returns {Array} Array of validation errors
  */
-export const validateConversationSearchInput = (input) => {
+const validateConversationSearchInput = (input) => {
   const errors = [];
   
   if (!input || typeof input !== 'object') {
@@ -49,7 +49,7 @@ export const validateConversationSearchInput = (input) => {
  * @param {number|string} userId - User ID to validate
  * @returns {Array} Array of validation errors
  */
-export const validateUserId = (userId) => {
+const validateUserId = (userId) => {
   const errors = [];
   
   if (!userId) {
@@ -61,4 +61,10 @@ export const validateUserId = (userId) => {
   }
   
   return errors;
+};
+
+// Export all functions at the end
+export {
+  validateConversationSearchInput,
+  validateUserId
 };

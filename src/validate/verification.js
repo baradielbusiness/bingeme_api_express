@@ -8,7 +8,155 @@
  * @param {Object} input - Verification request input data
  * @returns {Array} Array of validation errors
  */
-export const validateVerificationRequestInput = (input) => {
+/**
+ * Validate verification files
+ * @param {Object} files - Files object from multer
+ * @returns {Object} Validation result with valid flag, data, and error
+ */
+const validateVerificationFiles = (files) => {
+  try {
+    const errors = [];
+    const data = {};
+
+    if (!files || Object.keys(files).length === 0) {
+      errors.push('No files provided');
+      return { valid: false, error: errors.join(', '), data: {} };
+    }
+
+    // Check for required files
+    const requiredFiles = ['front_id', 'back_id'];
+    const optionalFiles = ['selfie', 'additional_document'];
+
+    for (const fileType of requiredFiles) {
+      if (!files[fileType] || files[fileType].length === 0) {
+        errors.push(`${fileType} is required`);
+      } else {
+        data[fileType] = files[fileType];
+      }
+    }
+
+    // Check optional files
+    for (const fileType of optionalFiles) {
+      if (files[fileType] && files[fileType].length > 0) {
+        data[fileType] = files[fileType];
+      }
+    }
+
+    // Validate file types and sizes
+    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'application/pdf'];
+    const maxSize = 5 * 1024 * 1024; // 5MB
+
+    for (const [fileType, fileArray] of Object.entries(data)) {
+      if (Array.isArray(fileArray)) {
+        for (const file of fileArray) {
+          if (!allowedTypes.includes(file.mimetype)) {
+            errors.push(`${fileType} must be a valid image or PDF file`);
+          }
+          if (file.size > maxSize) {
+            errors.push(`${fileType} file size must not exceed 5MB`);
+          }
+        }
+      }
+    }
+
+    return {
+      valid: errors.length === 0,
+      error: errors.length > 0 ? errors.join(', ') : null,
+      data: data
+    };
+  } catch (error) {
+    return {
+      valid: false,
+      error: 'Invalid file format',
+      data: {}
+    };
+  }
+};
+
+/**
+ * Validate verification request
+ * @param {Object} req - Express request object
+ * @returns {Object} Validation result with valid flag, data, and error
+ */
+const validateVerificationRequest = (req) => {
+  try {
+    const errors = [];
+    const data = {};
+
+    // Extract user info from request (assuming it's added by auth middleware)
+    if (!req.user || !req.user.userId) {
+      errors.push('User authentication required');
+      return { valid: false, error: errors.join(', '), data: {} };
+    }
+
+    data.userId = req.user.userId;
+    data.username = req.user.username || '';
+
+    // Validate query parameters
+    const { skip, limit, status, type } = req.query || {};
+
+    // Validate pagination parameters
+    if (skip !== undefined) {
+      const skipNum = parseInt(skip);
+      if (isNaN(skipNum) || skipNum < 0) {
+        errors.push('Skip must be a non-negative number');
+      } else {
+        data.skip = skipNum;
+      }
+    } else {
+      data.skip = 0;
+    }
+
+    if (limit !== undefined) {
+      const limitNum = parseInt(limit);
+      if (isNaN(limitNum) || limitNum < 1 || limitNum > 100) {
+        errors.push('Limit must be a number between 1 and 100');
+      } else {
+        data.limit = limitNum;
+      }
+    } else {
+      data.limit = 20;
+    }
+
+    // Validate status parameter
+    if (status !== undefined) {
+      const validStatuses = ['pending', 'approved', 'rejected', 'all'];
+      if (!validStatuses.includes(status)) {
+        errors.push('Status must be one of: pending, approved, rejected, all');
+      } else {
+        data.status = status;
+      }
+    } else {
+      data.status = 'all';
+    }
+
+    // Validate type parameter
+    if (type !== undefined) {
+      const validTypes = ['id_verification', 'address_verification', 'all'];
+      if (!validTypes.includes(type)) {
+        errors.push('Type must be one of: id_verification, address_verification, all');
+      } else {
+        data.type = type;
+      }
+    } else {
+      data.type = 'all';
+    }
+
+    return {
+      valid: errors.length === 0,
+      error: errors.length > 0 ? errors.join(', ') : null,
+      data: data
+    };
+  } catch (error) {
+    return {
+      valid: false,
+      error: 'Invalid request format',
+      data: {}
+    };
+  }
+};
+
+const validateVerificationRequestInput = (input) => {
   const errors = [];
   
   if (!input || typeof input !== 'object') {
@@ -168,7 +316,7 @@ export const validateVerificationRequestInput = (input) => {
  * @param {Object} input - Verification conversation input data
  * @returns {Array} Array of validation errors
  */
-export const validateVerificationConversationInput = (input) => {
+const validateVerificationConversationInput = (input) => {
   const errors = [];
   
   if (!input || typeof input !== 'object') {
@@ -202,7 +350,7 @@ export const validateVerificationConversationInput = (input) => {
  * @param {Object} input - Verification upload input data
  * @returns {Array} Array of validation errors
  */
-export const validateVerificationUploadInput = (input) => {
+const validateVerificationUploadInput = (input) => {
   const errors = [];
   
   if (!input || typeof input !== 'object') {
@@ -247,7 +395,7 @@ export const validateVerificationUploadInput = (input) => {
  * @param {number|string} requestId - Verification request ID to validate
  * @returns {Array} Array of validation errors
  */
-export const validateVerificationRequestId = (requestId) => {
+const validateVerificationRequestId = (requestId) => {
   const errors = [];
   
   if (!requestId) {
@@ -266,7 +414,7 @@ export const validateVerificationRequestId = (requestId) => {
  * @param {Object} input - Verification status update input data
  * @returns {Array} Array of validation errors
  */
-export const validateVerificationStatusUpdateInput = (input) => {
+const validateVerificationStatusUpdateInput = (input) => {
   const errors = [];
   
   if (!input || typeof input !== 'object') {
@@ -303,7 +451,7 @@ export const validateVerificationStatusUpdateInput = (input) => {
  * @param {number|string} userId - User ID to validate
  * @returns {Array} Array of validation errors
  */
-export const validateUserId = (userId) => {
+const validateUserId = (userId) => {
   const errors = [];
   
   if (!userId) {
@@ -315,4 +463,16 @@ export const validateUserId = (userId) => {
   }
   
   return errors;
+};
+
+// Export all functions at the end
+export {
+  validateVerificationFiles,
+  validateVerificationRequest,
+  validateVerificationRequestInput,
+  validateVerificationConversationInput,
+  validateVerificationUploadInput,
+  validateVerificationRequestId,
+  validateVerificationStatusUpdateInput,
+  validateUserId
 };

@@ -22,25 +22,25 @@ router.get('/comments/:id', setEdgeCacheHeaders, userController.getComments);
 // User profile and settings
 router.get('/profile', setEdgeCacheHeaders, userController.getSettings);
 router.post('/profile', userController.postSettings);
-router.get('/user/info', setEdgeCacheHeaders, userController.getUserInfo);
-router.get('/user/search', setEdgeCacheHeaders, userController.searchUsers);
-router.post('/user/mode/:mode', userController.darkMode);
-router.post('/user/change-password', userController.changePassword);
+router.get('/info', setEdgeCacheHeaders, userController.getUserInfo);
+router.get('/search', setEdgeCacheHeaders, userController.searchUsers);
+router.post('/mode/:mode', userController.darkMode);
+router.post('/change-password', userController.changePassword);
 
 // OTP and verification
-router.post('/user/send-otp', userController.sendOtp);
-router.post('/user/profile/verify-otp', userController.verifyOtp);
+router.post('/send-otp', userController.sendOtp);
+router.post('/profile/verify-otp', userController.verifyOtp);
 router.post('/create/password', userController.createPasswordOtp);
 router.post('/create/password/verify', userController.verifyPasswordOtp);
 
 // Profile images
-router.get('/user/cover/upload-url', userController.getUserCoverUploadUrl);
-router.post('/user/cover', userController.createUserCover);
-router.get('/user/avatar/upload-url', userController.getUserAvatarUploadUrl);
-router.post('/user/avatar', userController.createUserAvatar);
+router.get('/cover/upload-url', userController.getUserCoverUploadUrl);
+router.post('/cover', userController.createUserCover);
+router.get('/avatar/upload-url', userController.getUserAvatarUploadUrl);
+router.post('/avatar', userController.createUserAvatar);
 
 // User management
-router.post('/user/block/:id', userController.blockUser);
+router.post('/block/:id', userController.blockUser);
 router.post('/restrict/:id', userController.restrictUser);
 router.get('/restrict/user', setEdgeCacheHeaders, userController.getRestrictions);
 

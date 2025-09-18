@@ -5,10 +5,9 @@
  * the profile handler, making the main handler more maintainable and testable.
  */
 
-import { pool } from '../config/database.js';
+import { pool, getDB } from '../config/database.js';
 import { RtcTokenBuilder, Role as RtcRole } from '../agora/RtcTokenBuilder2.js';
-import { getAdminSettings } from './common.js';
-import { logInfo, logError } from './common.js';
+import { getAdminSettings, logInfo, logError } from './common.js';
 
 /**
  * Get user by ID or username with specific columns
@@ -348,6 +347,160 @@ const getProfileCompleteness = async (userId) => {
   }
 };
 
+/**
+ * Get total followers count for a user
+ * @param {number} userId - User ID
+ * @returns {Promise<number>} Total followers count
+ */
+const getTotalFollowers = async (userId) => {
+  try {
+    const db = await getDB();
+    const [rows] = await db.execute(`
+      SELECT COUNT(*) as count 
+      FROM followers 
+      WHERE creator_id = ? AND status = 'active'
+    `, [userId]);
+    
+    return rows[0]?.count || 0;
+  } catch (error) {
+    logError('Error getting total followers:', error);
+    return 0;
+  }
+};
+
+/**
+ * Get user cards data
+ * @param {number} userId - User ID
+ * @returns {Promise<object>} User cards data
+ */
+const getUserCards = async (userId) => {
+  try {
+    const db = await getDB();
+    const [rows] = await db.execute(`
+      SELECT 
+        id,
+        title,
+        description,
+        image_url,
+        link_url,
+        created_at
+      FROM user_cards 
+      WHERE user_id = ? AND status = 'active'
+      ORDER BY created_at DESC
+    `, [userId]);
+    
+    return rows;
+  } catch (error) {
+    logError('Error getting user cards:', error);
+    return [];
+  }
+};
+
+/**
+ * Get user updates
+ * @param {number} userId - User ID
+ * @param {number} limit - Limit
+ * @param {number} skip - Skip
+ * @returns {Promise<Array>} User updates
+ */
+const getUserUpdates = async (userId, limit = 20, skip = 0) => {
+  try {
+    const db = await getDB();
+    const [rows] = await db.execute(`
+      SELECT 
+        id,
+        content,
+        media_urls,
+        created_at,
+        updated_at
+      FROM user_updates 
+      WHERE user_id = ? AND status = 'active'
+      ORDER BY created_at DESC
+      LIMIT ? OFFSET ?
+    `, [userId, limit, skip]);
+    
+    return rows;
+  } catch (error) {
+    logError('Error getting user updates:', error);
+    return [];
+  }
+};
+
+/**
+ * Get updates info
+ * @param {number} userId - User ID
+ * @returns {Promise<object>} Updates info
+ */
+const getUpdatesInfo = async (userId) => {
+  try {
+    const db = await getDB();
+    const [rows] = await db.execute(`
+      SELECT 
+        COUNT(*) as total_updates,
+        MAX(created_at) as last_update
+      FROM user_updates 
+      WHERE user_id = ? AND status = 'active'
+    `, [userId]);
+    
+    return rows[0] || { total_updates: 0, last_update: null };
+  } catch (error) {
+    logError('Error getting updates info:', error);
+    return { total_updates: 0, last_update: null };
+  }
+};
+
+/**
+ * Get live streaming data
+ * @param {number} userId - User ID
+ * @returns {Promise<object>} Live streaming data
+ */
+const getLiveStreamingData = async (userId) => {
+  try {
+    const db = await getDB();
+    const [rows] = await db.execute(`
+      SELECT 
+        id,
+        title,
+        description,
+        status,
+        viewer_count,
+        created_at,
+        ended_at
+      FROM live_streams 
+      WHERE user_id = ? 
+      ORDER BY created_at DESC
+      LIMIT 10
+    `, [userId]);
+    
+    return rows;
+  } catch (error) {
+    logError('Error getting live streaming data:', error);
+    return [];
+  }
+};
+
+/**
+ * Get pre-book count
+ * @param {number} userId - User ID
+ * @returns {Promise<number>} Pre-book count
+ */
+const getPreBookCount = async (userId) => {
+  try {
+    const db = await getDB();
+    const [rows] = await db.execute(`
+      SELECT COUNT(*) as count 
+      FROM pre_books 
+      WHERE creator_id = ? AND status = 'active'
+    `, [userId]);
+    
+    return rows[0]?.count || 0;
+  } catch (error) {
+    logError('Error getting pre-book count:', error);
+    return 0;
+  }
+};
+
+// Export all functions at the end
 export {
   getUserByIdOrUsername,
   getTotalPosts,
@@ -361,5 +514,11 @@ export {
   isUserSubscribed,
   getSubscriptionDetails,
   updateProfileInfo,
-  getProfileCompleteness
+  getProfileCompleteness,
+  getTotalFollowers,
+  getUserCards,
+  getUserUpdates,
+  getUpdatesInfo,
+  getLiveStreamingData,
+  getPreBookCount
 };

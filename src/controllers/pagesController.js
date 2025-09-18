@@ -7,8 +7,6 @@ import {
   logError, 
   createErrorResponse, 
   createSuccessResponse, 
-  createExpressSuccessResponse,
-  createExpressErrorResponse,
   getAuthenticatedUserId, 
   getVerifiedUserById 
 } from '../utils/common.js';
@@ -28,18 +26,12 @@ const createResponse = (statusCode, body) => ({
   body: JSON.stringify(body)
 });
 
-const createErrorResponse = (statusCode, error, message) => 
-  createResponse(statusCode, { error, message });
-
-const createSuccessResponse = (data) => 
-  createResponse(200, { success: true, data });
-
 /**
  * Handler for pages API endpoint
  * @param {Object} req - Express request object
  * @param {Object} res - Express response object
  */
-export const getPage = async (req, res) => {
+const getPage = async (req, res) => {
   try {
     // TODO: Convert event.httpMethod, event.pathParameters, event.headers to req.method, req.params, req.headers
     const { method: httpMethod, params: pathParameters, headers } = req;
@@ -179,4 +171,11 @@ const getPageFromDatabase = async (pageSlug, locale) => {
     logError('Database error getting page:', { pageSlug, locale, error: error.message });
     throw error;
   }
+};
+
+// Export all functions at the end
+export {
+  getPage,
+  getPageBySlug,
+  getPageFromDatabase
 };

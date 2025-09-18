@@ -4,7 +4,7 @@ import { logInfo, logError } from './common.js';
 /**
  * Fetch payout method details for a user from the database
  */
-export const fetchUserPayoutDetails = async (userId) => {
+const fetchUserPayoutDetails = async (userId) => {
   try {
     logInfo('[fetchUserPayoutDetails] Fetching payout details for user:', { userId });
     const query = `
@@ -26,7 +26,7 @@ export const fetchUserPayoutDetails = async (userId) => {
  * Update user payout method in users table (gateway/bank/paypal)
  * Mirrors Lambda behavior
  */
-export const updateUserPayoutMethod = async (userId, paymentGateway, bankData = '', paypalAccount = '') => {
+const updateUserPayoutMethod = async (userId, paymentGateway, bankData = '', paypalAccount = '') => {
   try {
     logInfo('[updateUserPayoutMethod] Updating payout method:', {
       userId,
@@ -94,7 +94,7 @@ const parseBankData = async (bankData) => {
 /**
  * Sanitize payout data and format for API response (parity with Lambda)
  */
-export const sanitizePayoutData = async (user) => {
+const sanitizePayoutData = async (user) => {
   try {
     logInfo('[sanitizePayoutData] Sanitizing data for user:', { userId: user.id });
     const sanitized = {
@@ -145,7 +145,7 @@ export const sanitizePayoutData = async (user) => {
 /**
  * Get payout conversations for user
  */
-export const getPayoutConversations = async (userId, skip = 0, limit = 10) => {
+const getPayoutConversations = async (userId, skip = 0, limit = 10) => {
   try {
     const skipNum = parseInt(skip) || 0;
     const limitNum = parseInt(limit) || 10;
@@ -185,7 +185,7 @@ export const getPayoutConversations = async (userId, skip = 0, limit = 10) => {
 /**
  * Store payout conversation
  */
-export const storePayoutConversation = async (conversationData) => {
+const storePayoutConversation = async (conversationData) => {
   try {
     const { 
       from_user_id, 
@@ -219,7 +219,7 @@ export const storePayoutConversation = async (conversationData) => {
 /**
  * Get payout history for user
  */
-export const getPayoutHistory = async (userId, skip = 0, limit = 10) => {
+const getPayoutHistory = async (userId, skip = 0, limit = 10) => {
   try {
     const skipNum = parseInt(skip) || 0;
     const limitNum = parseInt(limit) || 10;
@@ -250,7 +250,7 @@ export const getPayoutHistory = async (userId, skip = 0, limit = 10) => {
 /**
  * Create payout request
  */
-export const createPayoutRequest = async (payoutData) => {
+const createPayoutRequest = async (payoutData) => {
   try {
     const { 
       user_id, 
@@ -282,7 +282,7 @@ export const createPayoutRequest = async (payoutData) => {
 /**
  * Update payout status
  */
-export const updatePayoutStatus = async (payoutId, status, processedAt = null) => {
+const updatePayoutStatus = async (payoutId, status, processedAt = null) => {
   try {
     const query = `
       UPDATE payouts 
@@ -302,7 +302,7 @@ export const updatePayoutStatus = async (payoutId, status, processedAt = null) =
  * Delete user payout method by clearing all payment-related fields
  * Mirrors Lambda behavior: sets payment_gateway, bank, paypal_account to empty strings
  */
-export const deleteUserPayoutMethod = async (userId) => {
+const deleteUserPayoutMethod = async (userId) => {
   try {
     logInfo('[deleteUserPayoutMethod] Deleting payout method for user:', { userId });
     const query = `UPDATE users SET payment_gateway = '', bank = '', paypal_account = '' WHERE id = ?`;
@@ -313,4 +313,17 @@ export const deleteUserPayoutMethod = async (userId) => {
     logError('[deleteUserPayoutMethod] Database error:', { userId, error: error.message });
     throw error;
   }
+};
+
+// Export all functions at the end
+export {
+  fetchUserPayoutDetails,
+  updateUserPayoutMethod,
+  sanitizePayoutData,
+  getPayoutConversations,
+  storePayoutConversation,
+  getPayoutHistory,
+  createPayoutRequest,
+  updatePayoutStatus,
+  deleteUserPayoutMethod
 };

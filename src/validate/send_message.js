@@ -8,7 +8,7 @@
  * @param {Object} input - Send message input data
  * @returns {Array} Array of validation errors
  */
-export const validateSendMessageInput = (input) => {
+const validateSendMessageInput = (input) => {
   const errors = [];
   
   if (!input || typeof input !== 'object') {
@@ -74,7 +74,7 @@ export const validateSendMessageInput = (input) => {
  * @param {Object} input - Massive message input data
  * @returns {Array} Array of validation errors
  */
-export const validateMassiveMessageInput = (input) => {
+const validateMassiveMessageInput = (input) => {
   const errors = [];
   
   if (!input || typeof input !== 'object') {
@@ -131,7 +131,7 @@ export const validateMassiveMessageInput = (input) => {
  * @param {Object} input - Message upload input data
  * @returns {Array} Array of validation errors
  */
-export const validateMessageUploadInput = (input) => {
+const validateMessageUploadInput = (input) => {
   const errors = [];
   
   if (!input || typeof input !== 'object') {
@@ -166,7 +166,7 @@ export const validateMessageUploadInput = (input) => {
  * @param {number|string} messageId - Message ID to validate
  * @returns {Array} Array of validation errors
  */
-export const validateMessageId = (messageId) => {
+const validateMessageId = (messageId) => {
   const errors = [];
   
   if (!messageId) {
@@ -185,7 +185,7 @@ export const validateMessageId = (messageId) => {
  * @param {number|string} conversationId - Conversation ID to validate
  * @returns {Array} Array of validation errors
  */
-export const validateConversationId = (conversationId) => {
+const validateConversationId = (conversationId) => {
   const errors = [];
   
   if (!conversationId) {
@@ -204,7 +204,7 @@ export const validateConversationId = (conversationId) => {
  * @param {number|string} userId - User ID to validate
  * @returns {Array} Array of validation errors
  */
-export const validateUserId = (userId) => {
+const validateUserId = (userId) => {
   const errors = [];
   
   if (!userId) {
@@ -216,4 +216,14 @@ export const validateUserId = (userId) => {
   }
   
   return errors;
+};
+
+// Export all functions at the end
+export {
+  validateSendMessageInput,
+  validateMassiveMessageInput,
+  validateMessageUploadInput,
+  validateMessageId,
+  validateConversationId,
+  validateUserId
 };

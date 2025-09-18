@@ -104,7 +104,7 @@ const FILTERS = {
  * @param {object} req - Express request object
  * @returns {object} API response with tippingMenus and liveId or error
  */
-export const getLiveCreate = async (req, res) => {
+const getLiveCreate = async (req, res) => {
   // Authenticate user
   // TODO: Convert getAuthenticatedUserId(event, { action: 'access' }) to getAuthenticatedUserId(req, { action: 'access' })
   const { userId, errorResponse } = getAuthenticatedUserId(req, { action: 'access' });
@@ -164,7 +164,7 @@ export const getLiveCreate = async (req, res) => {
  * @param {object} req - Express request object with path parameters and request body
  * @returns {object} API response with encrypted liveId and URL or error
  */
-export const postLiveCreate = async (req, res) => {
+const postLiveCreate = async (req, res) => {
   // Authenticate user
   // TODO: Convert getAuthenticatedUserId(event, { action: 'access' }) to getAuthenticatedUserId(req, { action: 'access' })
   const { userId, errorResponse } = getAuthenticatedUserId(req, { action: 'access' });
@@ -427,7 +427,7 @@ export const postLiveCreate = async (req, res) => {
 /**
  * Handler to retrieve live stream details for editing (GET /live/edit/:liveId)
  */
-export const getLiveEdit = async (req, res) => {
+const getLiveEdit = async (req, res) => {
   try {
     const userId = req.userId;
     const { liveId } = req.params;
@@ -558,7 +558,7 @@ const markLiveStreamAsDeleted = async (connection, liveId, userId) => {
 /**
  * Handler to delete a live stream (DELETE /live/delete/:id)
  */
-export const deleteLive = async (req, res) => {
+const deleteLive = async (req, res) => {
   try {
     const { id } = req.params;
     const userId = req.userId;
@@ -687,7 +687,7 @@ export const deleteLive = async (req, res) => {
  * @param {object} req - Express request object
  * @returns {object} API response with { filters, current_filter }
  */
-export const getLiveFilter = async (req, res) => {
+const getLiveFilter = async (req, res) => {
   try {
     // Step 1: Authenticate the user (throws 401/403 if not valid)
     // TODO: Convert getAuthenticatedUserId(event, { action: 'access' }) to getAuthenticatedUserId(req, { action: 'access' })
@@ -771,7 +771,7 @@ export const getLiveFilter = async (req, res) => {
  * @param {object} req - Express request object
  * @returns {object} API response with { success: true } on success
  */
-export const postLiveFilter = async (req, res) => {
+const postLiveFilter = async (req, res) => {
   let conn;
   try {
     // Step 1: Authenticate the user
@@ -852,7 +852,7 @@ export const postLiveFilter = async (req, res) => {
 /**
  * Handler to edit tipmenu (PUT /live/edit/tipmenu)
  */
-export const putLiveEditTipmenu = async (req, res) => {
+const putLiveEditTipmenu = async (req, res) => {
   try {
     const userId = req.userId;
     const { c: encryptedLiveId, activity, coins } = req.body;
@@ -983,7 +983,7 @@ const checkExistingGoal = async (conn, liveId) => {
 /**
  * Handler to manage live goals (POST /live/goal)
  */
-export const postLiveGoal = async (req, res) => {
+const postLiveGoal = async (req, res) => {
   try {
     const userId = req.userId;
     const data = req.body;
@@ -1169,10 +1169,9 @@ export const postLiveGoal = async (req, res) => {
       }));
 
       return res.status(200).json(createSuccessResponse('Goal Updated successfully', { 
-        live: encryptedActiveGoals
-      }));
+        live: encryptedActiveGoals,
         timestamp: new Date().toISOString()
-      });
+      }));
     } catch (error) {
       await conn.rollback();
       conn.release();
@@ -1198,7 +1197,7 @@ export const postLiveGoal = async (req, res) => {
  * @param {object} req - Express request object
  * @returns {object} API response with live details or error
  */
-export const getLiveGo = async (req, res) => {
+const getLiveGo = async (req, res) => {
   // Authenticate user and check permissions
   // TODO: Convert getAuthenticatedUserId(event, { action: 'access' }) to getAuthenticatedUserId(req, { action: 'access' })
   const { userId, errorResponse } = getAuthenticatedUserId(req, { action: 'access' });
@@ -1370,4 +1369,22 @@ export const getLiveGo = async (req, res) => {
     // TODO: Convert createErrorResponse(500, 'Failed to fetch live details', error.message) to res.status(500).json({ error: 'Failed to fetch live details', details: error.message })
     return res.status(500).json(createErrorResponse(500, 'Failed to fetch live details'));
   }
+};
+
+// Export all functions at the end
+export {
+  getLiveCreate,
+  postLiveCreate,
+  getLiveEdit,
+  cleanupEmailNotifications,
+  markLiveStreamAsDeleted,
+  deleteLive,
+  getLiveFilter,
+  postLiveFilter,
+  putLiveEditTipmenu,
+  fetchGoalById,
+  fetchActiveGoals,
+  checkExistingGoal,
+  postLiveGoal,
+  getLiveGo
 };

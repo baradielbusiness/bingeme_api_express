@@ -26,8 +26,8 @@ const router = express.Router();
 router.get('/products', setEdgeCacheHeaders, authMiddleware, productsController.getProducts);
 router.get('/products/create', authMiddleware, productsController.getProductCreateData);
 router.get('/product/edit/:id', authMiddleware, productsController.getProductById);
-router.put('/product/edit/:id', authMiddleware, productsController.updateProduct);
-router.delete('/product/delete/:id', authMiddleware, productsController.deleteProduct);
+router.put('/product/edit/:id', authMiddleware, productsController.updateProductHandler);
+router.delete('/product/delete/:id', authMiddleware, productsController.deleteProductHandler);
 router.get('/product/upload-url', authMiddleware, productsController.getProductUploadUrl);
 
 // Posts

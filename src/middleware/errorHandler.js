@@ -4,7 +4,7 @@ import { logError } from '../utils/common.js';
  * Global error handling middleware
  * Handles all errors that occur in the Express application
  */
-export const errorHandler = (err, req, res, next) => {
+const errorHandler = (err, req, res, next) => {
   // Log the error
   logError('Error occurred:', {
     message: err.message,
@@ -50,4 +50,9 @@ export const errorHandler = (err, req, res, next) => {
     error: message,
     ...(process.env.NODE_ENV === 'development' && { stack: err.stack })
   });
+};
+
+// Export all functions at the end
+export {
+  errorHandler
 };

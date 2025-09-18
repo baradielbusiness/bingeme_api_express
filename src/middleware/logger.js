@@ -4,7 +4,7 @@ import { logInfo } from '../utils/common.js';
  * Request logging middleware
  * Logs all incoming requests with details
  */
-export const logger = (req, res, next) => {
+const logger = (req, res, next) => {
   const start = Date.now();
   
   // Log request details
@@ -33,4 +33,9 @@ export const logger = (req, res, next) => {
   };
 
   next();
+};
+
+// Export all functions at the end
+export {
+  logger
 };

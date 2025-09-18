@@ -1,10 +1,10 @@
-import { pool } from '../config/database.js';
+import { pool, getDB } from '../config/database.js';
 import { logInfo, logError } from './common.js';
 
 /**
  * Get user products
  */
-export const getUserProducts = async (userId, limit = 20, skip = 0, status = 'all', sortBy = 'latest') => {
+const getUserProducts = async (userId, limit = 20, skip = 0, status = 'all', sortBy = 'latest') => {
   try {
     let whereClause = 'WHERE user_id = ? AND status != "deleted"';
     let orderClause = 'ORDER BY created_at DESC';
@@ -52,7 +52,25 @@ export const getUserProducts = async (userId, limit = 20, skip = 0, status = 'al
 /**
  * Get product by ID for user
  */
-export const getProductByIdForUser = async (productId, userId) => {
+const createProduct = async (productData) => {
+  try {
+    const { userId, name, type, price, delivery_time, tags, description, file } = productData;
+    const db = await getDB();
+    
+    const [result] = await db.execute(`
+      INSERT INTO products (user_id, name, type, price, delivery_time, tags, description, file, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+    `, [userId, name, type, price, delivery_time, tags, description, file]);
+    
+    logInfo('Product created successfully', { productId: result.insertId, userId });
+    return result.insertId;
+  } catch (error) {
+    logError('Error creating product:', error);
+    throw error;
+  }
+};
+
+const getProductByIdForUser = async (productId, userId) => {
   try {
     const query = `
       SELECT 
@@ -81,7 +99,7 @@ export const getProductByIdForUser = async (productId, userId) => {
 /**
  * Update product
  */
-export const updateProduct = async (productId, productData) => {
+const updateProduct = async (productId, productData) => {
   try {
     const { name, price, delivery_time, tags, description, type, status } = productData;
     
@@ -102,7 +120,7 @@ export const updateProduct = async (productId, productData) => {
 /**
  * Soft delete product
  */
-export const softDeleteProduct = async (productId) => {
+const softDeleteProduct = async (productId) => {
   try {
     const query = `UPDATE products SET deleted = 1, deleted_at = NOW() WHERE id = ?`;
     await pool.query(query, [productId]);
@@ -116,7 +134,7 @@ export const softDeleteProduct = async (productId) => {
 /**
  * Insert product media
  */
-export const insertProductMedia = async (productId, mediaData) => {
+const insertProductMedia = async (productId, mediaData) => {
   try {
     const { media_path, media_type, media_size } = mediaData;
     
@@ -136,7 +154,7 @@ export const insertProductMedia = async (productId, mediaData) => {
 /**
  * Map product type
  */
-export const mapProductType = (type) => {
+const mapProductType = (type) => {
   const typeMap = {
     'physical': 'Physical Product',
     'digital': 'Digital Product',
@@ -148,7 +166,7 @@ export const mapProductType = (type) => {
 /**
  * Format products for response
  */
-export const formatProductsForResponse = (products) => {
+const formatProductsForResponse = (products) => {
   return products.map(product => ({
     id: product.id,
     name: product.name,
@@ -166,7 +184,7 @@ export const formatProductsForResponse = (products) => {
 /**
  * Format product for edit
  */
-export const formatProductForEdit = (product) => {
+const formatProductForEdit = (product) => {
   return {
     id: product.id,
     name: product.name,
@@ -182,7 +200,7 @@ export const formatProductForEdit = (product) => {
 /**
  * Process file upload data
  */
-export const processFileUploadData = (fileData) => {
+const processFileUploadData = (fileData) => {
   return fileData.map(file => ({
     media_path: file.media_path,
     media_type: file.media_type,
@@ -193,7 +211,7 @@ export const processFileUploadData = (fileData) => {
 /**
  * Handle media processing
  */
-export const handleMediaProcessing = async (mediaFiles) => {
+const handleMediaProcessing = async (mediaFiles) => {
   // This would integrate with the media processing utility
   return mediaFiles;
 };
@@ -201,7 +219,7 @@ export const handleMediaProcessing = async (mediaFiles) => {
 /**
  * Cleanup media files
  */
-export const cleanupMediaFiles = async (fileKeys) => {
+const cleanupMediaFiles = async (fileKeys) => {
   // This would integrate with S3 cleanup
   return true;
 };
@@ -209,7 +227,7 @@ export const cleanupMediaFiles = async (fileKeys) => {
 /**
  * Get available product tags
  */
-export const getAvailableProductTags = async () => {
+const getAvailableProductTags = async () => {
   try {
     const query = `SELECT DISTINCT tag FROM product_tags WHERE active = 1 ORDER BY tag ASC`;
     const [rows] = await pool.query(query);
@@ -223,7 +241,7 @@ export const getAvailableProductTags = async () => {
 /**
  * Get product admin settings
  */
-export const getProductAdminSettings = async () => {
+const getProductAdminSettings = async () => {
   try {
     const query = `SELECT * FROM admin_settings WHERE setting_type = 'product'`;
     const [rows] = await pool.query(query);
@@ -237,10 +255,29 @@ export const getProductAdminSettings = async () => {
 /**
  * Process product admin settings
  */
-export const processProductAdminSettings = (adminSettings, userCountry) => {
+const processProductAdminSettings = (adminSettings, userCountry) => {
   // Process admin settings for product creation
   return {
     pricing: { min_price: 1, max_price: 1000 },
     limits: { max_description_length: 1000, max_file_size: 10485760 }
   };
+};
+
+// Export all functions at the end
+export {
+  getUserProducts,
+  createProduct,
+  getProductByIdForUser,
+  updateProduct,
+  softDeleteProduct,
+  insertProductMedia,
+  mapProductType,
+  formatProductsForResponse,
+  formatProductForEdit,
+  processFileUploadData,
+  handleMediaProcessing,
+  cleanupMediaFiles,
+  getAvailableProductTags,
+  getProductAdminSettings,
+  processProductAdminSettings
 };

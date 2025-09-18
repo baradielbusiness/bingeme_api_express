@@ -1,17 +1,17 @@
 import jwt from 'jsonwebtoken';
-import { logError, createExpressErrorResponse, isEncryptedId, decryptId } from '../utils/common.js';
+import { logError, createErrorResponse, isEncryptedId, decryptId } from '../utils/common.js';
 
 /**
  * JWT Authentication middleware
  * Validates JWT tokens and adds user info to request object
  */
-export const authMiddleware = (req, res, next) => {
+const authMiddleware = (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
     
     // Check if authorization header exists and starts with 'Bearer '
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.status(401).json(createExpressErrorResponse('Access token required', 401));
+      return res.status(401).json(createErrorResponse(401, 'Access token required'));
     }
     
     // Extract token from header
@@ -26,7 +26,7 @@ export const authMiddleware = (req, res, next) => {
       try {
         userId = decryptId(userId);
       } catch (e) {
-        return res.status(401).json(createExpressErrorResponse('Invalid token format', 401));
+        return res.status(401).json(createErrorResponse(401, 'Invalid token format'));
       }
     }
 
@@ -39,11 +39,11 @@ export const authMiddleware = (req, res, next) => {
     logError('Authentication error:', error);
     
     if (error.name === 'TokenExpiredError') {
-      return res.status(401).json(createExpressErrorResponse('Token expired', 401));
+      return res.status(401).json(createErrorResponse(401, 'Token expired'));
     } else if (error.name === 'JsonWebTokenError') {
-      return res.status(401).json(createExpressErrorResponse('Invalid access token', 401));
+      return res.status(401).json(createErrorResponse(401, 'Invalid access token'));
     } else {
-      return res.status(401).json(createExpressErrorResponse('Authentication failed', 401));
+      return res.status(401).json(createErrorResponse(401, 'Authentication failed'));
     }
   }
 };
@@ -52,7 +52,7 @@ export const authMiddleware = (req, res, next) => {
  * Optional authentication middleware
  * Validates JWT tokens if present but doesn't require them
  */
-export const optionalAuthMiddleware = (req, res, next) => {
+const optionalAuthMiddleware = (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
     
@@ -78,11 +78,11 @@ export const optionalAuthMiddleware = (req, res, next) => {
 /**
  * Enforce anonymous-only access tokens (Lambda parity for signup/login flows)
  */
-export const anonymousOnlyMiddleware = (req, res, next) => {
+const anonymousOnlyMiddleware = (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.status(401).json(createExpressErrorResponse('Access token required', 401));
+      return res.status(401).json(createErrorResponse(401, 'Access token required'));
     }
     const token = authHeader.substring(7);
     const decoded = jwt.verify(token, process.env.JWT_ACCESS_SECRET);
@@ -90,12 +90,12 @@ export const anonymousOnlyMiddleware = (req, res, next) => {
     // Decrypt id if needed
     let userId = decoded.id ?? decoded.userId;
     if (typeof userId === 'string' && isEncryptedId(userId)) {
-      try { userId = decryptId(userId); } catch (e) { return res.status(401).json(createExpressErrorResponse('Invalid token format', 401)); }
+      try { userId = decryptId(userId); } catch (e) { return res.status(401).json(createErrorResponse(401, 'Invalid token format')); }
     }
 
     // Enforce anonymous-only
     if (!(decoded.isAnonymous === true || decoded.role === 'anonymous')) {
-      return res.status(403).json(createExpressErrorResponse('Only anonymous access token allowed', 403));
+      return res.status(403).json(createErrorResponse(403, 'Only anonymous access token allowed'));
     }
 
     req.user = decoded;
@@ -104,22 +104,22 @@ export const anonymousOnlyMiddleware = (req, res, next) => {
   } catch (error) {
     logError('Anonymous-only auth error:', error);
     if (error.name === 'TokenExpiredError') {
-      return res.status(401).json(createExpressErrorResponse('Token expired', 401));
+      return res.status(401).json(createErrorResponse(401, 'Token expired'));
     } else if (error.name === 'JsonWebTokenError') {
-      return res.status(401).json(createExpressErrorResponse('Invalid access token', 401));
+      return res.status(401).json(createErrorResponse(401, 'Invalid access token'));
     }
-    return res.status(401).json(createExpressErrorResponse('Authentication failed', 401));
+    return res.status(401).json(createErrorResponse(401, 'Authentication failed'));
   }
 };
 
 /**
  * Enforce authenticated (non-anonymous) access tokens
  */
-export const authenticatedOnlyMiddleware = (req, res, next) => {
+const authenticatedOnlyMiddleware = (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.status(401).json(createExpressErrorResponse('Access token required', 401));
+      return res.status(401).json(createErrorResponse(401, 'Access token required'));
     }
     const token = authHeader.substring(7);
     const decoded = jwt.verify(token, process.env.JWT_ACCESS_SECRET);
@@ -127,12 +127,12 @@ export const authenticatedOnlyMiddleware = (req, res, next) => {
     // Decrypt id if needed
     let userId = decoded.id ?? decoded.userId;
     if (typeof userId === 'string' && isEncryptedId(userId)) {
-      try { userId = decryptId(userId); } catch (e) { return res.status(401).json(createExpressErrorResponse('Invalid token format', 401)); }
+      try { userId = decryptId(userId); } catch (e) { return res.status(401).json(createErrorResponse(401, 'Invalid token format')); }
     }
 
     // Enforce non-anonymous
     if (decoded.isAnonymous === true || decoded.role === 'anonymous') {
-      return res.status(403).json(createExpressErrorResponse('Authenticated user token required', 403));
+      return res.status(403).json(createErrorResponse(403, 'Authenticated user token required'));
     }
 
     req.user = decoded;
@@ -141,10 +141,18 @@ export const authenticatedOnlyMiddleware = (req, res, next) => {
   } catch (error) {
     logError('Authenticated-only auth error:', error);
     if (error.name === 'TokenExpiredError') {
-      return res.status(401).json(createExpressErrorResponse('Token expired', 401));
+      return res.status(401).json(createErrorResponse(401, 'Token expired'));
     } else if (error.name === 'JsonWebTokenError') {
-      return res.status(401).json(createExpressErrorResponse('Invalid access token', 401));
+      return res.status(401).json(createErrorResponse(401, 'Invalid access token'));
     }
-    return res.status(401).json(createExpressErrorResponse('Authentication failed', 401));
+    return res.status(401).json(createErrorResponse(401, 'Authentication failed'));
   }
+};
+
+// Export all functions at the end
+export {
+  authMiddleware,
+  optionalAuthMiddleware,
+  anonymousOnlyMiddleware,
+  authenticatedOnlyMiddleware
 };
