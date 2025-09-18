@@ -156,3 +156,105 @@ const validateRoomAccess = async (roomId, userId) => {
     return { hasAccess: false, error: 'Failed to validate room access' };
   }
 };
+
+/**
+ * GET Handler: Fetch Agora app details including configuration with token.
+ * - Returns Agora app details with app ID, generated token, and uid.
+ * - Used by socket services and other components that need Agora credentials.
+ * 
+ * @param {object} req - Express request object
+ * @param {object} res - Express response object
+ */
+export const getAgoraDetails = async (req, res) => {
+  try {
+    logInfo('Fetching Agora app details for video call configuration');
+
+    // Extract room_id and userId from event parameters
+    // TODO: Convert event.queryStringParameters?.room_id || event.body?.room_id to req.query?.room_id || req.body?.room_id
+    const roomId = req.query?.room_id || req.body?.room_id;
+    // TODO: Convert event.queryStringParameters?.user_id || event.body?.user_id to req.query?.user_id || req.body?.user_id
+    const userId = req.query?.user_id || req.body?.user_id;
+    const uid = Math.floor(Math.random() * 10000);
+
+    // Validate that we have the required parameters
+    if (!roomId) {
+      logError('Missing required parameters', { roomId });
+      // TODO: Convert createErrorResponse(400, 'Missing required parameters: room_id are required') to res.status(400).json({ error: 'Missing required parameters: room_id are required' })
+      return res.status(400).json({ error: 'Missing required parameters: room_id are required' });
+    }
+    if (!userId) {
+      logError('Missing required parameters', { userId });
+      // TODO: Convert createErrorResponse(400, 'Missing required parameters: userId are required') to res.status(400).json({ error: 'Missing required parameters: userId are required' })
+      return res.status(400).json({ error: 'Missing required parameters: userId are required' });
+    }
+
+    // Validate that the user has access to this room_id
+    const roomAccessValidation = await validateRoomAccess(roomId, userId);
+    if (!roomAccessValidation.hasAccess) {
+      logError('Room access validation failed', { 
+        roomId, 
+        userId, 
+        error: roomAccessValidation.error 
+      });
+      // TODO: Convert createErrorResponse(403, roomAccessValidation.error) to res.status(403).json({ error: roomAccessValidation.error })
+      return res.status(403).json({ error: roomAccessValidation.error });
+    }
+
+    // Fetch admin settings from database
+    const adminSettings = await getAdminSettings();
+    
+    if (!adminSettings || Object.keys(adminSettings).length === 0) {
+      logError('Admin settings not found in database');
+      // TODO: Convert createErrorResponse(404, 'Admin settings not found') to res.status(404).json({ error: 'Admin settings not found' })
+      return res.status(404).json({ error: 'Admin settings not found' });
+    }
+
+    // Extract Agora-related settings
+    const { agora_app_id: agoraAppId, agora_app_certificate: agoraAppCertificate } = adminSettings;
+
+    // Validate that we have the required Agora credentials
+    if (!agoraAppId || !agoraAppCertificate) {
+      logError('Agora credentials not found in admin settings', { 
+        hasAppId: !!agoraAppId, 
+        hasCertificate: !!agoraAppCertificate 
+      });
+      // TODO: Convert createErrorResponse(500, 'Agora configuration not available') to res.status(500).json({ error: 'Agora configuration not available' })
+      return res.status(500).json({ error: 'Agora configuration not available' });
+    }
+
+    // Generate Agora token similar to CallController.php
+    const currentUtcTimestamp = Math.floor(Date.now() / 1000);
+    const tokenExpirationTime = currentUtcTimestamp + 216000; // 60 hours
+    const publisherRole = Role.PUBLISHER; // Use the Role constant from RtcTokenBuilder2
+    
+    // Generate the token using the parameters from the request
+    const agoraToken = RtcTokenBuilder.buildTokenWithUid(
+      agoraAppId,
+      agoraAppCertificate,
+      roomId, // Use room_id from request
+      uid, //
+      publisherRole,
+      tokenExpirationTime
+    );
+
+    logInfo('Successfully generated Agora token and fetched app details', { roomId, uid });
+
+    // Return Agora app details with configuration and token
+    // TODO: Convert createSuccessResponse('Agora app details retrieved successfully', { agoraAppCertificate, agoraAppId, token: agoraToken, uid, }) to res.json({ success: true, message: 'Agora app details retrieved successfully', data: { agoraAppCertificate, agoraAppId, token: agoraToken, uid, } })
+    return res.json({
+      success: true,
+      message: 'Agora app details retrieved successfully',
+      data: {
+        agoraAppCertificate,
+        agoraAppId,
+        token: agoraToken,
+        uid,
+      }
+    });
+
+  } catch (error) {
+    logError('Error fetching Agora app details or generating token:', error);
+    // TODO: Convert createErrorResponse(500, 'Failed to fetch Agora app details or generate token', error.message) to res.status(500).json({ error: 'Failed to fetch Agora app details or generate token' })
+    return res.status(500).json({ error: 'Failed to fetch Agora app details or generate token' });
+  }
+};

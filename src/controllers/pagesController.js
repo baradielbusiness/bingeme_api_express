@@ -1,9 +1,7 @@
 /**
  * @file pagesController.js
- * @description Pages controller for Bingeme API Express.js
- * Handles page retrieval with access control and locale support
+ * @description Optimized controller for pages API endpoint - similar to templar_influencer PagesController
  */
-
 import { 
   logInfo, 
   logError, 
@@ -16,33 +14,67 @@ import {
 } from '../utils/common.js';
 import { getDB } from '../config/database.js';
 
+// Common response headers
+const COMMON_HEADERS = {
+  'Content-Type': 'application/json',
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Credentials': true
+};
+
+// Response helper functions
+const createResponse = (statusCode, body) => ({
+  statusCode,
+  headers: COMMON_HEADERS,
+  body: JSON.stringify(body)
+});
+
+const createErrorResponse = (statusCode, error, message) => 
+  createResponse(statusCode, { error, message });
+
+const createSuccessResponse = (data) => 
+  createResponse(200, { success: true, data });
+
 /**
- * Get page by slug with access control
+ * Handler for pages API endpoint
  * @param {Object} req - Express request object
  * @param {Object} res - Express response object
  */
 export const getPage = async (req, res) => {
   try {
-    const { slug } = req.params;
+    // TODO: Convert event.httpMethod, event.pathParameters, event.headers to req.method, req.params, req.headers
+    const { method: httpMethod, params: pathParameters, headers } = req;
     
-    if (!slug) {
-      return res.status(400).json(createExpressErrorResponse('Page slug is required', 400));
+    // Get page slug from path parameters
+    // TODO: Convert pathParameters?.slug to pathParameters?.slug
+    const pageSlug = pathParameters?.slug;
+    if (!pageSlug) {
+      // TODO: Convert createErrorResponse(400, 'Bad request', 'Page slug is required') to res.status(400).json({ error: 'Bad request', message: 'Page slug is required' })
+      return res.status(400).json({ error: 'Bad request', message: 'Page slug is required' });
     }
     
-    // Get user ID if authenticated
-    const userId = req.userId; // This will be null if not authenticated
+    // Step 2: Handle user authentication (required for profile routes)
+    // TODO: Convert getAuthenticatedUserId(event, { action: 'page access' }) to getAuthenticatedUserId(req, { action: 'page access' })
+    const authResult = getAuthenticatedUserId(req, { action: 'page access' });
+    if (authResult.errorResponse) {
+      // TODO: Convert return authResult.errorResponse to return res.status(authResult.errorResponse.statusCode).json(authResult.errorResponse.body)
+      return res.status(authResult.errorResponse.statusCode).json(authResult.errorResponse.body);
+    }
+    
+    const userId = authResult.userId;
     
     // Get page from database
-    const page = await getPageBySlug(slug);
+    const page = await getPageBySlug(pageSlug);
     
     if (!page) {
-      return res.status(404).json(createExpressErrorResponse(`The requested page '${slug}' could not be found`, 404));
+      // TODO: Convert createErrorResponse(404, 'Page not found', `The requested page '${pageSlug}' could not be found`) to res.status(404).json({ error: 'Page not found', message: `The requested page '${pageSlug}' could not be found` })
+      return res.status(404).json({ error: 'Page not found', message: `The requested page '${pageSlug}' could not be found` });
     }
     
     // Check access permissions
     if (page.access === 'creators') {
       if (!userId) {
-        return res.status(403).json(createExpressErrorResponse('This page is only accessible to verified creators. Please login with a creator account.', 403));
+        // TODO: Convert createErrorResponse(403, 'Access denied', 'This page is only accessible to verified creators. Please login with a creator account.') to res.status(403).json({ error: 'Access denied', message: 'This page is only accessible to verified creators. Please login with a creator account.' })
+        return res.status(403).json({ error: 'Access denied', message: 'This page is only accessible to verified creators. Please login with a creator account.' });
       }
       
       // Check if user is a verified creator
@@ -50,24 +82,30 @@ export const getPage = async (req, res) => {
       const verifiedUser = await getVerifiedUserById(userId);
       logInfo('Verified user result:', { userId, verifiedUser: !!verifiedUser, verifiedUserDetails: verifiedUser });
       if (!verifiedUser) {
-        return res.status(403).json(createErrorResponse(403, 'Access denied', 
-          'This page is only accessible to verified creators'));
+        // TODO: Convert createErrorResponse(403, 'Access denied', 'This page is only accessible to verified creators') to res.status(403).json({ error: 'Access denied', message: 'This page is only accessible to verified creators' })
+        return res.status(403).json({ error: 'Access denied', message: 'This page is only accessible to verified creators' });
       }
     } else if (page.access === 'members' && !userId) {
-      return res.status(403).json(createExpressErrorResponse('This page is only accessible to authenticated members', 403));
+      // TODO: Convert createErrorResponse(403, 'Access denied', 'This page is only accessible to authenticated members') to res.status(403).json({ error: 'Access denied', message: 'This page is only accessible to authenticated members' })
+      return res.status(403).json({ error: 'Access denied', message: 'This page is only accessible to authenticated members' });
     }
     
     // Return page data
-    return res.json(createExpressSuccessResponse('Page retrieved successfully', {
-      title: page.title,
-      description: page.description,
-      keywords: page.keywords,
-      content: page.content
-    }));
+    // TODO: Convert createSuccessResponse({ title: page.title, description: page.description, keywords: page.keywords, content: page.content }) to res.json({ success: true, data: { title: page.title, description: page.description, keywords: page.keywords, content: page.content } })
+    return res.json({
+      success: true,
+      data: {
+        title: page.title,
+        description: page.description,
+        keywords: page.keywords,
+        content: page.content
+      }
+    });
     
   } catch (error) {
     logError('Error in pages handler:', error);
-    return res.status(500).json(createExpressErrorResponse('An error occurred while processing your request', 500));
+    // TODO: Convert createErrorResponse(500, 'Internal server error', 'An error occurred while processing your request') to res.status(500).json({ error: 'Internal server error', message: 'An error occurred while processing your request' })
+    return res.status(500).json({ error: 'Internal server error', message: 'An error occurred while processing your request' });
   }
 };
 

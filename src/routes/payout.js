@@ -17,6 +17,6 @@ router.get('/conversations', setEdgeCacheHeaders, payoutController.getPayoutConv
 router.post('/conversations/store', payoutController.storePayoutConversation);
 
 // Upload endpoints
-router.get('/upload-url', payoutController.getPayoutUploadUrl);
+router.get('/upload-url', setEdgeCacheHeaders, payoutController.getPayoutUploadUrl);
 
 export default router;

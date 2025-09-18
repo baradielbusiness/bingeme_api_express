@@ -42,7 +42,6 @@ router.post('/user/avatar', userController.createUserAvatar);
 // User management
 router.post('/user/block/:id', userController.blockUser);
 router.post('/restrict/:id', userController.restrictUser);
-router.delete('/restrict/:id', userController.unrestrictUser);
 router.get('/restrict/user', setEdgeCacheHeaders, userController.getRestrictions);
 
 // Creator subscribers
