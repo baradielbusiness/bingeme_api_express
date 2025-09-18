@@ -66,6 +66,8 @@ import {
   validateMessageMediaInput,
   validateMassiveMessageInput
 } from '../utils/validations.js';
+import { validateConversationSearchRequest } from '../validate/conversation_search.js';
+import { validateMessagesInboxRequest } from '../validate/messages.js';
 import { 
   findOrCreateConversation 
 } from '../utils/conversation.js';
@@ -259,19 +261,36 @@ const positionSupportConversation = (formattedMessagesInbox, supportIndex, defau
 };
 
 /**
- * Handler to get conversation messages (GET /messages/conversation)
+ * GET /messages/conversation - Get authenticated user's inbox messages with support integration
+ * Exact implementation matching Lambda getUserMessagesHandler
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ * @returns {Promise<Object>} Express response with formatted messages and pagination
  */
 export const getConversation = async (req, res) => {
   try {
-    const userId = req.userId;
-    const { skip = '0', limit = '10' } = req.query;
-    const skipNum = parseInt(skip) || 0;
-    const limitNum = parseInt(limit) || 10;
+    // TODO: Convert getAuthenticatedUserId(event, { action: 'conversation getUserMessagesHandler' }) to getAuthenticatedUserId(req, { action: 'conversation getUserMessagesHandler' })
+    const { userId, errorResponse } = getAuthenticatedUserId(req, { action: 'conversation getUserMessagesHandler' });
+    if (errorResponse) {
+      // TODO: Convert return errorResponse to return res.status(errorResponse.statusCode).json(errorResponse.body)
+      return res.status(errorResponse.statusCode).json(errorResponse.body);
+    }
     
-    const user = await getUserById(userId);
-    if (!user) return res.status(404).json(createErrorResponse(404, 'User not found'));
+    logInfo('My messages request received', { userId });
     
-    let supportConfig;
+    // TODO: Convert event.queryStringParameters to req.query
+    const { queryStringParameters = {} } = req; // Extract pagination parameters
+    const { skip: skipRaw = '0', limit: limitRaw = '10' } = queryStringParameters;
+    const skip = parseInt(skipRaw) || 0;
+    const limit = parseInt(limitRaw) || 10;
+    
+    const user = await getUserById(userId); // Fetch user info for verification status
+    if (!user) {
+      // TODO: Convert createErrorResponse(404, 'User not found') to res.status(404).json({ error: 'User not found' })
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    let supportConfig; // Get support configuration
     try {
       supportConfig = await getSupportConfiguration(user);
     } catch (error) {
@@ -282,151 +301,247 @@ export const getConversation = async (req, res) => {
     const { supportId } = supportConfig;
     const defaultSupportMessage = createDefaultSupportMessage(supportConfig, userId);
     
-    const { messages: rows, totalMessages, conversationRoomMap } = await getUserInboxWithMedia(userId, skipNum, limitNum);
+    const { messages: rows, totalMessages, conversationRoomMap } = await getUserInboxWithMedia(userId, skip, limit); // Fetch messages
     
+    // Ensure all user IDs are integers for consistent processing
     const userIds = [...new Set(rows.flatMap(({ from_user_id, to_user_id }) => [
       parseInt(from_user_id), 
       parseInt(to_user_id)
-    ]))];
+    ]))]; // Get unique user IDs
     const usersMap = await fetchUsersMap(userIds);
     
-    const { supportIndex } = checkSupportUserPresence(rows, supportId);
+    const { supportIndex } = checkSupportUserPresence(rows, supportId); // Check support presence
     
-    const formattedMessagesInbox = rows.map(row => formatMessageRow(row, userId, usersMap, conversationRoomMap));
+    const formattedMessagesInbox = rows.map(row => formatMessageRow(row, userId, usersMap, conversationRoomMap)); // Format messages
     
     const finalMessagesInbox = positionSupportConversation(formattedMessagesInbox, supportIndex, defaultSupportMessage);
     
     logInfo('Messages retrieved successfully', { userId, totalMessages, returnedCount: finalMessagesInbox.length });
     
-    const hasMore = skipNum + limitNum < totalMessages;
-    const nextUrl = hasMore ? `/conversation?skip=${skipNum + limitNum}&limit=${limitNum}` : '';
+    const hasMore = skip + limit < totalMessages; // Build pagination info
+    const nextUrl = hasMore ? `messages/conversation?skip=${skip + limit}&limit=${limit}` : '';
     
+    // TODO: Convert createApiResponse(200, 'Messages retrieved successfully', { messagesInbox: finalMessagesInbox, pagination: { total: totalMessages, next: nextUrl } }) to res.status(200).json(createApiResponse(200, 'Messages retrieved successfully', { messagesInbox: finalMessagesInbox, pagination: { total: totalMessages, next: nextUrl } }))
     return res.status(200).json(createApiResponse(200, 'Messages retrieved successfully', {
       messagesInbox: finalMessagesInbox,
       pagination: { total: totalMessages, next: nextUrl }
     }));
   } catch (error) {
-    logError('getConversation error:', error);
-    return res.status(500).json(createErrorResponse(500, 'Internal server error'));
+    logError('getUserMessagesHandler error:', error);
+    // TODO: Convert createErrorResponse(500, 'Internal server error') to res.status(500).json({ error: 'Internal server error' })
+    return res.status(500).json({ error: 'Internal server error' });
   }
 };
 
 /**
- * Handler to search conversations (GET /messages/conversation/search)
+ * GET /messages/conversation/search - Search conversations by username or name
+ * Exact implementation matching Lambda searchConversationHandler
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ * @returns {Promise<Object>} Express response with search results or error details
  */
 export const getConversationSearch = async (req, res) => {
   try {
-    const userId = req.userId;
-    const { search } = req.query;
+    logInfo('searchConversationHandler: Request received', { 
+      // TODO: Convert event.path to req.path
+      path: req.path, 
+      // TODO: Convert event.httpMethod to req.method
+      method: req.method,
+      // TODO: Convert event.queryStringParameters to req.query
+      queryParams: req.query 
+    });
 
-    if (!search || search.length < 2) {
-      return res.status(400).json(createErrorResponse(400, 'Search term must be at least 2 characters'));
+    // Step 1: Authenticate user
+    // TODO: Convert getAuthenticatedUserId(event, { allowAnonymous: false, action: 'conversation search searchConversationHandler' }) to getAuthenticatedUserId(req, { allowAnonymous: false, action: 'conversation search searchConversationHandler' })
+    const { userId, errorResponse } = getAuthenticatedUserId(req, { 
+      allowAnonymous: false, 
+      action: 'conversation search searchConversationHandler' 
+    });
+    if (errorResponse) {
+      // TODO: Convert return errorResponse to return res.status(errorResponse.statusCode).json(errorResponse.body)
+      return res.status(errorResponse.statusCode).json(errorResponse.body);
     }
 
-    const messages = await searchConversations(userId, search);
+    logInfo('searchConversationHandler: User authenticated', { userId });
+
+    // Step 2: Validate search parameters
+    // TODO: Convert validateConversationSearchRequest(event) to validateConversationSearchRequest(req)
+    const validation = validateConversationSearchRequest(req);
+    if (!validation.valid) {
+      logError('searchConversationHandler: Validation failed', { error: validation.error });
+      // TODO: Convert createErrorResponse(400, validation.error) to res.status(400).json({ error: validation.error })
+      return res.status(400).json({ error: validation.error });
+    }
+
+    const { searchTerm } = validation.data;
+    logInfo('searchConversationHandler: Search parameters validated', { searchTerm });
+
+    // Step 3: Execute conversation search
+    const messages = await searchConversations(userId, searchTerm);
     
-    logInfo('Search completed', { 
+    logInfo('searchConversationHandler: Search completed', { 
       userId, 
-      searchTerm: search, 
+      searchTerm, 
       resultCount: messages.length 
     });
 
+    // Step 4: Build and return response
+    // TODO: Convert createApiResponse(200, 'Messages retrieved successfully', { messagesInbox: messages }) to res.status(200).json(createApiResponse(200, 'Messages retrieved successfully', { messagesInbox: messages }))
     return res.status(200).json(createApiResponse(200, 'Messages retrieved successfully', {
       messagesInbox: messages
     }));
 
   } catch (error) {
-    logError('getConversationSearch error:', error);
-    return res.status(500).json(createErrorResponse(500, 'Internal server error'));
+    logError('searchConversationHandler error:', error);
+    // TODO: Convert createErrorResponse(500, 'Internal server error') to res.status(500).json({ error: 'Internal server error' })
+    return res.status(500).json({ error: 'Internal server error' });
   }
 };
 
 /**
- * Handler to get messages inbox (GET /messages/:id and GET /messages/:id/:username)
+ * GET /messages/{id} and GET /messages/{id}/{username} - Retrieve conversation messages between authenticated user and another user
+ * Exact implementation matching Lambda messagesInboxHandler
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ * @returns {Promise<Object>} Express response with messages or error details
  */
 export const getMessagesInbox = async (req, res) => {
   try {
-    const userId = req.userId;
-    const { id, username } = req.params;
-    const { skip, limit } = req.query;
-
-    if (!id) {
-      return res.status(400).json(createErrorResponse(400, 'User ID is required'));
-    }
-
-    const targetUserId = parseInt(id);
-    if (isNaN(targetUserId)) {
-      return res.status(400).json(createErrorResponse(400, 'Invalid user ID format'));
-    }
-
-    // Security check: Prevent user from accessing their own messages
-    if (userId === targetUserId) {
-      logError('User attempting to access own messages', { userId });
-      return res.status(400).json(createErrorResponse(400, 'Cannot access messages with yourself'));
-    }
-
-    const skipNum = parseInt(skip) || 0;
-    const limitNum = Math.min(parseInt(limit) || 50, 100);
-
-    logInfo('Processing messages request', { 
-      userId, 
-      targetUserId, 
-      username, 
-      skip: skipNum, 
-      limit: limitNum 
+    // Log incoming request details for monitoring and debugging
+    logInfo('Messages inbox request received', { 
+      // TODO: Convert event.path to req.path
+      path: req.path, 
+      // TODO: Convert event.httpMethod to req.method
+      method: req.method,
+      // TODO: Convert event.pathParameters to req.params
+      pathParameters: req.params 
     });
 
+    // Validate request parameters using dedicated validation utility
+    // TODO: Convert validateMessagesInboxRequest(event) to validateMessagesInboxRequest(req)
+    const validation = validateMessagesInboxRequest(req);
+    if (!validation.valid) {
+      logError('Request validation failed', { error: validation.error });
+      // TODO: Convert createErrorResponse(400, validation.error) to res.status(400).json({ error: validation.error })
+      return res.status(400).json({ error: validation.error });
+    }
+
+    const { userId, username } = validation.data;
+
+    // Get authenticated user ID using common utility function
+    // This ensures consistent authentication handling across the application
+    // TODO: Convert getAuthenticatedUserId(event, { allowAnonymous: false, action: 'messages inbox messagesInboxHandler' }) to getAuthenticatedUserId(req, { allowAnonymous: false, action: 'messages inbox messagesInboxHandler' })
+    const { userId: authenticatedUserId, errorResponse } = getAuthenticatedUserId(req, { 
+      allowAnonymous: false, 
+      action: 'messages inbox messagesInboxHandler' 
+    });
+    if (errorResponse) {
+      // TODO: Convert return errorResponse to return res.status(errorResponse.statusCode).json(errorResponse.body)
+      return res.status(errorResponse.statusCode).json(errorResponse.body);
+    }
+    
+    // Security check: Prevent user from accessing their own messages
+    // This is a business logic requirement to prevent self-conversation access
+    if (authenticatedUserId === userId) {
+      logError('User attempting to access own messages', { userId: authenticatedUserId });
+      // TODO: Convert createErrorResponse(400, 'Cannot access messages with yourself') to res.status(400).json({ error: 'Cannot access messages with yourself' })
+      return res.status(400).json({ error: 'Cannot access messages with yourself' });
+    }
+
+    // Extract and validate pagination parameters from query string
+    // Provides flexible pagination with reasonable defaults and limits
+    // TODO: Convert event.queryStringParameters to req.query
+    const { skip: skipRaw, limit: limitRaw } = req.query || {};
+    const skip = parseInt(skipRaw) || 0;
+    const limit = Math.min(parseInt(limitRaw) || 50, 100); // Max 100 messages per request for performance
+
+    logInfo('Processing messages request', { 
+      authenticatedUserId, 
+      targetUserId: userId, 
+      username, 
+      skip, 
+      limit 
+    });
+
+    // Initialize variables to store message data and user information
     let messages, totalCount, otherUser;
 
     if (username) {
       // Mode 2: URL contains both user ID and username
+      // This mode provides additional validation and flexibility
+      
+      // First validate that the username exists in the system
       const userValidation = await validateUserByUsername(username);
       if (!userValidation.valid) {
         logError('Username validation failed', { error: userValidation.error });
-        return res.status(404).json(createErrorResponse(404, userValidation.error));
+        // TODO: Convert createErrorResponse(404, userValidation.error) to res.status(404).json({ error: userValidation.error })
+        return res.status(404).json({ error: userValidation.error });
       }
 
-      if (userValidation.user.id !== targetUserId) {
+      // Security check: Ensure username belongs to the user ID provided in URL
+      // This prevents URL manipulation attacks where username and user ID don't match
+      if (userValidation.user.id !== userId) {
         logError('Username and user ID belong to different users', { 
-          providedUserId: targetUserId, 
+          providedUserId: userId, 
           usernameUserId: userValidation.user.id,
           username: username 
         });
-        return res.status(400).json(createErrorResponse(400, 'Username and user ID belong to different users'));
+        // TODO: Convert createErrorResponse(400, 'Username and user ID belong to different users') to res.status(400).json({ error: 'Username and user ID belong to different users' })
+        return res.status(400).json({ error: 'Username and user ID belong to different users' });
       }
 
+      // Username and user ID validation successful - proceed to retrieve messages
+      logInfo('Username and user ID validation successful - same user', { 
+        userId: userId,
+        username: username,
+        authenticatedUserId: authenticatedUserId
+      });
+
+      // Retrieve messages using username-based query
       const result = await getUserMessagesByUsername(
-        userId, 
+        authenticatedUserId, 
         username, 
-        { skip: skipNum, limit: limitNum }
+        { skip, limit }
       );
 
       if (result.error) {
         logError('Error fetching messages by username', { error: result.error });
-        return res.status(404).json(createErrorResponse(404, result.error));
+        // TODO: Convert createErrorResponse(404, result.error) to res.status(404).json({ error: result.error })
+        return res.status(404).json({ error: result.error });
       }
 
       messages = result.messages;
       totalCount = result.totalCount;
       otherUser = result.otherUser;
     } else {
-      // Mode 1: URL contains only user ID
-      const accessValidation = await validateUserAccess(userId, targetUserId);
+      // Mode 1: URL contains only user ID - retrieve messages based on user ID
+      // This is the simpler, more direct approach
+      
+      // Validate user access permissions (checks for blocked users, etc.)
+      const accessValidation = await validateUserAccess(authenticatedUserId, userId);
       if (!accessValidation.hasAccess) {
         logError('User access denied', { error: accessValidation.error });
-        return res.status(403).json(createErrorResponse(403, accessValidation.error));
+        // TODO: Convert createErrorResponse(403, accessValidation.error) to res.status(403).json({ error: accessValidation.error })
+        return res.status(403).json({ error: accessValidation.error });
       }
 
+      logInfo('User access validated successfully', { 
+        authenticatedUserId, 
+        targetUserId: userId,
+        otherUser: accessValidation.otherUser 
+      });
+
       try {
+        // Retrieve messages using user ID-based query
         const result = await getUserMessagesById(
+          authenticatedUserId, 
           userId, 
-          targetUserId, 
-          { skip: skipNum, limit: limitNum }
+          { skip, limit }
         );
 
         logInfo('Messages retrieved by user ID', { 
-          userId, 
-          targetUserId,
+          authenticatedUserId, 
+          targetUserId: userId,
           messageCount: result.messages.length,
           totalCount: result.totalCount 
         });
@@ -437,237 +552,468 @@ export const getMessagesInbox = async (req, res) => {
       } catch (error) {
         logError('Error fetching messages by user ID', { 
           error: error.message, 
-          userId, 
-          targetUserId 
+          authenticatedUserId, 
+          targetUserId: userId 
         });
-        return res.status(500).json(createErrorResponse(500, 'Failed to retrieve messages'));
+        // TODO: Convert createErrorResponse(500, 'Failed to retrieve messages') to res.status(500).json({ error: 'Failed to retrieve messages' })
+        return res.status(500).json({ error: 'Failed to retrieve messages' });
       }
     }
 
-    const formattedMessagesByDate = formatMessagesByDate(messages, userId);
+    // Format messages grouped by date for better user experience
+    // This provides a more intuitive conversation view
+    const formattedMessagesByDate = formatMessagesByDate(messages, authenticatedUserId);
 
-    const hasMore = (skipNum + limitNum) < totalCount;
+    // Calculate pagination metadata for client-side navigation
+    const hasMore = (skip + limit) < totalCount;
     
+    // Generate clean pagination URLs by filtering out placeholder values
+    // This ensures URLs are clean and consistent across different request types
     const isValidUsername = username && 
                            username !== 'undefined' && 
                            username !== 'null' && 
                            username !== '{username}' && 
                            !(username.startsWith('{') && username.endsWith('}'));
     
-    const nextUrl = hasMore ? `/messages/${targetUserId}${isValidUsername ? `/${username}` : ''}?skip=${skipNum + limitNum}&limit=${limitNum}` : null;
+    const nextUrl = hasMore ? `/messages/${userId}${isValidUsername ? `/${username}` : ''}?skip=${skip + limit}&limit=${limit}` : null;
 
+    // Prepare comprehensive response data with date-grouped messages and pagination info
     const responseData = {
       conversations: formattedMessagesByDate,
       pagination: {
-        skip: skipNum,
-        limit: limitNum,
+        skip,
+        limit,
         total: totalCount,
         has_more: hasMore,
         next_url: nextUrl
       }
     };
 
+    // Log successful response for monitoring and analytics
     logInfo('Messages retrieved successfully', { 
-      userId, 
-      targetUserId, 
+      authenticatedUserId, 
+      targetUserId: userId, 
       username, 
       totalCount, 
       returnedCount: messages.length,
       dateGroups: formattedMessagesByDate.length 
     });
 
+    // TODO: Convert createSuccessResponse('Messages retrieved successfully', responseData) to res.status(200).json(createSuccessResponse('Messages retrieved successfully', responseData))
     return res.status(200).json(createSuccessResponse('Messages retrieved successfully', responseData));
 
   } catch (error) {
-    logError('getMessagesInbox error:', error);
-    return res.status(500).json(createErrorResponse(500, 'Internal server error'));
+    // Catch any unexpected errors and log them for debugging
+    logError('messagesInboxHandler error:', error);
+    // TODO: Convert createErrorResponse(500, 'Internal server error') to res.status(500).json({ error: 'Internal server error' })
+    return res.status(500).json({ error: 'Internal server error' });
   }
 };
 
 /**
- * Handler to delete a message (DELETE /messages/delete)
+ * DELETE /messages/delete - Delete a specific message
+ * Exact implementation matching Lambda deleteMessageHandler
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ * @returns {Promise<Object>} Express response with deletion result or error details
  */
 export const deleteMessage = async (req, res) => {
   try {
-    const userId = req.userId;
-    const { message_id } = req.body;
+    // Log incoming request details for monitoring and debugging
+    logInfo('Delete message request received', { 
+      // TODO: Convert event.path to req.path
+      path: req.path, 
+      // TODO: Convert event.httpMethod to req.method
+      method: req.method,
+      // TODO: Convert event.body to req.body
+      body: req.body ? Object.keys(req.body) : 'no body'
+    });
 
-    if (!message_id) {
-      logError('message_id is required');
-      return res.status(400).json(createErrorResponse(400, 'message_id is required'));
+    // Parse request body to extract message ID
+    // TODO: Convert JSON.parse(event.body || '{}') to req.body
+    const { messageId } = req.body || {};
+    
+    // Validate message ID parameter
+    if (!messageId) {
+      logError('Message ID is required');
+      // TODO: Convert createErrorResponse(400, 'Message ID is required') to res.status(400).json({ error: 'Message ID is required' })
+      return res.status(400).json({ error: 'Message ID is required' });
     }
 
-    // Fetch message and check ownership
-    const message = await getMessageByIdUtil(message_id);
-    if (!message) {
-      logError('Message not found', { message_id });
-      return res.status(404).json(createErrorResponse(404, 'Message not found'));
-    }
-    if (message.from_user_id !== userId) {
-      logError('User does not own the message', { userId, message_id });
-      return res.status(403).json(createErrorResponse(403, 'You can only delete your own messages'));
+    // Validate message ID is a valid number
+    const messageIdNum = parseInt(messageId);
+    if (isNaN(messageIdNum) || messageIdNum <= 0) {
+      logError('Invalid message ID format', { messageId });
+      // TODO: Convert createErrorResponse(400, 'Invalid message ID format') to res.status(400).json({ error: 'Invalid message ID format' })
+      return res.status(400).json({ error: 'Invalid message ID format' });
     }
 
-    // Soft delete message and related data
-    await markMessageDeleted(message_id);
-    await markMediaMessagesDeletedUtil(message_id);
-    await removeMessageNotifications(message_id);
+    // Get authenticated user ID using common utility function
+    // This ensures consistent authentication handling across the application
+    // TODO: Convert getAuthenticatedUserId(event, { allowAnonymous: false, action: 'message delete deleteMessageHandler' }) to getAuthenticatedUserId(req, { allowAnonymous: false, action: 'message delete deleteMessageHandler' })
+    const { userId: authenticatedUserId, errorResponse } = getAuthenticatedUserId(req, { 
+      allowAnonymous: false, 
+      action: 'message delete deleteMessageHandler' 
+    });
+    if (errorResponse) {
+      // TODO: Convert return errorResponse to return res.status(errorResponse.statusCode).json(errorResponse.body)
+      return res.status(errorResponse.statusCode).json(errorResponse.body);
+    }
 
-    // Count remaining (not deleted) messages in the conversation
-    const countMessages = await countActiveMessages(message.conversations_id);
+    logInfo('Processing message deletion request', { 
+      authenticatedUserId, 
+      messageId: messageIdNum 
+    });
 
-    // Update conversation status if needed
-    const conversation = await getConversationById(message.conversations_id);
-    if (conversation) {
-      if (countMessages === 0) {
-        await setConversationInactive(conversation.id);
-      } else {
-        const latestMsgTime = await getLatestMessageTime(conversation.id);
-        await updateConversationTimestamp(conversation.id, latestMsgTime);
+    try {
+      // Check if message exists and user has access
+      const message = await getMessageById(messageIdNum);
+      
+      if (!message) {
+        logError('Message not found', { 
+          messageId: messageIdNum, 
+          authenticatedUserId 
+        });
+        // TODO: Convert createErrorResponse(404, 'Message not found') to res.status(404).json({ error: 'Message not found' })
+        return res.status(404).json({ error: 'Message not found' });
       }
+
+      // Security check: Ensure the authenticated user is either the sender or recipient
+      // This prevents users from deleting messages they're not part of
+      if (message.from_user_id !== authenticatedUserId && message.to_user_id !== authenticatedUserId) {
+        logError('User not authorized to delete this message', { 
+          messageId: messageIdNum, 
+          authenticatedUserId,
+          messageFromUserId: message.from_user_id,
+          messageToUserId: message.to_user_id
+        });
+        // TODO: Convert createErrorResponse(403, 'You are not authorized to delete this message') to res.status(403).json({ error: 'You are not authorized to delete this message' })
+        return res.status(403).json({ error: 'You are not authorized to delete this message' });
+      }
+
+      // Check if message is already deleted
+      if (message.status === 'deleted') {
+        logError('Message already deleted', { 
+          messageId: messageIdNum, 
+          authenticatedUserId 
+        });
+        // TODO: Convert createErrorResponse(400, 'Message already deleted') to res.status(400).json({ error: 'Message already deleted' })
+        return res.status(400).json({ error: 'Message already deleted' });
+      }
+
+      // Delete the message (soft delete by updating status)
+      const deleteResult = await deleteMessageById(messageIdNum, authenticatedUserId);
+      
+      if (!deleteResult.success) {
+        logError('Failed to delete message', { 
+          messageId: messageIdNum, 
+          authenticatedUserId,
+          error: deleteResult.error 
+        });
+        // TODO: Convert createErrorResponse(500, 'Failed to delete message') to res.status(500).json({ error: 'Failed to delete message' })
+        return res.status(500).json({ error: 'Failed to delete message' });
+      }
+
+      logInfo('Message deleted successfully', { 
+        messageId: messageIdNum,
+        authenticatedUserId
+      });
+
+      // TODO: Convert createSuccessResponse('Message deleted successfully', { messageId: messageIdNum }) to res.status(200).json(createSuccessResponse('Message deleted successfully', { messageId: messageIdNum }))
+      return res.status(200).json(createSuccessResponse('Message deleted successfully', {
+        messageId: messageIdNum
+      }));
+
+    } catch (error) {
+      logError('Error deleting message', { 
+        error: error.message, 
+        messageId: messageIdNum,
+        authenticatedUserId 
+      });
+      // TODO: Convert createErrorResponse(500, 'Failed to delete message') to res.status(500).json({ error: 'Failed to delete message' })
+      return res.status(500).json({ error: 'Failed to delete message' });
     }
 
-    logInfo('Message deleted successfully', { message_id, userId });
-    return res.status(200).json(createSuccessResponse('Message deleted successfully'));
   } catch (error) {
-    logError('deleteMessage error:', error);
-    return res.status(500).json(createErrorResponse(500, 'Internal server error'));
+    // Catch any unexpected errors and log them for debugging
+    logError('deleteMessageHandler error:', error);
+    // TODO: Convert createErrorResponse(500, 'Internal server error') to res.status(500).json({ error: 'Internal server error' })
+    return res.status(500).json({ error: 'Internal server error' });
   }
 };
 
 /**
- * Handler to delete a conversation (DELETE /messages/conversation/delete/:id)
+ * DELETE /messages/conversation/delete/{id} - Delete a conversation and all its messages
+ * Exact implementation matching Lambda deleteConversationHandler
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ * @returns {Promise<Object>} Express response with deletion result or error details
  */
 export const deleteConversation = async (req, res) => {
   try {
-    const userId = req.userId;
-    const { id } = req.params;
+    // Log incoming request details for monitoring and debugging
+    logInfo('Delete conversation request received', { 
+      // TODO: Convert event.path to req.path
+      path: req.path, 
+      // TODO: Convert event.httpMethod to req.method
+      method: req.method,
+      // TODO: Convert event.pathParameters to req.params
+      pathParameters: req.params
+    });
 
-    if (!id || isNaN(parseInt(id))) {
-      return res.status(400).json(createErrorResponse(400, 'Valid user ID is required'));
-    }
-
-    const otherUserId = parseInt(id);
-
-    // Security check - prevent self-deletion
-    if (userId === otherUserId) {
-      return res.status(400).json(createErrorResponse(400, 'Cannot delete conversation with yourself'));
-    }
-
-    // Start database transaction
-    const connection = await pool.getConnection();
-    await connection.beginTransaction();
+    // Extract conversation ID from path parameters
+    // TODO: Convert event.pathParameters?.id to req.params?.id
+    const { id } = req.params || {};
     
-    try {
-      // Get message and conversation IDs
-      const { messageIds, conversationIds } = await getMessageAndConversationIds(
-        userId, 
-        otherUserId
-      );
-      
-      logInfo('Found message and conversation IDs', { 
-        messageIds, 
-        conversationIds, 
-        messageCount: messageIds.length,
-        conversationCount: conversationIds.length 
-      });
-      
-      // If no messages found, return early success
-      if (!messageIds.length) {
-        logInfo('No messages found to delete');
-        await connection.commit();
-        connection.release();
-        return res.status(200).json(createApiResponse(200, 'Conversation deleted successfully', {
-          deleted_messages_count: 0,
-          conversation_id: null,
-          cleared_notifications: false
-        }));
-      }
-      
-      // Mark resources as deleted/inactive
-      await markMediaMessagesDeleted(messageIds);
-      await markMessagesDeleted(messageIds);
-      await markConversationsInactive(conversationIds);
-      await removeUserNotifications(userId);
-      
-      await connection.commit();
-      connection.release();
-      
-      logInfo('Deletion operations completed', {
-        deletedMessagesCount: messageIds.length,
-        conversationId: conversationIds[0] || null,
-        clearedNotifications: true
-      });
-      
-      return res.status(200).json(createApiResponse(200, 'Conversation deleted successfully', {
-        deleted_messages_count: messageIds.length,
-        conversation_id: conversationIds[0] || null,
-        cleared_notifications: true
-      }));
-    } catch (dbError) {
-      await connection.rollback();
-      connection.release();
-      logError('Database error, rolling back', dbError);
-      return res.status(500).json(createErrorResponse(500, 'Failed to delete conversation'));
+    // Validate conversation ID parameter
+    if (!id) {
+      logError('Conversation ID parameter is required');
+      // TODO: Convert createErrorResponse(400, 'Conversation ID parameter is required') to res.status(400).json({ error: 'Conversation ID parameter is required' })
+      return res.status(400).json({ error: 'Conversation ID parameter is required' });
     }
+
+    // Validate conversation ID is a valid number
+    const conversationId = parseInt(id);
+    if (isNaN(conversationId) || conversationId <= 0) {
+      logError('Invalid conversation ID format', { conversationId: id });
+      // TODO: Convert createErrorResponse(400, 'Invalid conversation ID format') to res.status(400).json({ error: 'Invalid conversation ID format' })
+      return res.status(400).json({ error: 'Invalid conversation ID format' });
+    }
+
+    // Get authenticated user ID using common utility function
+    // This ensures consistent authentication handling across the application
+    // TODO: Convert getAuthenticatedUserId(event, { allowAnonymous: false, action: 'conversation delete deleteConversationHandler' }) to getAuthenticatedUserId(req, { allowAnonymous: false, action: 'conversation delete deleteConversationHandler' })
+    const { userId: authenticatedUserId, errorResponse } = getAuthenticatedUserId(req, { 
+      allowAnonymous: false, 
+      action: 'conversation delete deleteConversationHandler' 
+    });
+    if (errorResponse) {
+      // TODO: Convert return errorResponse to return res.status(errorResponse.statusCode).json(errorResponse.body)
+      return res.status(errorResponse.statusCode).json(errorResponse.body);
+    }
+
+    logInfo('Processing conversation deletion request', { 
+      authenticatedUserId, 
+      conversationId 
+    });
+
+    try {
+      // Check if conversation exists and user has access
+      const conversation = await getConversationById(conversationId);
+      
+      if (!conversation) {
+        logError('Conversation not found', { 
+          conversationId, 
+          authenticatedUserId 
+        });
+        // TODO: Convert createErrorResponse(404, 'Conversation not found') to res.status(404).json({ error: 'Conversation not found' })
+        return res.status(404).json({ error: 'Conversation not found' });
+      }
+
+      // Security check: Ensure the authenticated user is part of this conversation
+      // This prevents users from deleting conversations they're not part of
+      if (conversation.from_user_id !== authenticatedUserId && conversation.to_user_id !== authenticatedUserId) {
+        logError('User not authorized to delete this conversation', { 
+          conversationId, 
+          authenticatedUserId,
+          conversationFromUserId: conversation.from_user_id,
+          conversationToUserId: conversation.to_user_id
+        });
+        // TODO: Convert createErrorResponse(403, 'You are not authorized to delete this conversation') to res.status(403).json({ error: 'You are not authorized to delete this conversation' })
+        return res.status(403).json({ error: 'You are not authorized to delete this conversation' });
+      }
+
+      // Delete the conversation (soft delete by updating status)
+      const deleteResult = await deleteConversationById(conversationId, authenticatedUserId);
+      
+      if (!deleteResult.success) {
+        logError('Failed to delete conversation', { 
+          conversationId, 
+          authenticatedUserId,
+          error: deleteResult.error 
+        });
+        // TODO: Convert createErrorResponse(500, 'Failed to delete conversation') to res.status(500).json({ error: 'Failed to delete conversation' })
+        return res.status(500).json({ error: 'Failed to delete conversation' });
+      }
+
+      logInfo('Conversation deleted successfully', { 
+        conversationId,
+        authenticatedUserId,
+        deletedMessagesCount: deleteResult.deletedMessagesCount
+      });
+
+      // TODO: Convert createSuccessResponse('Conversation deleted successfully', { conversationId, deletedMessagesCount: deleteResult.deletedMessagesCount }) to res.status(200).json(createSuccessResponse('Conversation deleted successfully', { conversationId, deletedMessagesCount: deleteResult.deletedMessagesCount }))
+      return res.status(200).json(createSuccessResponse('Conversation deleted successfully', {
+        conversationId,
+        deletedMessagesCount: deleteResult.deletedMessagesCount
+      }));
+
+    } catch (error) {
+      logError('Error deleting conversation', { 
+        error: error.message, 
+        conversationId,
+        authenticatedUserId 
+      });
+      // TODO: Convert createErrorResponse(500, 'Failed to delete conversation') to res.status(500).json({ error: 'Failed to delete conversation' })
+      return res.status(500).json({ error: 'Failed to delete conversation' });
+    }
+
   } catch (error) {
-    logError('deleteConversation error:', error);
-    return res.status(500).json(createErrorResponse(500, 'Internal server error'));
+    // Catch any unexpected errors and log them for debugging
+    logError('deleteConversationHandler error:', error);
+    // TODO: Convert createErrorResponse(500, 'Internal server error') to res.status(500).json({ error: 'Internal server error' })
+    return res.status(500).json({ error: 'Internal server error' });
   }
 };
 
 /**
- * Handler to get message upload URL (GET /messages/upload-url)
+ * GET /messages/upload-url - Get pre-signed upload URLs for message media
+ * Exact implementation matching Lambda getMessageUploadUrlHandler
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ * @returns {Promise<Object>} Express response with upload URLs or error details
  */
 export const getMessageUploadUrl = async (req, res) => {
   try {
-    // Configuration options for messages upload processing
-    const uploadOptions = {
-      action: 'getMessageUploadUrl',
-      basePath: 'uploads/messages',
-      useFolderOrganization: false, // Messages use flat structure without folder organization
-      successMessage: 'Pre-signed message upload URLs generated',
-      getAuthenticatedUserId
-    };
-    
-    // Use shared upload processing utility and return result directly
-    const result = await processUploadRequest(req, uploadOptions);
-    
-    if (result.statusCode === 200) {
-      return res.status(200).json(JSON.parse(result.body));
-    } else {
-      return res.status(result.statusCode).json(JSON.parse(result.body));
+    // Log incoming request details for monitoring and debugging
+    logInfo('Message upload URL request received', { 
+      // TODO: Convert event.path to req.path
+      path: req.path, 
+      // TODO: Convert event.httpMethod to req.method
+      method: req.method,
+      // TODO: Convert event.queryStringParameters to req.query
+      queryParams: req.query
+    });
+
+    // Get authenticated user ID using common utility function
+    // This ensures consistent authentication handling across the application
+    // TODO: Convert getAuthenticatedUserId(event, { allowAnonymous: false, action: 'message upload URL getMessageUploadUrlHandler' }) to getAuthenticatedUserId(req, { allowAnonymous: false, action: 'message upload URL getMessageUploadUrlHandler' })
+    const { userId: authenticatedUserId, errorResponse } = getAuthenticatedUserId(req, { 
+      allowAnonymous: false, 
+      action: 'message upload URL getMessageUploadUrlHandler' 
+    });
+    if (errorResponse) {
+      // TODO: Convert return errorResponse to return res.status(errorResponse.statusCode).json(errorResponse.body)
+      return res.status(errorResponse.statusCode).json(errorResponse.body);
     }
+
+    logInfo('Processing message upload URL request', { 
+      authenticatedUserId
+    });
+
+    try {
+      // Generate pre-signed upload URLs for message media
+      const uploadUrls = await generateMessageUploadUrls(authenticatedUserId);
+      
+      if (!uploadUrls || !uploadUrls.length) {
+        logError('Failed to generate upload URLs', { 
+          authenticatedUserId 
+        });
+        // TODO: Convert createErrorResponse(500, 'Failed to generate upload URLs') to res.status(500).json({ error: 'Failed to generate upload URLs' })
+        return res.status(500).json({ error: 'Failed to generate upload URLs' });
+      }
+
+      logInfo('Upload URLs generated successfully', { 
+        authenticatedUserId,
+        urlCount: uploadUrls.length
+      });
+
+      // TODO: Convert createSuccessResponse('Upload URLs generated successfully', { uploadUrls }) to res.status(200).json(createSuccessResponse('Upload URLs generated successfully', { uploadUrls }))
+      return res.status(200).json(createSuccessResponse('Upload URLs generated successfully', {
+        uploadUrls
+      }));
+
+    } catch (error) {
+      logError('Error generating upload URLs', { 
+        error: error.message, 
+        authenticatedUserId 
+      });
+      // TODO: Convert createErrorResponse(500, 'Failed to generate upload URLs') to res.status(500).json({ error: 'Failed to generate upload URLs' })
+      return res.status(500).json({ error: 'Failed to generate upload URLs' });
+    }
+
   } catch (error) {
-    logError('getMessageUploadUrl error:', error);
-    return res.status(500).json(createErrorResponse(500, 'Internal server error'));
+    // Catch any unexpected errors and log them for debugging
+    logError('getMessageUploadUrlHandler error:', error);
+    // TODO: Convert createErrorResponse(500, 'Internal server error') to res.status(500).json({ error: 'Internal server error' })
+    return res.status(500).json({ error: 'Internal server error' });
   }
 };
 
 /**
- * Handler to send a message (POST /messages/send)
+ * POST /messages/send - Send a message to another user
+ * Exact implementation matching Lambda sendMessageHandler
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ * @returns {Promise<Object>} Express response with message result or error details
  */
 export const sendMessage = async (req, res) => {
   try {
-    logInfo('Message media upload request initiated');
-    
-    const userId = req.userId;
-    const { user_id, message, price, media, expires_at, expired_at } = req.body;
+    // Log incoming request details for monitoring and debugging
+    logInfo('Send message request received', { 
+      // TODO: Convert event.path to req.path
+      path: req.path, 
+      // TODO: Convert event.httpMethod to req.method
+      method: req.method,
+      // TODO: Convert event.body to req.body
+      body: req.body ? Object.keys(req.body) : 'no body'
+    });
 
-    // Validate required fields and data types
-    const validation = validateMessageMediaInput(req.body);
-    if (!validation.success) {
-      logError('Message media validation failed:', { errors: validation.errors });
-      return res.status(422).json(createErrorResponse(422, 'Validation failed', validation.errors));
+    // Parse request body to extract message data
+    // TODO: Convert JSON.parse(event.body || '{}') to req.body
+    const { user_id, message, price, media, expires_at, expired_at } = req.body || {};
+
+    // Get authenticated user ID using common utility function
+    // This ensures consistent authentication handling across the application
+    // TODO: Convert getAuthenticatedUserId(event, { allowAnonymous: false, action: 'message send sendMessageHandler' }) to getAuthenticatedUserId(req, { allowAnonymous: false, action: 'message send sendMessageHandler' })
+    const { userId: authenticatedUserId, errorResponse } = getAuthenticatedUserId(req, { 
+      allowAnonymous: false, 
+      action: 'message send sendMessageHandler' 
+    });
+    if (errorResponse) {
+      // TODO: Convert return errorResponse to return res.status(errorResponse.statusCode).json(errorResponse.body)
+      return res.status(errorResponse.statusCode).json(errorResponse.body);
     }
-    logInfo('Validation passed successfully');
+
+    logInfo('Processing send message request', { 
+      authenticatedUserId,
+      targetUserId: user_id,
+      hasMessage: !!message,
+      hasPrice: !!price,
+      mediaCount: media ? media.length : 0
+    });
+
+    // Validate required fields
+    if (!user_id) {
+      logError('User ID is required');
+      // TODO: Convert createErrorResponse(400, 'User ID is required') to res.status(400).json({ error: 'User ID is required' })
+      return res.status(400).json({ error: 'User ID is required' });
+    }
+
+    if (!message) {
+      logError('Message content is required');
+      // TODO: Convert createErrorResponse(400, 'Message content is required') to res.status(400).json({ error: 'Message content is required' })
+      return res.status(400).json({ error: 'Message content is required' });
+    }
+
+    // Validate user ID is a valid number
+    const targetUserId = parseInt(user_id);
+    if (isNaN(targetUserId) || targetUserId <= 0) {
+      logError('Invalid user ID format', { user_id });
+      // TODO: Convert createErrorResponse(400, 'Invalid user ID format') to res.status(400).json({ error: 'Invalid user ID format' })
+      return res.status(400).json({ error: 'Invalid user ID format' });
+    }
 
     // Prevent self-sending: authenticated user cannot send message to themselves
-    if (parseInt(user_id) === parseInt(userId)) {
-      logError('Self-sending attempt blocked:', { authenticatedUserId: userId, targetUserId: user_id });
-      return res.status(400).json(createErrorResponse(400, 'Cannot send message to yourself'));
+    if (targetUserId === authenticatedUserId) {
+      logError('User attempting to send message to themselves', { 
+        authenticatedUserId, 
+        targetUserId 
+      });
+      // TODO: Convert createErrorResponse(400, 'Cannot send message to yourself') to res.status(400).json({ error: 'Cannot send message to yourself' })
+      return res.status(400).json({ error: 'Cannot send message to yourself' });
     }
-    
+
     // Clean up the data: convert empty price to null and filter out empty media
     const cleanPrice = (price === '' || price === null || price === undefined) ? null : price;
     const cleanMedia = media ? media.filter(item => typeof item === 'string' && item.trim() !== '') : [];
@@ -678,12 +1024,16 @@ export const sendMessage = async (req, res) => {
     // Find or create conversation between sender and receiver
     let conversationId;
     try {
-      logInfo('Finding or creating conversation between users:', { senderId: userId, receiverId: user_id });
-      conversationId = await findOrCreateConversation(userId, user_id);
+      logInfo('Finding or creating conversation between users:', { 
+        senderId: authenticatedUserId, 
+        receiverId: targetUserId 
+      });
+      conversationId = await findOrCreateConversation(authenticatedUserId, targetUserId);
       logInfo('Conversation management completed:', { conversationId });
     } catch (error) {
       logError('Conversation management failed:', { error: error.message });
-      return res.status(500).json(createErrorResponse(500, 'Failed to manage conversation', error.message));
+      // TODO: Convert createErrorResponse(500, 'Failed to manage conversation') to res.status(500).json({ error: 'Failed to manage conversation' })
+      return res.status(500).json({ error: 'Failed to manage conversation' });
     }
 
     // Create new message in database FIRST (before S3 processing)
@@ -692,8 +1042,8 @@ export const sendMessage = async (req, res) => {
       logInfo('Creating new message in database');
       const messageResult = await saveMessage({
         conversation_id: conversationId,
-        from_user_id: userId,
-        to_user_id: user_id,
+        from_user_id: authenticatedUserId,
+        to_user_id: targetUserId,
         message,
         price: cleanPrice || 0,
         format: cleanMedia.length > 0 ? cleanMedia[0].split('.').pop() : '',
@@ -710,14 +1060,16 @@ export const sendMessage = async (req, res) => {
       logInfo('Message created in database successfully:', { messageId });
     } catch (error) {
       logError('Database message creation failed:', { error: error.message });
-      return res.status(500).json(createErrorResponse(500, 'Failed to create message in database', error.message));
+      // TODO: Convert createErrorResponse(500, 'Failed to create message in database') to res.status(500).json({ error: 'Failed to create message in database' })
+      return res.status(500).json({ error: 'Failed to create message in database' });
     }
 
     // Get S3 bucket configuration from environment
     const { AWS_BUCKET_NAME: bucketName } = process.env;
     if (!bucketName) {
       logError('S3 bucket configuration missing from environment');
-      return res.status(500).json(createErrorResponse(500, 'Media storage not configured'));
+      // TODO: Convert createErrorResponse(500, 'Media storage not configured') to res.status(500).json({ error: 'Media storage not configured' })
+      return res.status(500).json({ error: 'Media storage not configured' });
     }
 
     // Process media files (validate, convert images to WebP) only if message creation succeeded
@@ -757,7 +1109,8 @@ export const sendMessage = async (req, res) => {
           });
         }
         
-        return res.status(500).json(createErrorResponse(500, 'Media processing failed', error.message));
+        // TODO: Convert createErrorResponse(500, 'Media processing failed') to res.status(500).json({ error: 'Media processing failed' })
+        return res.status(500).json({ error: 'Media processing failed' });
       }
     }
 
@@ -770,7 +1123,7 @@ export const sendMessage = async (req, res) => {
           convertedMedia: processedMedia.converted,
           message_id: messageId,
           conversation_id: conversationId,
-          userId
+          userId: authenticatedUserId
         });
         logInfo('Message media saved to database successfully');
       } catch (error) {
@@ -798,7 +1151,8 @@ export const sendMessage = async (req, res) => {
           });
         }
         
-        return res.status(500).json(createErrorResponse(500, 'Failed to save media to database', error.message));
+        // TODO: Convert createErrorResponse(500, 'Failed to save media to database') to res.status(500).json({ error: 'Failed to save media to database' })
+        return res.status(500).json({ error: 'Failed to save media to database' });
       }
     } else if (!mediaProcessingFailed) {
       logInfo('No media to save to database');
@@ -807,28 +1161,27 @@ export const sendMessage = async (req, res) => {
     // Log successful message creation with detailed metrics
     logInfo('Message sent successfully:', { 
       messageId,
-      userId, 
-      user_id,
+      authenticatedUserId, 
+      targetUserId,
       message,
       mediaCount: processedMedia.original.length,
       convertedCount: processedMedia.converted.length,
       conversation_id: conversationId
     });
 
-    // Return success response with additional details
+    // TODO: Convert createSuccessResponse('Message sent successfully', { user_id: parseInt(user_id), message_id: messageId, auth_id: parseInt(authenticatedUserId), message: message }) to res.status(200).json(createSuccessResponse('Message sent successfully', { user_id: parseInt(user_id), message_id: messageId, auth_id: parseInt(authenticatedUserId), message: message }))
     return res.status(200).json(createSuccessResponse('Message sent successfully', {
       user_id: parseInt(user_id),
       message_id: messageId,
-      auth_id: parseInt(userId),
+      auth_id: parseInt(authenticatedUserId),
       message: message
     }));
 
   } catch (error) {
-    logError('Unexpected error in message media upload:', { 
-      error: error.message,
-      stack: error.stack 
-    });
-    return res.status(500).json(createErrorResponse(500, 'Internal server error', error.message));
+    // Catch any unexpected errors and log them for debugging
+    logError('sendMessageHandler error:', error);
+    // TODO: Convert createErrorResponse(500, 'Internal server error') to res.status(500).json({ error: 'Internal server error' })
+    return res.status(500).json({ error: 'Internal server error' });
   }
 };
 
@@ -959,22 +1312,53 @@ const buildResponseData = (results, message, price, processedMedia, expiresAtTim
 };
 
 /**
- * Handler to send massive message (POST /messages/send-massive)
+ * POST /messages/send-massive - Send a message to all active subscribers
+ * Exact implementation matching Lambda sendMassiveMessageHandler
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ * @returns {Promise<Object>} Express response with massive message result or error details
  */
 export const sendMassiveMessage = async (req, res) => {
   try {
-    logInfo('Massive message request initiated');
-    
-    const userId = req.userId;
-    const { message, price, media, expires_at, expired_at } = req.body;
+    // Log incoming request details for monitoring and debugging
+    logInfo('Massive message request received', { 
+      // TODO: Convert event.path to req.path
+      path: req.path, 
+      // TODO: Convert event.httpMethod to req.method
+      method: req.method,
+      // TODO: Convert event.body to req.body
+      body: req.body ? Object.keys(req.body) : 'no body'
+    });
 
-    // Validate required fields and data types
-    const validation = validateMassiveMessageInput(req.body);
-    if (!validation.success) {
-      logError('Massive message validation failed:', { errors: validation.errors });
-      return res.status(422).json(createErrorResponse(422, 'Validation failed', validation.errors));
+    // Parse request body to extract message data
+    // TODO: Convert JSON.parse(event.body || '{}') to req.body
+    const { message, price, media, expires_at, expired_at } = req.body || {};
+
+    // Get authenticated user ID using common utility function
+    // This ensures consistent authentication handling across the application
+    // TODO: Convert getAuthenticatedUserId(event, { allowAnonymous: false, action: 'massive message send sendMassiveMessageHandler' }) to getAuthenticatedUserId(req, { allowAnonymous: false, action: 'massive message send sendMassiveMessageHandler' })
+    const { userId: authenticatedUserId, errorResponse } = getAuthenticatedUserId(req, { 
+      allowAnonymous: false, 
+      action: 'massive message send sendMassiveMessageHandler' 
+    });
+    if (errorResponse) {
+      // TODO: Convert return errorResponse to return res.status(errorResponse.statusCode).json(errorResponse.body)
+      return res.status(errorResponse.statusCode).json(errorResponse.body);
     }
-    logInfo('Validation passed successfully');
+
+    logInfo('Processing massive message request', { 
+      authenticatedUserId,
+      hasMessage: !!message,
+      hasPrice: !!price,
+      mediaCount: media ? media.length : 0
+    });
+
+    // Validate required fields
+    if (!message) {
+      logError('Message content is required');
+      // TODO: Convert createErrorResponse(400, 'Message content is required') to res.status(400).json({ error: 'Message content is required' })
+      return res.status(400).json({ error: 'Message content is required' });
+    }
 
     // Extract and clean request data (support both expired_at and expires_at for backward compatibility)
     const cleanPrice = (price === '' || price === null || price === undefined) ? 0 : price;
@@ -989,32 +1373,43 @@ export const sendMassiveMessage = async (req, res) => {
     // Get active subscribers for the creator
     let subscriberIds;
     try {
-      logInfo('Getting active subscribers for creator:', { creatorId: userId });
-      subscriberIds = await getActiveSubscribers(userId);
+      logInfo('Getting active subscribers for creator:', { creatorId: authenticatedUserId });
+      subscriberIds = await getActiveSubscribers(authenticatedUserId);
       logInfo('Active subscribers retrieved:', { count: subscriberIds.length });
       
       if (subscriberIds.length === 0) {
-        return res.status(400).json(createErrorResponse(400, 'No active subscribers found. Cannot send massive message.'));
+        logError('No active subscribers found', { creatorId: authenticatedUserId });
+        // TODO: Convert createErrorResponse(400, 'No active subscribers found. Cannot send massive message.') to res.status(400).json({ error: 'No active subscribers found. Cannot send massive message.' })
+        return res.status(400).json({ error: 'No active subscribers found. Cannot send massive message.' });
       }
     } catch (error) {
-      logError('Failed to get subscribers:', { error: error.message });
-      return res.status(500).json(createErrorResponse(500, 'Failed to retrieve subscribers', error.message));
+      logError('Failed to get subscribers:', { error: error.message, creatorId: authenticatedUserId });
+      // TODO: Convert createErrorResponse(500, 'Failed to retrieve subscribers') to res.status(500).json({ error: 'Failed to retrieve subscribers' })
+      return res.status(500).json({ error: 'Failed to retrieve subscribers' });
     }
 
     // Get S3 bucket configuration from environment
     const { AWS_BUCKET_NAME: bucketName } = process.env;
     if (!bucketName) {
       logError('S3 bucket configuration missing from environment');
-      return res.status(500).json(createErrorResponse(500, 'Media storage not configured'));
+      // TODO: Convert createErrorResponse(500, 'Media storage not configured') to res.status(500).json({ error: 'Media storage not configured' })
+      return res.status(500).json({ error: 'Media storage not configured' });
     }
 
     // Process media files if present
     let processedMedia = { original: [], converted: [] };
     if (cleanMedia.length > 0) {
       try {
+        logInfo('Processing media files for massive message', { mediaCount: cleanMedia.length });
         processedMedia = await processMassiveMessageMedia(cleanMedia, bucketName);
+        logInfo('Media processing completed successfully', { 
+          originalCount: processedMedia.original.length,
+          convertedCount: processedMedia.converted.length
+        });
       } catch (error) {
-        return res.status(500).json(createErrorResponse(500, 'Media processing failed', error.message));
+        logError('Media processing failed for massive message', { error: error.message });
+        // TODO: Convert createErrorResponse(500, 'Media processing failed') to res.status(500).json({ error: 'Media processing failed' })
+        return res.status(500).json({ error: 'Media processing failed' });
       }
     }
 
@@ -1028,24 +1423,44 @@ export const sendMassiveMessage = async (req, res) => {
       mediaIds: []
     };
 
+    logInfo('Starting massive message processing', { 
+      totalSubscribers: subscriberIds.length,
+      hasMedia: cleanMedia.length > 0
+    });
+
     // Process each subscriber
     for (const subscriberId of subscriberIds) {
-      const subscriberResult = await processSubscriber(subscriberId, {
-        creatorId: userId, message, price: cleanPrice, media: cleanMedia, processedMedia, expiresAtTimestamp
-      });
-      
-      if (subscriberResult.success) {
-        results.successfulSends++;
-        results.messageIds.push(subscriberResult.messageId);
-        if (subscriberResult.mediaIds.length > 0) {
-          results.mediaIds.push(...subscriberResult.mediaIds);
-        }
-        if (subscriberResult.error) {
+      try {
+        const subscriberResult = await processSubscriber(subscriberId, {
+          creatorId: authenticatedUserId, 
+          message, 
+          price: cleanPrice, 
+          media: cleanMedia, 
+          processedMedia, 
+          expiresAtTimestamp
+        });
+        
+        if (subscriberResult.success) {
+          results.successfulSends++;
+          results.messageIds.push(subscriberResult.messageId);
+          if (subscriberResult.mediaIds.length > 0) {
+            results.mediaIds.push(...subscriberResult.mediaIds);
+          }
+          if (subscriberResult.error) {
+            results.errors.push(`Subscriber ${subscriberId}: ${subscriberResult.error}`);
+          }
+        } else {
+          results.failedSends++;
           results.errors.push(`Subscriber ${subscriberId}: ${subscriberResult.error}`);
         }
-      } else {
+      } catch (error) {
+        logError('Error processing subscriber', { 
+          subscriberId, 
+          error: error.message,
+          creatorId: authenticatedUserId
+        });
         results.failedSends++;
-        results.errors.push(`Subscriber ${subscriberId}: ${subscriberResult.error}`);
+        results.errors.push(`Subscriber ${subscriberId}: ${error.message}`);
       }
     }
 
@@ -1053,42 +1468,81 @@ export const sendMassiveMessage = async (req, res) => {
     const responseData = buildResponseData(results, message, cleanPrice, processedMedia, expiresAtTimestamp);
 
     // Log successful massive message send with detailed metrics
-    logInfo('Massive message sent successfully:', { 
-      userId, totalSubscribers: results.totalSubscribers,
-      successfulSends: results.successfulSends, failedSends: results.failedSends,
-      messageIdsCount: results.messageIds.length, mediaIdsCount: results.mediaIds.length,
+    logInfo('Massive message sent successfully', { 
+      creatorId: authenticatedUserId, 
+      totalSubscribers: results.totalSubscribers,
+      successfulSends: results.successfulSends, 
+      failedSends: results.failedSends,
+      messageIdsCount: results.messageIds.length, 
+      mediaIdsCount: results.mediaIds.length,
       hasMedia: cleanMedia.length > 0
     });
 
+    // TODO: Convert createSuccessResponse('Massive message sent successfully', responseData) to res.status(200).json(createSuccessResponse('Massive message sent successfully', responseData))
     return res.status(200).json(createSuccessResponse('Massive message sent successfully', responseData));
 
   } catch (error) {
-    logError('Unexpected error in massive message send:', { error: error.message, stack: error.stack });
-    return res.status(500).json(createErrorResponse(500, 'Internal server error', error.message));
+    // Catch any unexpected errors and log them for debugging
+    logError('sendMassiveMessageHandler error:', error);
+    // TODO: Convert createErrorResponse(500, 'Internal server error') to res.status(500).json({ error: 'Internal server error' })
+    return res.status(500).json({ error: 'Internal server error' });
   }
 };
 
 /**
- * Handler to get message by ID (GET /messages/by-id/:messageId)
+ * GET /messages/by-id/{messageId} - Retrieve a specific message by its ID in conversations format
+ * Exact implementation matching Lambda messageByIdHandler
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ * @returns {Promise<Object>} Express response with message or error details
  */
 export const getMessageById = async (req, res) => {
   try {
-    const userId = req.userId;
-    const { messageId } = req.params;
+    // Log incoming request details for monitoring and debugging
+    logInfo('Message by ID request received', { 
+      // TODO: Convert event.path to req.path
+      path: req.path, 
+      // TODO: Convert event.httpMethod to req.method
+      method: req.method,
+      // TODO: Convert event.pathParameters to req.params
+      pathParameters: req.params,
+      // TODO: Convert event.headers to req.headers
+      headers: req.headers ? Object.keys(req.headers) : 'no headers'
+    });
 
+    // Extract message ID from path parameters
+    // TODO: Convert event.pathParameters?.messageId to req.params?.messageId
+    const { messageId } = req.params || {};
+    
+    // Validate message ID parameter
     if (!messageId) {
-      return res.status(400).json(createErrorResponse(400, 'Message ID parameter is required'));
+      logError('Message ID parameter is required');
+      // TODO: Convert createErrorResponse(400, 'Message ID parameter is required') to res.status(400).json({ error: 'Message ID parameter is required' })
+      return res.status(400).json({ error: 'Message ID parameter is required' });
     }
 
     // Validate message ID is a valid number
     const messageIdNum = parseInt(messageId);
     if (isNaN(messageIdNum) || messageIdNum <= 0) {
       logError('Invalid message ID format', { messageId });
-      return res.status(400).json(createErrorResponse(400, 'Invalid message ID format'));
+      // TODO: Convert createErrorResponse(400, 'Invalid message ID format') to res.status(400).json({ error: 'Invalid message ID format' })
+      return res.status(400).json({ error: 'Invalid message ID format' });
+    }
+
+    // Get authenticated user ID using common utility function
+    // This ensures consistent authentication handling across the application
+    // TODO: Convert getAuthenticatedUserId(event, { allowAnonymous: false, action: 'message by ID messageByIdHandler' }) to getAuthenticatedUserId(req, { allowAnonymous: false, action: 'message by ID messageByIdHandler' })
+    const { userId: authenticatedUserId, errorResponse } = getAuthenticatedUserId(req, { 
+      allowAnonymous: false, 
+      action: 'message by ID messageByIdHandler' 
+    });
+    if (errorResponse) {
+      // TODO: Convert return errorResponse to return res.status(errorResponse.statusCode).json(errorResponse.body)
+      return res.status(errorResponse.statusCode).json(errorResponse.body);
     }
 
     logInfo('Processing message by ID request', { 
-      userId, 
+      authenticatedUserId, 
       messageId: messageIdNum 
     });
 
@@ -1099,21 +1553,24 @@ export const getMessageById = async (req, res) => {
       if (!message) {
         logError('Message not found in database', { 
           messageId: messageIdNum, 
-          userId,
+          authenticatedUserId,
           searchCriteria: 'messageId=' + messageIdNum
         });
-        return res.status(404).json(createErrorResponse(404, 'Message not found'));
+        // TODO: Convert createErrorResponse(404, 'Message not found') to res.status(404).json({ error: 'Message not found' })
+        return res.status(404).json({ error: 'Message not found' });
       }
 
       // Security check: Ensure the authenticated user is either the sender or recipient
-      if (message.from_user_id !== userId && message.to_user_id !== userId) {
+      // This prevents users from accessing messages they're not part of
+      if (message.from_user_id !== authenticatedUserId && message.to_user_id !== authenticatedUserId) {
         logError('User not authorized to access this message', { 
           messageId: messageIdNum, 
-          userId,
+          authenticatedUserId,
           messageFromUserId: message.from_user_id,
           messageToUserId: message.to_user_id
         });
-        return res.status(403).json(createErrorResponse(403, 'You are not authorized to access this message'));
+        // TODO: Convert createErrorResponse(403, 'You are not authorized to access this message') to res.status(403).json({ error: 'You are not authorized to access this message' })
+        return res.status(403).json({ error: 'You are not authorized to access this message' });
       }
 
       // Check if message is deleted or inactive
@@ -1123,18 +1580,20 @@ export const getMessageById = async (req, res) => {
           status: message.status,
           mode: message.mode 
         });
-        return res.status(404).json(createErrorResponse(404, 'Message not found'));
+        // TODO: Convert createErrorResponse(404, 'Message not found') to res.status(404).json({ error: 'Message not found' })
+        return res.status(404).json({ error: 'Message not found' });
       }
 
       logInfo('Message retrieved successfully', { 
         messageId: messageIdNum,
-        userId,
+        authenticatedUserId,
         messageFromUserId: message.from_user_id,
         messageToUserId: message.to_user_id
       });
 
       // Format the single message in conversations format for consistency
-      const formattedMessages = formatMessagesByDate([message], userId);
+      // This ensures the response format matches other message endpoints
+      const formattedMessages = formatMessagesByDate([message], authenticatedUserId);
 
       // Prepare response data in the same format as conversation endpoints
       const responseData = {
@@ -1144,23 +1603,27 @@ export const getMessageById = async (req, res) => {
       // Log successful response for monitoring and analytics
       logInfo('Message by ID retrieved successfully', { 
         messageId: messageIdNum,
-        userId,
+        authenticatedUserId,
         conversationGroups: formattedMessages.length
       });
 
+      // TODO: Convert createSuccessResponse('Message retrieved successfully', responseData) to res.status(200).json(createSuccessResponse('Message retrieved successfully', responseData))
       return res.status(200).json(createSuccessResponse('Message retrieved successfully', responseData));
 
     } catch (error) {
       logError('Error fetching message by ID', { 
         error: error.message, 
         messageId: messageIdNum,
-        userId 
+        authenticatedUserId 
       });
-      return res.status(500).json(createErrorResponse(500, 'Failed to retrieve message'));
+      // TODO: Convert createErrorResponse(500, 'Failed to retrieve message') to res.status(500).json({ error: 'Failed to retrieve message' })
+      return res.status(500).json({ error: 'Failed to retrieve message' });
     }
 
   } catch (error) {
-    logError('getMessageById error:', error);
-    return res.status(500).json(createErrorResponse(500, 'Internal server error'));
+    // Catch any unexpected errors and log them for debugging
+    logError('messageByIdHandler error:', error);
+    // TODO: Convert createErrorResponse(500, 'Internal server error') to res.status(500).json({ error: 'Internal server error' })
+    return res.status(500).json({ error: 'Internal server error' });
   }
 };

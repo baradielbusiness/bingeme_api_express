@@ -4,25 +4,26 @@
  * Handles contact form functionality including user info retrieval and form submission
  */
 
-import { 
-  logInfo, 
-  logError, 
-  createErrorResponse, 
-  createSuccessResponse, 
-  getUserById, 
-  getAdminSettings 
-} from '../utils/common.js';
+import { getAuthenticatedUserId, logInfo, logError, createSuccessResponse, createErrorResponse, getUserById, getAdminSettings } from '../utils/common.js';
 import { sendContactMessageEmail } from '../utils/mail.js';
 
 /**
  * GET method - Retrieve authenticated user's name and email for contact form
+ * Exact implementation matching Lambda getContactUserInfoHandler
  * @param {Object} req - Express request object
  * @param {Object} res - Express response object
+ * @returns {Promise<Object>} Response with user info and form settings
  */
 export const getContactUserInfo = async (req, res) => {
   try {
     // Get user ID if authenticated (allow anonymous for contact form)
-    const userId = req.userId; // This will be null if not authenticated
+    // TODO: Convert getAuthenticatedUserId(event, { allowAnonymous: true, action: 'contact form access' }) to getAuthenticatedUserId(req, { allowAnonymous: true, action: 'contact form access' })
+    const authResult = getAuthenticatedUserId(req, { allowAnonymous: true, action: 'contact form access' });
+    if (authResult.errorResponse) {
+      // TODO: Convert return authResult.errorResponse to return res.status(authResult.errorResponse.statusCode).json(authResult.errorResponse.body)
+      return res.status(authResult.errorResponse.statusCode).json(authResult.errorResponse.body);
+    }
+    const userId = authResult.userId;
     
     let userInfo = null;
     
@@ -51,21 +52,35 @@ export const getContactUserInfo = async (req, res) => {
     
     logInfo('Contact form info retrieved successfully:', { userId: userId || 'anonymous' });
     
-    return res.json(createSuccessResponse('Contact form info retrieved successfully', contactFormConfig));
+    // TODO: Convert createSuccessResponse(contactFormConfig) to res.status(200).json(createSuccessResponse('Contact form info retrieved successfully', contactFormConfig))
+    return res.status(200).json(createSuccessResponse('Contact form info retrieved successfully', contactFormConfig));
     
   } catch (error) {
     logError('Error getting contact form info:', error);
-    return res.status(500).json(createErrorResponse(500, 'Failed to retrieve contact form information'));
+    // TODO: Convert createErrorResponse(500, 'Internal server error', 'Failed to retrieve contact form information') to res.status(500).json({ error: 'Internal server error', message: 'Failed to retrieve contact form information' })
+    return res.status(500).json({ error: 'Internal server error', message: 'Failed to retrieve contact form information' });
   }
 };
 
 /**
  * POST method - Handle contact form submission
+ * Exact implementation matching Lambda submitContactFormHandler
  * @param {Object} req - Express request object
  * @param {Object} res - Express response object
+ * @returns {Promise<Object>} Response indicating success or failure
  */
 export const submitContactForm = async (req, res) => {
   try {
+    // Parse request body
+    // TODO: Convert JSON.parse(event.body || '{}') to req.body (already parsed by Express middleware)
+    let requestBody;
+    try {
+      requestBody = req.body || {};
+    } catch (error) {
+      // TODO: Convert createErrorResponse(400, 'Invalid JSON in request body') to res.status(400).json({ error: 'Invalid JSON in request body' })
+      return res.status(400).json({ error: 'Invalid JSON in request body' });
+    }
+    
     const { 
       full_name, 
       email, 
@@ -73,18 +88,19 @@ export const submitContactForm = async (req, res) => {
       message, 
       agree_terms_privacy,
       'g-recaptcha-response': captcha_response 
-    } = req.body;
+    } = requestBody;
     
     // Validate required fields
     if (!full_name || !email || !subject || !message) {
-      return res.status(400).json(createErrorResponse(400, 'Missing required fields', 
-        'Full name, email, subject, and message are required'));
+      // TODO: Convert createErrorResponse(400, 'Missing required fields', 'Full name, email, subject, and message are required') to res.status(400).json({ error: 'Missing required fields', message: 'Full name, email, subject, and message are required' })
+      return res.status(400).json({ error: 'Missing required fields', message: 'Full name, email, subject, and message are required' });
     }
     
     // Validate email format
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
-      return res.status(400).json(createErrorResponse(400, 'Invalid email format'));
+      // TODO: Convert createErrorResponse(400, 'Invalid email format') to res.status(400).json({ error: 'Invalid email format' })
+      return res.status(400).json({ error: 'Invalid email format' });
     }
     
     // Get admin settings for validation
@@ -93,31 +109,34 @@ export const submitContactForm = async (req, res) => {
     // Check terms and privacy agreement if required
     if (adminSettings.link_terms && adminSettings.link_privacy) {
       if (agree_terms_privacy !== 'on') {
-        return res.status(400).json(createErrorResponse(400, 'Terms and privacy agreement required', 
-          'You must agree to the terms and conditions and privacy policy'));
+        // TODO: Convert createErrorResponse(400, 'Terms and privacy agreement required', 'You must agree to the terms and conditions and privacy policy') to res.status(400).json({ error: 'Terms and privacy agreement required', message: 'You must agree to the terms and conditions and privacy policy' })
+        return res.status(400).json({ error: 'Terms and privacy agreement required', message: 'You must agree to the terms and conditions and privacy policy' });
       }
     }
     
     // Validate captcha if enabled
     if (adminSettings.captcha_contact === 'on') {
       if (!captcha_response) {
-        return res.status(400).json(createErrorResponse(400, 'Captcha verification required'));
+        // TODO: Convert createErrorResponse(400, 'Captcha verification required') to res.status(400).json({ error: 'Captcha verification required' })
+        return res.status(400).json({ error: 'Captcha verification required' });
       }
       
       const captchaValid = await validateCaptcha(captcha_response);
       if (!captchaValid) {
-        return res.status(400).json(createErrorResponse(400, 'Invalid captcha response'));
+        // TODO: Convert createErrorResponse(400, 'Invalid captcha response') to res.status(400).json({ error: 'Invalid captcha response' })
+        return res.status(400).json({ error: 'Invalid captcha response' });
       }
     }
     
     // Get user info if authenticated
-    const userId = req.userId;
+    // TODO: Convert getAuthenticatedUserId(event, { allowAnonymous: true, action: 'contact form submission' }) to getAuthenticatedUserId(req, { allowAnonymous: true, action: 'contact form submission' })
+    const authResult = getAuthenticatedUserId(req, { allowAnonymous: true, action: 'contact form submission' });
     let userInfo = null;
     
-    if (userId) {
-      const user = await getUserById(userId);
+    if (authResult.userId) {
+      const user = await getUserById(authResult.userId);
       if (user) {
-        userInfo = `User ID: ${userId}, Username: ${user.username || 'N/A'}`;
+        userInfo = `User ID: ${authResult.userId}, Username: ${user.username || 'N/A'}`;
       }
     }
     
@@ -133,30 +152,32 @@ export const submitContactForm = async (req, res) => {
       
       if (!emailSent) {
         logError('Failed to send contact message email');
-        return res.status(500).json(createErrorResponse(500, 'Failed to send message', 
-          'Your message could not be sent. Please try again later.'));
+        // TODO: Convert createErrorResponse(500, 'Failed to send message', 'Your message could not be sent. Please try again later.') to res.status(500).json({ error: 'Failed to send message', message: 'Your message could not be sent. Please try again later.' })
+        return res.status(500).json({ error: 'Failed to send message', message: 'Your message could not be sent. Please try again later.' });
       }
     } catch (emailError) {
       logError('Failed to send contact message email:', emailError);
-      return res.status(500).json(createErrorResponse(500, 'Failed to send message', 
-        'Your message could not be sent. Please try again later.'));
+      // TODO: Convert createErrorResponse(500, 'Failed to send message', 'Your message could not be sent. Please try again later.') to res.status(500).json({ error: 'Failed to send message', message: 'Your message could not be sent. Please try again later.' })
+      return res.status(500).json({ error: 'Failed to send message', message: 'Your message could not be sent. Please try again later.' });
     }
     
     logInfo('Contact form submitted successfully:', { 
       email, 
       subject,
-      userId: userId || 'anonymous',
+      userId: authResult.userId || 'anonymous',
       emailSent: true
     });
     
-    return res.json(createSuccessResponse('Contact message sent successfully', {
+    // TODO: Convert createSuccessResponse('Contact message sent successfully', {...}) to res.status(200).json(createSuccessResponse('Contact message sent successfully', {...}))
+    return res.status(200).json(createSuccessResponse('Contact message sent successfully', {
       success: true,
       message: 'Your message has been sent successfully. We will get back to you soon.'
     }));
     
   } catch (error) {
     logError('Error submitting contact form:', error);
-    return res.status(500).json(createErrorResponse(500, 'Failed to submit contact form'));
+    // TODO: Convert createErrorResponse(500, 'Internal server error', 'Failed to submit contact form') to res.status(500).json({ error: 'Internal server error', message: 'Failed to submit contact form' })
+    return res.status(500).json({ error: 'Internal server error', message: 'Failed to submit contact form' });
   }
 };
 

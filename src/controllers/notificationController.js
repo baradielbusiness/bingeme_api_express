@@ -366,23 +366,39 @@ const markNotificationsAsSeen = async (userId) => {
 // ============================================================================
 
 /**
- * Handler to get notifications (GET /notifications)
+ * GET /notifications - Main handler function for notifications API
+ * Exact implementation matching Lambda notifications handler
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ * @returns {Object} API response with notifications data or error response
  */
 export const getNotifications = async (req, res) => {
   try {
-    const userId = req.userId;
+    // Step 1: Extract and validate user authentication
+    // TODO: Convert getAuthenticatedUserId(event, { action: 'notifications' }) to getAuthenticatedUserId(req, { action: 'notifications' })
+    const { userId, errorResponse } = getAuthenticatedUserId(req, { action: 'notifications' });
+    if (errorResponse) {
+      // TODO: Convert return errorResponse to return res.status(errorResponse.statusCode).json(errorResponse.body)
+      return res.status(errorResponse.statusCode).json(errorResponse.body);
+    }
+
+    // Step 2: Parse and validate pagination parameters
+    // TODO: Convert event.queryStringParameters to req.query
     const { skip, limit, sort } = parsePaginationParams(req.query);
     
     const validationError = validatePaginationParams(limit);
     if (validationError) {
-      return res.status(400).json(createErrorResponse(400, validationError));
+      // TODO: Convert createErrorResponse(400, validationError) to res.status(400).json({ error: validationError })
+      return res.status(400).json({ error: validationError });
     }
 
+    // Step 3: Determine active filters based on sort preference
     const filterTypes = getFilterTypes();
     const activeFilterTypes = (sort && sort !== 'all' && filterTypes[sort]) 
       ? filterTypes[sort] 
       : [];
 
+    // Log query execution details
     logInfo('Executing notifications query:', { 
       userId, 
       skip, 
@@ -392,17 +408,20 @@ export const getNotifications = async (req, res) => {
     });
 
     try {
+      // Step 4: Execute database queries in parallel for performance
       const [totalNotifications, rows] = await Promise.all([
         countNotifications(userId, activeFilterTypes),
         fetchNotifications(userId, limit, skip, activeFilterTypes)
       ]);
 
+      // Step 5: Format notifications and mark as seen if any exist
       const notifications = formatNotifications(rows);
       
       if (notifications.length > 0) {
         await markNotificationsAsSeen(userId);
       }
 
+      // Step 6: Build pagination URL and final response
       const nextUrl = buildNextUrl(skip, limit, totalNotifications, sort);
       
       logInfo('Notifications retrieved successfully:', { 
@@ -411,6 +430,7 @@ export const getNotifications = async (req, res) => {
         returnedCount: notifications.length
       });
 
+      // TODO: Convert buildResponse(notifications, totalNotifications, nextUrl, createSuccessResponse) to res.status(200).json(createSuccessResponse('Notifications retrieved successfully', { notifications, pagination: { total: totalNotifications, next: nextUrl } }))
       return res.status(200).json(createSuccessResponse('Notifications retrieved successfully', {
         notifications,
         pagination: {
@@ -421,39 +441,72 @@ export const getNotifications = async (req, res) => {
 
     } catch (dbError) {
       logError('Database error while fetching notifications:', dbError);
-      return res.status(500).json(createErrorResponse(500, 'Failed to fetch notifications'));
+      // TODO: Convert createErrorResponse(500, 'Failed to fetch notifications') to res.status(500).json({ error: 'Failed to fetch notifications' })
+      return res.status(500).json({ error: 'Failed to fetch notifications' });
     }
 
   } catch (error) {
-    logError('getNotifications error:', error);
-    return res.status(500).json(createErrorResponse(500, 'Internal server error'));
+    logError('Notifications handler error:', error);
+    // TODO: Convert createErrorResponse(500, 'Internal server error') to res.status(500).json({ error: 'Internal server error' })
+    return res.status(500).json({ error: 'Internal server error' });
   }
 };
 
 /**
- * Handler to get notification settings (GET /notifications/settings)
+ * GET /notification/settings - Handler for GET /notification/settings
+ * Exact implementation matching Lambda getNotificationSettingsHandler
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ * @returns {Object} API response with notification settings
  */
 export const getNotificationSettings = async (req, res) => {
   try {
-    const userId = req.userId;
-    
-    logInfo('Fetching notification settings for user:', { userId });
-    
-    const query = `SELECT ${allowedFields.join(', ')} FROM users WHERE id = ?`;
-    const [rows] = await pool.query(query, [userId]);
-    
-    if (rows.length === 0) {
-      logError('User not found:', { userId });
-      return res.status(404).json(createErrorResponse(404, 'User not found'));
+    // Extract and validate user authentication
+    // TODO: Convert getAuthenticatedUserId(event, { action: 'notification settings' }) to getAuthenticatedUserId(req, { action: 'notification settings' })
+    const { userId, errorResponse } = getAuthenticatedUserId(req, { action: 'notification settings' });
+    if (errorResponse) {
+      // TODO: Convert return errorResponse to return res.status(errorResponse.statusCode).json(errorResponse.body)
+      return res.status(errorResponse.statusCode).json(errorResponse.body);
     }
     
+    // Fetch settings from the database for the authenticated user
+    // TODO: Convert getNotificationSettings(userId) to getNotificationSettingsHelper(userId)
+    return await getNotificationSettingsHelper(userId);
+  } catch (error) {
+    logError('Notification settings GET error:', error);
+    // TODO: Convert createErrorResponse(500, 'Internal server error') to res.status(500).json({ error: 'Internal server error' })
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+/**
+ * Fetches the notification settings for a user from the database.
+ * @param {number} userId - The authenticated user's ID
+ * @returns {object} API response with notification settings
+ */
+const getNotificationSettingsHelper = async (userId) => {
+  try {
+    logInfo('Fetching notification settings for user:', { userId });
+    // Build the SELECT query dynamically using allowedFields for maintainability
+    const query = `SELECT ${allowedFields.join(', ')} FROM users WHERE id = ?`;
+    // Execute the query with the userId as parameter
+    const [rows] = await pool.query(query, [userId]);
+    // If no user is found, log and return a 404 error
+    if (rows.length === 0) {
+      logError('User not found:', { userId });
+      // TODO: Convert createErrorResponse(404, 'User not found') to res.status(404).json({ error: 'User not found' })
+      return res.status(404).json({ error: 'User not found' });
+    }
+    // Extract the user's notification settings from the query result
     const userSettings = rows[0];
     
+    // Convert 'yes'/'no' to '1'/'0' for current_values section
     const currentValues = allowedFields.reduce((acc, field) => {
-      acc[field] = userSettings[field] === 'yes' ? '1' : '0';
+      acc[field] = userSettings[field] === 'yes' ? '1' : '0'; // Convert DB value to API value
       return acc;
     }, {});
 
+    // Define field configurations for the 8 allowed fields
     const fieldConfigs = [
       {
         field_id: "new_subscriber",
@@ -521,6 +574,7 @@ export const getNotificationSettings = async (req, res) => {
       }
     ];
 
+    // Structure the response to match notification_settings.json format
     const responseData = {
       settings_config: [
         {
@@ -548,129 +602,199 @@ export const getNotificationSettings = async (req, res) => {
       current_values: currentValues
     };
     
+    // Log the successful retrieval of settings
     logInfo('Notification settings retrieved successfully:', { userId });
+    // TODO: Convert createSuccessResponse('Notification settings configuration retrieved successfully', responseData) to res.status(200).json(createSuccessResponse('Notification settings configuration retrieved successfully', responseData))
     return res.status(200).json(createSuccessResponse('Notification settings configuration retrieved successfully', responseData));
-  } catch (error) {
-    logError('getNotificationSettings error:', error);
-    return res.status(500).json(createErrorResponse(500, 'Failed to fetch notification settings'));
+  } catch (dbError) {
+    logError('Database error while fetching notification settings:', dbError);
+    // TODO: Convert createErrorResponse(500, 'Failed to fetch notification settings') to res.status(500).json({ error: 'Failed to fetch notification settings' })
+    return res.status(500).json({ error: 'Failed to fetch notification settings' });
   }
 };
 
 /**
- * Handler to update notification settings (POST /notifications/settings)
+ * POST /notification/settings - Handler for POST /notification/settings
+ * Exact implementation matching Lambda updateNotificationSettingsHandler
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ * @returns {Object} API response with update result
  */
 export const updateNotificationSettings = async (req, res) => {
   try {
-    const userId = req.userId;
-    const requestBody = req.body;
+    // Extract and validate user authentication
+    // TODO: Convert getAuthenticatedUserId(event, { action: 'notification settings' }) to getAuthenticatedUserId(req, { action: 'notification settings' })
+    const { userId, errorResponse } = getAuthenticatedUserId(req, { action: 'notification settings' });
+    if (errorResponse) {
+      // TODO: Convert return errorResponse to return res.status(errorResponse.statusCode).json(errorResponse.body)
+      return res.status(errorResponse.statusCode).json(errorResponse.body);
+    }
     
+    // Update settings in the database for the authenticated user
+    // TODO: Convert updateNotificationSettings(userId, event) to updateNotificationSettingsHelper(userId, req)
+    return await updateNotificationSettingsHelper(userId, req);
+  } catch (error) {
+    logError('Notification settings POST error:', error);
+    // TODO: Convert createErrorResponse(500, 'Internal server error') to res.status(500).json({ error: 'Internal server error' })
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+/**
+ * Updates the notification settings for a user in the database.
+ * @param {number} userId - The authenticated user's ID
+ * @param {object} req - Express request object containing the request body
+ * @returns {object} API response with update result
+ */
+const updateNotificationSettingsHelper = async (userId, req) => {
+  try {
     logInfo('Updating notification settings for user:', { userId });
 
-    const updateFields = {};
-    const updateValues = [];
-    let updateQuery = 'UPDATE users SET ';
-
+    // Parse request body
+    let requestBody;
+    try {
+      // TODO: Convert JSON.parse(event.body || '{}') to req.body
+      requestBody = req.body || {};
+    } catch (parseError) {
+      logError('Invalid JSON in request body:', parseError);
+      // TODO: Convert createErrorResponse(400, 'Invalid JSON in request body') to res.status(400).json({ error: 'Invalid JSON in request body' })
+      return res.status(400).json({ error: 'Invalid JSON in request body' });
+    }
+    
+    // Prepare to build the update query using only allowed fields
+    const updateFields = {}; // Object to track which fields are being updated
+    const updateValues = []; // Array of values to use in the query
+    let updateQuery = 'UPDATE users SET '; // Start building the update query
+    
+    // Iterate over each allowed field to check if it is present in the request
     for (const field of allowedFields) {
-      if (requestBody.hasOwnProperty(field)) {
-        const value = requestBody[field];
-        
+      if (requestBody.hasOwnProperty(field)) { // Only update fields present in the request
+        const value = requestBody[field]; // Get the value from the request
+        // Validate that the value is either '1' or '0' (API contract)
         if (value !== '1' && value !== '0') {
           logError('Invalid value for notification setting:', { field, value });
-          return res.status(400).json(createErrorResponse(400, `Invalid value for ${field}. Must be '1' or '0'`));
+          // TODO: Convert createErrorResponse(400, `Invalid value for ${field}. Must be '1' or '0'`) to res.status(400).json({ error: `Invalid value for ${field}. Must be '1' or '0'` })
+          return res.status(400).json({ error: `Invalid value for ${field}. Must be '1' or '0'` });
         }
 
+        // Convert '1'/'0' to 'yes'/'no' for database storage
         const dbValue = value === '1' ? 'yes' : 'no';
-        updateFields[field] = value;
-        updateValues.push(dbValue);
-        updateQuery += `${field} = ?, `;
+        updateFields[field] = value; // Track the field being updated
+        updateValues.push(dbValue); // Add the value to the query parameters
+        updateQuery += `${field} = ?, `; // Add the field to the query string
       }
     }
 
+    // Remove trailing comma and space
     updateQuery = updateQuery.slice(0, -2);
     updateQuery += ' WHERE id = ?';
     updateValues.push(userId);
 
+    // If no valid fields to update, return success
     if (Object.keys(updateFields).length === 0) {
       logInfo('No valid fields to update:', { userId });
+      // TODO: Convert createSuccessResponse('Notification settings updated successfully', {}) to res.status(200).json(createSuccessResponse('Notification settings updated successfully', {}))
       return res.status(200).json(createSuccessResponse('Notification settings updated successfully', {}));
     }
 
     logInfo('Updating notification settings:', { userId, updateFields });
 
+    // Execute the update query
     const [result] = await pool.query(updateQuery, updateValues);
 
     if (result.affectedRows === 0) {
       logError('No rows affected during update:', { userId });
-      return res.status(404).json(createErrorResponse(404, 'User not found'));
+      // TODO: Convert createErrorResponse(404, 'User not found') to res.status(404).json({ error: 'User not found' })
+      return res.status(404).json({ error: 'User not found' });
     }
     
     logInfo('Notification settings updated successfully:', { userId, updatedFields: Object.keys(updateFields), affectedRows: result.affectedRows });
     
     // Fetch and return the updated notification settings
-    const query = `SELECT ${allowedFields.join(', ')} FROM users WHERE id = ?`;
-    const [rows] = await pool.query(query, [userId]);
-    const userSettings = rows[0];
-    
-    const currentValues = allowedFields.reduce((acc, field) => {
-      acc[field] = userSettings[field] === 'yes' ? '1' : '0';
-      return acc;
-    }, {});
-
-    return res.status(200).json(createSuccessResponse('Notification settings updated successfully', {
-      current_values: currentValues
-    }));
-  } catch (error) {
-    logError('updateNotificationSettings error:', error);
-    return res.status(500).json(createErrorResponse(500, 'Failed to update notification settings'));
+    // TODO: Convert getNotificationSettings(userId) to getNotificationSettingsHelper(userId)
+    return await getNotificationSettingsHelper(userId);
+  } catch (dbError) {
+    logError('Database error while updating notification settings:', dbError);
+    // TODO: Convert createErrorResponse(500, 'Failed to update notification settings') to res.status(500).json({ error: 'Failed to update notification settings' })
+    return res.status(500).json({ error: 'Failed to update notification settings' });
   }
 };
 
 /**
- * Handler to delete notification by ID (DELETE /notifications/delete/:id)
+ * DELETE /notifications/delete/{id} - Delete a notification by ID for the authenticated user
+ * Exact implementation matching Lambda deleteNotificationById
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ * @returns {Object} API response with deleted notification data or error
  */
 export const deleteNotificationById = async (req, res) => {
   try {
-    const userId = req.userId;
-    const { id: notificationId } = req.params;
-
-    if (!notificationId) {
-      return res.status(400).json(createErrorResponse(400, 'Notification ID is required in path'));
+    // Extract and validate user authentication
+    // TODO: Convert getAuthenticatedUserId(event, { action: 'delete notification' }) to getAuthenticatedUserId(req, { action: 'delete notification' })
+    const { userId, errorResponse } = getAuthenticatedUserId(req, { action: 'delete notification' });
+    if (errorResponse) {
+      // TODO: Convert return errorResponse to return res.status(errorResponse.statusCode).json(errorResponse.body)
+      return res.status(errorResponse.statusCode).json(errorResponse.body);
     }
 
+    // Get notification ID from path parameters
+    // TODO: Convert event.pathParameters to req.params
+    const { id: notificationId } = req.params || {};
+    if (!notificationId) {
+      // TODO: Convert createErrorResponse(400, 'Notification ID is required in path') to res.status(400).json({ error: 'Notification ID is required in path' })
+      return res.status(400).json({ error: 'Notification ID is required in path' });
+    }
+
+    // Validate HTTP method
+    // TODO: Convert event.httpMethod to req.method
+    if (req.method !== 'DELETE') {
+      // TODO: Convert createErrorResponse(405, 'Method not allowed') to res.status(405).json({ error: 'Method not allowed' })
+      return res.status(405).json({ error: 'Method not allowed' });
+    }
+
+    // Decrypt notification ID using safeDecryptId
     let parsedNotificationId;
     try {
       parsedNotificationId = safeDecryptId(notificationId);
       logInfo('Decoded notification ID:', { originalId: notificationId, decodedId: parsedNotificationId });
     } catch (error) {
       logError('Error decrypting notification ID:', { notificationId, error: error.message });
-      return res.status(400).json(createErrorResponse(400, 'Invalid notification ID format'));
+      // TODO: Convert createErrorResponse(400, 'Invalid notification ID format') to res.status(400).json({ error: 'Invalid notification ID format' })
+      return res.status(400).json({ error: 'Invalid notification ID format' });
     }
 
+    // Check if notification exists and belongs to the user
     const [notificationRows] = await pool.query(
       'SELECT id, destination FROM notifications WHERE id = ? AND destination = ?',
       [parsedNotificationId, userId]
     );
 
     if (notificationRows.length === 0) {
-      return res.status(404).json(createErrorResponse(404, 'Notification not found'));
+      // TODO: Convert createErrorResponse(404, 'Notification not found') to res.status(404).json({ error: 'Notification not found' })
+      return res.status(404).json({ error: 'Notification not found' });
     }
 
     const notification = notificationRows[0];
 
+    // Delete the notification
     const [deleteResult] = await pool.query(
       'DELETE FROM notifications WHERE id = ? AND destination = ?',
       [parsedNotificationId, userId]
     );
 
     if (deleteResult.affectedRows === 0) {
-      return res.status(404).json(createErrorResponse(404, 'Notification not found or not deleted'));
+      // TODO: Convert createErrorResponse(404, 'Notification not found or not deleted') to res.status(404).json({ error: 'Notification not found or not deleted' })
+      return res.status(404).json({ error: 'Notification not found or not deleted' });
     }
 
+    // Log successful deletion
     logInfo('Notification deleted successfully:', { 
       userId, 
       notificationId: parsedNotificationId 
     });
 
+    // Return success response with deleted notification data
+    // TODO: Convert createSuccessResponse('Notification deleted successfully', { notification: [{ id: notification.id }] }) to res.status(200).json(createSuccessResponse('Notification deleted successfully', { notification: [{ id: notification.id }] }))
     return res.status(200).json(createSuccessResponse('Notification deleted successfully', {
       notification: [
         {
@@ -680,18 +804,38 @@ export const deleteNotificationById = async (req, res) => {
     }));
 
   } catch (error) {
-    logError('deleteNotificationById error:', error);
-    return res.status(500).json(createErrorResponse(500, error.message || 'Internal server error'));
+    // Error handling
+    logError('Error in deleteNotificationById:', error);
+    // TODO: Convert createErrorResponse(500, error.message || 'Internal server error') to res.status(500).json({ error: error.message || 'Internal server error' })
+    return res.status(500).json({ error: error.message || 'Internal server error' });
   }
 };
 
 /**
- * Handler to delete all notifications (DELETE /notifications/delete-all)
+ * DELETE /notifications/delete-all - Delete all notifications for the authenticated user
+ * Exact implementation matching Lambda deleteAllNotifications
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ * @returns {Object} API response with deletion confirmation or error
  */
 export const deleteAllNotifications = async (req, res) => {
   try {
-    const userId = req.userId;
+    // Extract and validate user authentication
+    // TODO: Convert getAuthenticatedUserId(event, { action: 'delete all notifications' }) to getAuthenticatedUserId(req, { action: 'delete all notifications' })
+    const { userId, errorResponse } = getAuthenticatedUserId(req, { action: 'delete all notifications' });
+    if (errorResponse) {
+      // TODO: Convert return errorResponse to return res.status(errorResponse.statusCode).json(errorResponse.body)
+      return res.status(errorResponse.statusCode).json(errorResponse.body);
+    }
 
+    // Validate HTTP method
+    // TODO: Convert event.httpMethod to req.method
+    if (req.method !== 'DELETE') {
+      // TODO: Convert createErrorResponse(405, 'Method not allowed') to res.status(405).json({ error: 'Method not allowed' })
+      return res.status(405).json({ error: 'Method not allowed' });
+    }
+
+    // Check if user has any notifications before deletion
     const [countRows] = await pool.query(
       'SELECT COUNT(*) as count FROM notifications WHERE destination = ?',
       [userId]
@@ -699,21 +843,27 @@ export const deleteAllNotifications = async (req, res) => {
 
     const notificationCount = countRows[0].count;
 
+    // Delete all notifications for the user
     const [deleteResult] = await pool.query(
       'DELETE FROM notifications WHERE destination = ?',
       [userId]
     );
 
+    // Log successful deletion
     logInfo('All notifications deleted successfully:', { 
       userId, 
       deletedCount: deleteResult.affectedRows,
       totalNotifications: notificationCount
     });
 
+    // Return success response
+    // TODO: Convert createSuccessResponse('All Notifications deleted successfully') to res.status(200).json(createSuccessResponse('All Notifications deleted successfully'))
     return res.status(200).json(createSuccessResponse('All Notifications deleted successfully'));
 
   } catch (error) {
-    logError('deleteAllNotifications error:', error);
-    return res.status(500).json(createErrorResponse(500, error.message || 'Internal server error'));
+    // Error handling
+    logError('Error in deleteAllNotifications:', error);
+    // TODO: Convert createErrorResponse(500, error.message || 'Internal server error') to res.status(500).json({ error: error.message || 'Internal server error' })
+    return res.status(500).json({ error: error.message || 'Internal server error' });
   }
 };
