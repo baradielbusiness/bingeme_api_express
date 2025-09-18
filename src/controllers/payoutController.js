@@ -73,14 +73,14 @@ export const getPayoutMethod = async (req, res) => {
     const { userId, errorResponse } = getAuthenticatedUserId(req, { action: 'payout_method getPayoutMethodHandler' });
     if (errorResponse) {
       // TODO: Convert return errorResponse to return res.status(errorResponse.statusCode).json(errorResponse.body)
-      return res.status(errorResponse.statusCode).json(errorResponse.body);
+      return res.status(errorResponse.statusCode).json(createErrorResponse(errorResponse.statusCode, errorResponse.body.message || errorResponse.body.error));
     }
 
     // Fetch user payout details from database
     const user = await fetchUserPayoutDetails(userId);
     if (!user) {
       // TODO: Convert createErrorResponse(404, 'User not found') to res.status(404).json({ error: 'User not found' })
-      return res.status(404).json({ error: 'User not found' });
+      return res.status(404).json(createErrorResponse(404, 'User not found'));
     }
 
     // Sanitize sensitive information before responding
@@ -96,7 +96,7 @@ export const getPayoutMethod = async (req, res) => {
   } catch (error) {
     logError('[getPayoutMethodHandler] Error:', error);
     // TODO: Convert createErrorResponse(500, 'Internal server error', error.message) to res.status(500).json({ error: 'Internal server error', details: error.message })
-    return res.status(500).json({ error: 'Internal server error', details: error.message });
+    return res.status(500).json(createErrorResponse(500, 'Internal server error'));
   }
 };
 
@@ -120,7 +120,7 @@ export const createPayoutMethod = async (req, res) => {
     const { userId, errorResponse } = getAuthenticatedUserId(req, { action: 'payout_method createPayoutMethodHandler' });
     if (errorResponse) {
       // TODO: Convert return errorResponse to return res.status(errorResponse.statusCode).json(errorResponse.body)
-      return res.status(errorResponse.statusCode).json(errorResponse.body);
+      return res.status(errorResponse.statusCode).json(createErrorResponse(errorResponse.statusCode, errorResponse.body.message || errorResponse.body.error));
     }
 
     // Parse request body JSON
@@ -128,7 +128,7 @@ export const createPayoutMethod = async (req, res) => {
     const { body: requestBody, error: parseError } = parseRequestBody(req);
     if (parseError) {
       // TODO: Convert return parseError to return res.status(400).json(parseError)
-      return res.status(400).json(parseError);
+      return res.status(400).json(createErrorResponse(400, 'Invalid JSON in request body'));
     }
 
     // Extract payout type from request body
@@ -150,14 +150,14 @@ export const createPayoutMethod = async (req, res) => {
     // Validate payout type is provided and valid
     if (!type) {
       // TODO: Convert createErrorResponse(400, 'Payout type is required') to res.status(400).json({ error: 'Payout type is required' })
-      return res.status(400).json({ error: 'Payout type is required' });
+      return res.status(400).json(createErrorResponse(400, 'Payout type is required'));
     }
 
     // Validate type is one of the supported payout methods
     const validTypes = ['paypal', 'bank', 'bank_india', 'upi'];
     if (!validTypes.includes(type)) {
       // TODO: Convert createErrorResponse(400, 'Invalid payout type. Must be one of: paypal, bank, bank_india, upi') to res.status(400).json({ error: 'Invalid payout type. Must be one of: paypal, bank, bank_india, upi' })
-      return res.status(400).json({ error: 'Invalid payout type. Must be one of: paypal, bank, bank_india, upi' });
+      return res.status(400).json(createErrorResponse(400, 'Invalid payout type. Must be one of: paypal, bank, bank_india, upi'));
     }
 
     // Handle different payout types with type-specific validation and processing
@@ -169,14 +169,14 @@ export const createPayoutMethod = async (req, res) => {
         // Validate PayPal email fields
         if (!email) {
           // TODO: Convert createErrorResponse(400, 'Validation failed', { error: 'PayPal email is required' }) to res.status(400).json({ error: 'Validation failed', details: { error: 'PayPal email is required' } })
-          return res.status(400).json({ error: 'Validation failed', details: { error: 'PayPal email is required' } });
+          return res.status(400).json(createErrorResponse(400, 'PayPal email is required'));
         }
         
         // Validate email format using existing validation function
         const validation = validatePayPalData({ paypal_email: email });
         if (!validation.valid) {
           // TODO: Convert createErrorResponse(400, 'Validation failed', { error: validation.error }) to res.status(400).json({ error: 'Validation failed', details: { error: validation.error } })
-          return res.status(400).json({ error: 'Validation failed', details: { error: validation.error } });
+          return res.status(400).json(createErrorResponse(400, validation.error));
         }
 
         // Update user with PayPal configuration
@@ -201,12 +201,12 @@ export const createPayoutMethod = async (req, res) => {
         // Validate bank details using the validation function
         if (!details) {
           // TODO: Convert createErrorResponse(400, 'Validation failed', { error: 'Bank details are required' }) to res.status(400).json({ error: 'Validation failed', details: { error: 'Bank details are required' } })
-          return res.status(400).json({ error: 'Validation failed', details: { error: 'Bank details are required' } });
+          return res.status(400).json(createErrorResponse(400, 'Bank details are required'));
         }
         
         if (!validateBankDetails(details)) {
           // TODO: Convert createErrorResponse(400, 'Validation failed', { error: 'Bank details must be at least 20 characters long' }) to res.status(400).json({ error: 'Validation failed', details: { error: 'Bank details must be at least 20 characters long' } })
-          return res.status(400).json({ error: 'Validation failed', details: { error: 'Bank details must be at least 20 characters long' } });
+          return res.status(400).json(createErrorResponse(400, 'Bank details must be at least 20 characters long'));
         }
 
         // Sanitize bank details to remove HTML tags
@@ -231,7 +231,7 @@ export const createPayoutMethod = async (req, res) => {
         const { bank } = requestBody;
         if (!bank) {
           // TODO: Convert createErrorResponse(400, 'Validation failed', { error: 'Bank details are required' }) to res.status(400).json({ error: 'Validation failed', details: { error: 'Bank details are required' } })
-          return res.status(400).json({ error: 'Validation failed', details: { error: 'Bank details are required' } });
+          return res.status(400).json(createErrorResponse(400, 'Bank details are required'));
         }
         
         // Map field names to match validation expectations
@@ -243,19 +243,19 @@ export const createPayoutMethod = async (req, res) => {
         // Validate all required Indian bank fields
         if (!account_number) {
           // TODO: Convert createErrorResponse(400, 'Validation failed', { error: 'Account number is required' }) to res.status(400).json({ error: 'Validation failed', details: { error: 'Account number is required' } })
-          return res.status(400).json({ error: 'Validation failed', details: { error: 'Account number is required' } });
+          return res.status(400).json(createErrorResponse(400, 'Account number is required'));
         }
         if (!holder_name) {
           // TODO: Convert createErrorResponse(400, 'Validation failed', { error: 'Account holder name is required' }) to res.status(400).json({ error: 'Validation failed', details: { error: 'Account holder name is required' } })
-          return res.status(400).json({ error: 'Validation failed', details: { error: 'Account holder name is required' } });
+          return res.status(400).json(createErrorResponse(400, 'Account holder name is required'));
         }
         if (!bank_name) {
           // TODO: Convert createErrorResponse(400, 'Validation failed', { error: 'Bank name is required' }) to res.status(400).json({ error: 'Validation failed', details: { error: 'Bank name is required' } })
-          return res.status(400).json({ error: 'Validation failed', details: { error: 'Bank name is required' } });
+          return res.status(400).json(createErrorResponse(400, 'Bank name is required'));
         }
         if (!ifsc_code) {
           // TODO: Convert createErrorResponse(400, 'Validation failed', { error: 'IFSC code is required' }) to res.status(400).json({ error: 'Validation failed', details: { error: 'IFSC code is required' } })
-          return res.status(400).json({ error: 'Validation failed', details: { error: 'IFSC code is required' } });
+          return res.status(400).json(createErrorResponse(400, 'IFSC code is required'));
         }
         
         // Validate using existing validation function
@@ -263,7 +263,7 @@ export const createPayoutMethod = async (req, res) => {
         
         if (!validation.valid) {
           // TODO: Convert createErrorResponse(400, 'Validation failed', { error: validation.error }) to res.status(400).json({ error: 'Validation failed', details: { error: validation.error } })
-          return res.status(400).json({ error: 'Validation failed', details: { error: validation.error } });
+          return res.status(400).json(createErrorResponse(400, validation.error));
         }
 
         // Serialize bank data as PHP serialized format for Laravel compatibility
@@ -300,14 +300,14 @@ export const createPayoutMethod = async (req, res) => {
         // Validate UPI ID presence
         if (!upiId) {
           // TODO: Convert createErrorResponse(400, 'Validation failed', { error: 'UPI ID is required' }) to res.status(400).json({ error: 'Validation failed', details: { error: 'UPI ID is required' } })
-          return res.status(400).json({ error: 'Validation failed', details: { error: 'UPI ID is required' } });
+          return res.status(400).json(createErrorResponse(400, 'UPI ID is required'));
         }
         
         // Validate UPI format using existing validation function
         const validation = validateUpiData({ upi_id: upiId });
         if (!validation.valid) {
           // TODO: Convert createErrorResponse(400, 'Validation failed', { error: validation.error }) to res.status(400).json({ error: 'Validation failed', details: { error: validation.error } })
-          return res.status(400).json({ error: 'Validation failed', details: { error: validation.error } });
+          return res.status(400).json(createErrorResponse(400, validation.error));
         }
 
         // Update user with UPI configuration
@@ -325,13 +325,13 @@ export const createPayoutMethod = async (req, res) => {
 
       default:
         // TODO: Convert createErrorResponse(400, 'Unsupported payout type') to res.status(400).json({ error: 'Unsupported payout type' })
-        return res.status(400).json({ error: 'Unsupported payout type' });
+        return res.status(400).json(createErrorResponse(400, 'Unsupported payout type'));
     }
 
   } catch (error) {
     logError('[createPayoutMethodHandler] Error:', error);
     // TODO: Convert createErrorResponse(500, 'Internal server error', error.message) to res.status(500).json({ error: 'Internal server error', details: error.message })
-    return res.status(500).json({ error: 'Internal server error', details: error.message });
+    return res.status(500).json(createErrorResponse(500, 'Internal server error'));
   }
 };
 
@@ -354,14 +354,14 @@ export const deletePayoutMethod = async (req, res) => {
     const { userId, errorResponse } = getAuthenticatedUserId(req, { action: 'payout_method deletePayoutMethodHandler' });
     if (errorResponse) {
       // TODO: Convert return errorResponse to return res.status(errorResponse.statusCode).json(errorResponse.body)
-      return res.status(errorResponse.statusCode).json(errorResponse.body);
+      return res.status(errorResponse.statusCode).json(createErrorResponse(errorResponse.statusCode, errorResponse.body.message || errorResponse.body.error));
     }
 
     // Verify user exists before attempting deletion
     const user = await fetchUserPayoutDetails(userId);
     if (!user) {
       // TODO: Convert createErrorResponse(404, 'User not found') to res.status(404).json({ error: 'User not found' })
-      return res.status(404).json({ error: 'User not found' });
+      return res.status(404).json(createErrorResponse(404, 'User not found'));
     }
 
     // Delete payout method by clearing all payment-related fields
@@ -369,7 +369,7 @@ export const deletePayoutMethod = async (req, res) => {
     
     if (result.affectedRows === 0) {
       // TODO: Convert createErrorResponse(404, 'User not found or no payout method to delete') to res.status(404).json({ error: 'User not found or no payout method to delete' })
-      return res.status(404).json({ error: 'User not found or no payout method to delete' });
+      return res.status(404).json(createErrorResponse(404, 'User not found or no payout method to delete'));
     }
 
     // TODO: Convert createSuccessResponse('Payout method deleted successfully') to res.json({ success: true, message: 'Payout method deleted successfully' })
@@ -381,7 +381,7 @@ export const deletePayoutMethod = async (req, res) => {
   } catch (error) {
     logError('[deletePayoutMethodHandler] Error:', error);
     // TODO: Convert createErrorResponse(500, 'Internal server error', error.message) to res.status(500).json({ error: 'Internal server error', details: error.message })
-    return res.status(500).json({ error: 'Internal server error', details: error.message });
+    return res.status(500).json(createErrorResponse(500, 'Internal server error'));
   }
 };
 
@@ -399,7 +399,7 @@ export const getPayoutConversations = async (req, res) => {
 
     if (errorResponse) {
       // TODO: Convert return errorResponse to return res.status(errorResponse.statusCode).json(errorResponse.body)
-      return res.status(errorResponse.statusCode).json(errorResponse.body);
+      return res.status(errorResponse.statusCode).json(createErrorResponse(errorResponse.statusCode, errorResponse.body.message || errorResponse.body.error));
     }
 
     // Get query parameters for pagination
@@ -468,10 +468,7 @@ export const getPayoutConversations = async (req, res) => {
     }
 
     // TODO: Convert Lambda response format to Express response format
-    return res.status(200).json({
-      success: true,
-      message: 'Payout conversations retrieved successfully',
-      data: {
+    return res.status(200).json(createSuccessResponse('Payout conversations retrieved successfully', {
         conversations,
         pagination: {
           total,
@@ -479,9 +476,7 @@ export const getPayoutConversations = async (req, res) => {
           limit,
           next
         }
-      },
-      timestamp: new Date().toISOString()
-    });
+      }));
 
   } catch (error) {
     logError('Error fetching payout conversations', { 
@@ -490,12 +485,7 @@ export const getPayoutConversations = async (req, res) => {
     });
 
     // TODO: Convert Lambda response format to Express response format
-    return res.status(500).json({
-      success: false,
-      message: 'Failed to fetch payout conversations',
-      error: 'Internal server error',
-      timestamp: new Date().toISOString()
-    });
+    return res.status(500).json(createErrorResponse(500, 'Failed to fetch payout conversations'));
   }
 };
 
@@ -515,7 +505,7 @@ export const storePayoutConversation = async (req, res) => {
     const { userId, errorResponse } = getAuthenticatedUserId(req, { action: 'store payout conversation' });
     if (errorResponse) {
       // TODO: Convert return errorResponse to return res.status(errorResponse.statusCode).json(errorResponse.body)
-      return res.status(errorResponse.statusCode).json(errorResponse.body);
+      return res.status(errorResponse.statusCode).json(createErrorResponse(errorResponse.statusCode, errorResponse.body.message || errorResponse.body.error));
     }
 
     // Parse request body
@@ -526,7 +516,7 @@ export const storePayoutConversation = async (req, res) => {
     } catch (parseError) {
       logError('Error parsing request body:', parseError);
       // TODO: Convert createErrorResponse(400, 'Invalid JSON in request body') to res.status(400).json({ error: 'Invalid JSON in request body' })
-      return res.status(400).json({ error: 'Invalid JSON in request body' });
+      return res.status(400).json(createErrorResponse(400, 'Invalid JSON in request body'));
     }
 
     // Validate required fields - message is required, payout_image_keys is optional
@@ -534,13 +524,13 @@ export const storePayoutConversation = async (req, res) => {
     
     if (!message) {
       // TODO: Convert createErrorResponse(400, 'Missing required field: message is required') to res.status(400).json({ error: 'Missing required field: message is required' })
-      return res.status(400).json({ error: 'Missing required field: message is required' });
+      return res.status(400).json(createErrorResponse(400, 'Missing required field: message is required'));
     }
 
     // Validate message length
     if (message.length > 255) {
       // TODO: Convert createErrorResponse(400, 'Message too long. Maximum 255 characters allowed.') to res.status(400).json({ error: 'Message too long. Maximum 255 characters allowed.' })
-      return res.status(400).json({ error: 'Message too long. Maximum 255 characters allowed.' });
+      return res.status(400).json(createErrorResponse(400, 'Message too long. Maximum 255 characters allowed.'));
     }
 
     // Get S3 bucket configuration from environment
@@ -548,7 +538,7 @@ export const storePayoutConversation = async (req, res) => {
     if (!bucketName) {
       logError('S3 bucket configuration missing from environment');
       // TODO: Convert createErrorResponse(500, 'Media storage not configured') to res.status(500).json({ error: 'Media storage not configured' })
-      return res.status(500).json({ error: 'Media storage not configured' });
+      return res.status(500).json(createErrorResponse(500, 'Media storage not configured'));
     }
 
     // Process media files if provided (exactly like posts and messages do)
@@ -578,7 +568,7 @@ export const storePayoutConversation = async (req, res) => {
         }
         
         // TODO: Convert createErrorResponse(500, 'Media processing failed', error.message) to res.status(500).json({ error: 'Media processing failed', details: error.message })
-        return res.status(500).json({ error: 'Media processing failed', details: error.message });
+        return res.status(500).json(createErrorResponse(500, 'Media processing failed'));
       }
     }
 
@@ -621,7 +611,7 @@ export const storePayoutConversation = async (req, res) => {
     
     // Override status code to 201 for resource creation
     // TODO: Convert response.statusCode = 201 to res.status(201)
-    return res.status(201).json(response);
+    return res.status(201).json(createSuccessResponse('Payout method created successfully', response));
 
   } catch (error) {
     logError('Error storing payout conversation', { 
@@ -630,7 +620,7 @@ export const storePayoutConversation = async (req, res) => {
     });
 
     // TODO: Convert createErrorResponse(500, 'Failed to store payout conversation') to res.status(500).json({ error: 'Failed to store payout conversation' })
-    return res.status(500).json({ error: 'Failed to store payout conversation' });
+    return res.status(500).json(createErrorResponse(500, 'Failed to store payout conversation'));
   }
 };
 
@@ -657,8 +647,8 @@ export const getPayoutUploadUrl = async (req, res) => {
   
   // TODO: Convert Lambda response format to Express response format
   if (result.statusCode === 200) {
-    return res.status(200).json(JSON.parse(result.body));
+    return res.status(200).json(createSuccessResponse('Payout method retrieved successfully', JSON.parse(result.body)));
   } else {
-    return res.status(result.statusCode).json(JSON.parse(result.body));
+    return res.status(result.statusCode).json(createErrorResponse(result.statusCode, JSON.parse(result.body).message || JSON.parse(result.body).error));
   }
 };
