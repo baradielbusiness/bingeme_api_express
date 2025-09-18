@@ -172,7 +172,8 @@ const formatProductsForResponse = (products) => {
     name: product.name,
     price: product.price,
     delivery_time: product.delivery_time,
-    tags: product.tags ? JSON.parse(product.tags) : [],
+    // Keep tags as stored; parse only if valid JSON, else return raw string
+    tags: (() => { try { return product.tags ? JSON.parse(product.tags) : []; } catch { return product.tags || []; } })(),
     description: product.description,
     type: product.type,
     status: product.status,
@@ -190,7 +191,8 @@ const formatProductForEdit = (product) => {
     name: product.name,
     price: product.price,
     delivery_time: product.delivery_time,
-    tags: product.tags ? JSON.parse(product.tags) : [],
+    // Return tags as-is if not JSON
+    tags: (() => { try { return product.tags ? JSON.parse(product.tags) : []; } catch { return product.tags || []; } })(),
     description: product.description,
     type: product.type,
     status: product.status

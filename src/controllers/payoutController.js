@@ -46,15 +46,17 @@ import { pool, getDB } from '../config/database.js';
  */
 const parseRequestBody = (req) => {
   try {
-    // TODO: Convert JSON.parse(event.body || '{}') to JSON.parse(req.body || '{}')
-    const body = JSON.parse(req.body || '{}');
-    return { body, error: null };
+    if (req && typeof req.body === 'object' && req.body !== null) {
+      // Body was already parsed by express.json()
+      return { body: req.body, error: null };
+    }
+    if (req && typeof req.body === 'string') {
+      const body = req.body.trim() ? JSON.parse(req.body) : {};
+      return { body, error: null };
+    }
+    return { body: {}, error: null };
   } catch (parseError) {
-    return { 
-      body: null, 
-      // TODO: Convert createErrorResponse(400, 'Invalid JSON in request body') to { error: 'Invalid JSON in request body' }
-      error: { error: 'Invalid JSON in request body' }
-    };
+    return { body: null, error: createErrorResponse(400, 'Invalid JSON in request body') };
   }
 };
 
@@ -86,12 +88,7 @@ const getPayoutMethod = async (req, res) => {
     // Sanitize sensitive information before responding
     const sanitizedData = await sanitizePayoutData(user);
 
-    // TODO: Convert createSuccessResponse('Payout method details retrieved successfully', sanitizedData) to res.json({ success: true, message: 'Payout method details retrieved successfully', data: sanitizedData })
-    return res.json({
-      success: true,
-      message: 'Payout method details retrieved successfully',
-      data: sanitizedData
-    });
+    return res.status(200).json(createSuccessResponse('Payout method details retrieved successfully', sanitizedData));
 
   } catch (error) {
     logError('[getPayoutMethodHandler] Error:', error);
@@ -124,11 +121,9 @@ const createPayoutMethod = async (req, res) => {
     }
 
     // Parse request body JSON
-    // TODO: Convert parseRequestBody(event) to parseRequestBody(req)
     const { body: requestBody, error: parseError } = parseRequestBody(req);
     if (parseError) {
-      // TODO: Convert return parseError to return res.status(400).json(parseError)
-      return res.status(400).json(createErrorResponse(400, 'Invalid JSON in request body'));
+      return res.status(parseError.statusCode || 400).json(parseError);
     }
 
     // Extract payout type from request body
@@ -174,24 +169,16 @@ const createPayoutMethod = async (req, res) => {
         
         // Validate email format using existing validation function
         const validation = validatePayPalData({ paypal_email: email });
-        if (!validation.valid) {
-          // TODO: Convert createErrorResponse(400, 'Validation failed', { error: validation.error }) to res.status(400).json({ error: 'Validation failed', details: { error: validation.error } })
-          return res.status(400).json(createErrorResponse(400, validation.error));
+        if (!validation.isValid) {
+          return res.status(400).json(createErrorResponse(400, validation.message));
         }
 
         // Update user with PayPal configuration
         await updateUserPayoutMethod(userId, 'PayPal', '', validation.data.paypalEmail);
 
-        // TODO: Convert createSuccessResponse('Changes saved successfully', { paypal: { email: validation.data.paypalEmail } }) to res.json({ success: true, message: 'Changes saved successfully', data: { paypal: { email: validation.data.paypalEmail } } })
-        return res.json({
-          success: true,
-          message: 'Changes saved successfully',
-          data: {
-            paypal: {
-              email: validation.data.paypalEmail
-            }
-          }
-        });
+        return res.status(200).json(createSuccessResponse('Changes saved successfully', {
+          paypal: { email: validation.data.paypalEmail }
+        }));
       }
 
       case 'bank': {
@@ -215,16 +202,9 @@ const createPayoutMethod = async (req, res) => {
         // Update user with bank configuration
         await updateUserPayoutMethod(userId, 'Bank', sanitizedBankDetails);
 
-        // TODO: Convert createSuccessResponse('Changes saved successfully', { bank: { bank_details: sanitizedBankDetails } }) to res.json({ success: true, message: 'Changes saved successfully', data: { bank: { bank_details: sanitizedBankDetails } } })
-        return res.json({
-          success: true,
-          message: 'Changes saved successfully',
-          data: {
-            bank: {
-              bank_details: sanitizedBankDetails
-            }
-          }
-        });
+        return res.status(200).json(createSuccessResponse('Changes saved successfully', {
+          bank: { bank_details: sanitizedBankDetails }
+        }));
       }
 
       case 'bank_india': {
@@ -260,10 +240,8 @@ const createPayoutMethod = async (req, res) => {
         
         // Validate using existing validation function
         const validation = validateBankIndiaData({ account_number, holder_name, bank_name, ifsc_code });
-        
-        if (!validation.valid) {
-          // TODO: Convert createErrorResponse(400, 'Validation failed', { error: validation.error }) to res.status(400).json({ error: 'Validation failed', details: { error: validation.error } })
-          return res.status(400).json(createErrorResponse(400, validation.error));
+        if (!validation.isValid) {
+          return res.status(400).json(createErrorResponse(400, validation.message));
         }
 
         // Serialize bank data as PHP serialized format for Laravel compatibility
@@ -278,19 +256,14 @@ const createPayoutMethod = async (req, res) => {
         // Update user with Indian bank configuration
         await updateUserPayoutMethod(userId, 'Bank_india', bankData);
 
-        // TODO: Convert createSuccessResponse('Changes saved successfully', { bank_india: { acc_no: validation.data.accountNumber, name: validation.data.holderName, bank_name: validation.data.bankName, ifsc: validation.data.ifscCode } }) to res.json({ success: true, message: 'Changes saved successfully', data: { bank_india: { acc_no: validation.data.accountNumber, name: validation.data.holderName, bank_name: validation.data.bankName, ifsc: validation.data.ifscCode } } })
-        return res.json({
-          success: true,
-          message: 'Changes saved successfully',
-          data: {
-            bank_india: {
-              acc_no: validation.data.accountNumber,
-              name: validation.data.holderName,
-              bank_name: validation.data.bankName,
-              ifsc: validation.data.ifscCode
-            }
+        return res.status(200).json(createSuccessResponse('Changes saved successfully', {
+          bank_india: {
+            acc_no: validation.data.accountNumber,
+            name: validation.data.holderName,
+            bank_name: validation.data.bankName,
+            ifsc: validation.data.ifscCode
           }
-        });
+        }));
       }
 
       case 'upi': {
@@ -305,22 +278,16 @@ const createPayoutMethod = async (req, res) => {
         
         // Validate UPI format using existing validation function
         const validation = validateUpiData({ upi_id: upiId });
-        if (!validation.valid) {
-          // TODO: Convert createErrorResponse(400, 'Validation failed', { error: validation.error }) to res.status(400).json({ error: 'Validation failed', details: { error: validation.error } })
-          return res.status(400).json(createErrorResponse(400, validation.error));
+        if (!validation.isValid) {
+          return res.status(400).json(createErrorResponse(400, validation.message));
         }
 
         // Update user with UPI configuration
         await updateUserPayoutMethod(userId, 'upi', validation.data.upiId);
 
-        // TODO: Convert createSuccessResponse('Changes saved successfully', { upi: validation.data.upiId }) to res.json({ success: true, message: 'Changes saved successfully', data: { upi: validation.data.upiId } })
-        return res.json({
-          success: true,
-          message: 'Changes saved successfully',
-          data: {
-            upi: validation.data.upiId
-          }
-        });
+        return res.status(200).json(createSuccessResponse('Changes saved successfully', {
+          upi: validation.data.upiId
+        }));
       }
 
       default:
@@ -372,11 +339,7 @@ const deletePayoutMethod = async (req, res) => {
       return res.status(404).json(createErrorResponse(404, 'User not found or no payout method to delete'));
     }
 
-    // TODO: Convert createSuccessResponse('Payout method deleted successfully') to res.json({ success: true, message: 'Payout method deleted successfully' })
-    return res.json({
-      success: true,
-      message: 'Payout method deleted successfully'
-    });
+    return res.status(200).json(createSuccessResponse('Payout method deleted successfully'));
 
   } catch (error) {
     logError('[deletePayoutMethodHandler] Error:', error);
@@ -467,7 +430,6 @@ const getPayoutConversations = async (req, res) => {
       next = `/payout/conversations?${queryParams.toString()}`;
     }
 
-    // TODO: Convert Lambda response format to Express response format
     return res.status(200).json(createSuccessResponse('Payout conversations retrieved successfully', {
         conversations,
         pagination: {
@@ -508,15 +470,10 @@ const storePayoutConversation = async (req, res) => {
       return res.status(errorResponse.statusCode).json(createErrorResponse(errorResponse.statusCode, errorResponse.body.message || errorResponse.body.error));
     }
 
-    // Parse request body
-    let requestBody;
-    try {
-      // TODO: Convert JSON.parse(event.body || '{}') to JSON.parse(req.body || '{}')
-      requestBody = JSON.parse(req.body || '{}');
-    } catch (parseError) {
-      logError('Error parsing request body:', parseError);
-      // TODO: Convert createErrorResponse(400, 'Invalid JSON in request body') to res.status(400).json({ error: 'Invalid JSON in request body' })
-      return res.status(400).json(createErrorResponse(400, 'Invalid JSON in request body'));
+    // Parse request body (Express already parsed JSON)
+    const { body: requestBody, error: bodyError } = parseRequestBody(req);
+    if (bodyError) {
+      return res.status(bodyError.status).json(bodyError);
     }
 
     // Validate required fields - message is required, payout_image_keys is optional
@@ -567,8 +524,9 @@ const storePayoutConversation = async (req, res) => {
           });
         }
         
-        // TODO: Convert createErrorResponse(500, 'Media processing failed', error.message) to res.status(500).json({ error: 'Media processing failed', details: error.message })
-        return res.status(500).json(createErrorResponse(500, 'Media processing failed'));
+        // Match Lambda error structure/details
+        const err = createErrorResponse(500, 'Media processing failed', error.message);
+        return res.status(500).json(err);
       }
     }
 
@@ -607,11 +565,7 @@ const storePayoutConversation = async (req, res) => {
     const [result] = await pool.query(insertQuery, insertParams);
 
     // TODO: Convert createSuccessResponse('Payout conversation stored successfully') to res.json({ success: true, message: 'Payout conversation stored successfully' })
-    const response = { success: true, message: 'Payout conversation stored successfully' };
-    
-    // Override status code to 201 for resource creation
-    // TODO: Convert response.statusCode = 201 to res.status(201)
-    return res.status(201).json(createSuccessResponse('Payout method created successfully', response));
+    return res.status(201).json(createSuccessResponse('Payout conversation stored successfully'));
 
   } catch (error) {
     logError('Error storing payout conversation', { 
@@ -632,24 +586,42 @@ const storePayoutConversation = async (req, res) => {
  * @returns {Promise<object>} API response with pre-signed URLs or error
  */
 const getPayoutUploadUrl = async (req, res) => {
-  // Configuration options for payout upload processing
-  const uploadOptions = {
-    action: 'getPayoutUploadUrl',
-    basePath: 'uploads/payout',
-    useFolderOrganization: false, // Payout uses flat structure
-    successMessage: 'Pre-signed upload URLs generated for payout conversation',
-    getAuthenticatedUserId
-  };
-  
-  // Use shared upload processing utility and return result directly
-  // TODO: Convert processUploadRequest(event, uploadOptions) to processUploadRequest(req, uploadOptions)
-  const result = await processUploadRequest(req, uploadOptions);
-  
-  // TODO: Convert Lambda response format to Express response format
-  if (result.statusCode === 200) {
-    return res.status(200).json(createSuccessResponse('Payout method retrieved successfully', JSON.parse(result.body)));
-  } else {
-    return res.status(result.statusCode).json(createErrorResponse(result.statusCode, JSON.parse(result.body).message || JSON.parse(result.body).error));
+  try {
+    // Parse fileNames from query or body. Support JSON-encoded string or array.
+    let { fileNames } = req.query;
+    if (!fileNames && req.body) {
+      fileNames = req.body.fileNames;
+    }
+
+    if (typeof fileNames === 'string') {
+      try {
+        fileNames = JSON.parse(fileNames);
+      } catch (e) {
+        // If not JSON, treat as single filename string
+        fileNames = [fileNames];
+      }
+    }
+
+    if (!Array.isArray(fileNames)) {
+      // If still not array but truthy value, wrap; else error out
+      if (fileNames) fileNames = [fileNames];
+    }
+
+    if (!Array.isArray(fileNames) || fileNames.length === 0) {
+      return res.status(400).json(createErrorResponse(400, 'fileNames is required and must be a non-empty array'));
+    }
+
+    logInfo('Generating payout upload URLs', { count: fileNames.length });
+
+    const folder = 'uploads/payout';
+    const uploadUrls = await processUploadRequest(fileNames, folder);
+
+    return res
+      .status(200)
+      .json(createSuccessResponse('Pre-signed upload URLs generated for payout conversation', { uploadUrls }));
+  } catch (error) {
+    logError('Error processing payout upload URLs', { error: error.message });
+    return res.status(500).json(createErrorResponse(500, 'Failed to generate pre-signed upload URLs'));
   }
 };
 

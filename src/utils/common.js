@@ -941,65 +941,165 @@ const getGenderOptions = async () => {
 };
 
 /**
- * Get user sales list
+ * Fetch authenticated user's sales list with filtering, sorting, and pagination
+ * Mirrors Lambda implementation
  */
-const getUserSalesList = async (userId, skip = 0, limit = 10) => {
+const getUserSalesList = async (userId, options = {}) => {
+  const { sort = null, filter = null, skip = 0, limit = 20 } = options || {};
+
+  // Base sales query (purchases joined to products and buyer)
+  let query = `
+    SELECT 
+      p.id,
+      p.delivery_status,
+      p.created_at,
+      p.description_custom_content,
+      u.username as buyer_username,
+      u.email as buyer_email,
+      pr.name as product_name,
+      pr.type as product_type,
+      pr.price as product_price
+    FROM purchases p
+    INNER JOIN users u ON p.user_id = u.id
+    INNER JOIN products pr ON p.products_id = pr.id
+    WHERE pr.user_id = ? AND p.status = 1
+  `;
+  const queryParams = [userId];
+
+  // Filter by product type
+  if (filter && filter !== 'all') {
+    query += ` AND pr.type = ?`;
+    queryParams.push(filter);
+  }
+
+  // Sorting and delivery status filter
+  if (sort) {
+    if (sort === 'oldest') {
+      query += ` ORDER BY p.id ASC`;
+    } else if (sort === 'latest') {
+      query += ` ORDER BY p.id DESC`;
+    } else if (['pending', 'delivered', 'rejected'].includes(sort)) {
+      query += ` AND p.delivery_status = ? ORDER BY p.id DESC`;
+      queryParams.push(sort);
+    } else {
+      query += ` ORDER BY p.id DESC`;
+    }
+  } else {
+    query += ` ORDER BY p.id DESC`;
+  }
+
+  // Pagination
+  query += ` LIMIT ? OFFSET ?`;
+  queryParams.push(parseInt(limit) || 20, parseInt(skip) || 0);
+
+  // Count query for total
+  let countQuery = `
+    SELECT COUNT(*) as total
+    FROM purchases p
+    INNER JOIN products pr ON p.products_id = pr.id
+    WHERE pr.user_id = ? AND p.status = 1
+  `;
+  const countParams = [userId];
+  if (filter && filter !== 'all') {
+    countQuery += ` AND pr.type = ?`;
+    countParams.push(filter);
+  }
+  if (sort && ['pending', 'delivered', 'rejected'].includes(sort)) {
+    countQuery += ` AND p.delivery_status = ?`;
+    countParams.push(sort);
+  }
+
   try {
-    const skipNum = parseInt(skip) || 0;
-    const limitNum = parseInt(limit) || 10;
+    const [countRows] = await pool.query(countQuery, countParams);
+    const totalSales = countRows[0]?.total || 0;
+    const [rows] = await pool.query(query, queryParams);
 
-    const query = `
-      SELECT 
-        s.id,
-        s.buyer_id,
-        s.product_id,
-        s.amount,
-        s.status,
-        s.created_at,
-        u.username as buyer_username,
-        u.name as buyer_name,
-        p.name as product_name
-      FROM sales s
-      JOIN users u ON s.buyer_id = u.id
-      JOIN products p ON s.product_id = p.id
-      WHERE s.seller_id = ?
-      ORDER BY s.created_at DESC
-      LIMIT ? OFFSET ?
-    `;
+    const sales = rows.map(row => {
+      const salesCreatedDate = new Date(row.created_at);
+      const salesFormattedDate = salesCreatedDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
 
-    const [sales] = await pool.query(query, [userId, limitNum, skipNum]);
-    return sales;
+      let displayProductType = row.product_type;
+      if (row.product_type === 'custom') displayProductType = 'Custom Content';
+      else if (row.product_type === 'digital') displayProductType = 'Digital Products';
+
+      return {
+        user: {
+          username: row.buyer_username,
+          email: row.buyer_email
+        },
+        sales: {
+          id: encryptId(row.id),
+          delivery_status: row.delivery_status,
+          created_at: salesFormattedDate,
+          description: row.description_custom_content || ''
+        },
+        product: {
+          product_name: row.product_name,
+          product_type: displayProductType,
+          price: parseFloat(row.product_price)
+        }
+      };
+    });
+
+    return { sales, totalSales };
   } catch (error) {
     logError('Error getting user sales list:', error);
-    return [];
-  }
-};
-
-/**
- * Update purchase status
- */
-const updatePurchaseStatus = async (saleId, status) => {
-  try {
-    const query = `UPDATE sales SET status = ?, updated_at = NOW() WHERE id = ?`;
-    await pool.query(query, [status, saleId]);
-    logInfo(`Updated purchase status: ${saleId} -> ${status}`);
-  } catch (error) {
-    logError('Error updating purchase status:', error);
     throw error;
   }
 };
 
 /**
- * Safe decrypt ID
+ * Update purchase status (delivered/rejected) for a creator's sale
+ * Mirrors Lambda implementation and validations
+ */
+const updatePurchaseStatus = async (userId, purchaseId, status) => {
+  if (!['delivered', 'rejected'].includes(status)) {
+    const error = new Error('Invalid status');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  // Ensure purchase belongs to this creator and is pending
+  const [rows] = await pool.query(
+    `SELECT p.id, p.delivery_status, pr.user_id as owner_id
+     FROM purchases p
+     INNER JOIN products pr ON p.products_id = pr.id
+     WHERE p.id = ? AND pr.user_id = ? AND p.delivery_status = 'pending' AND p.status = 1
+     LIMIT 1`,
+    [purchaseId, userId]
+  );
+  if (!rows.length) {
+    const error = new Error('Purchase not found or not eligible for update');
+    error.statusCode = 404;
+    throw error;
+  }
+
+  const [result] = await pool.query(
+    `UPDATE purchases SET delivery_status = ?, updated_at = NOW() 
+     WHERE id = ? AND delivery_status = 'pending'`,
+    [status, purchaseId]
+  );
+  if (result.affectedRows === 0) {
+    const error = new Error('Purchase not found or already updated');
+    error.statusCode = 404;
+    throw error;
+  }
+
+  logInfo('Updated purchase delivery_status', { purchaseId, status });
+  return result;
+};
+
+/**
+ * Safe decrypt ID - returns numeric ID or throws with message matching Lambda behavior
  */
 const safeDecryptId = (encryptedId) => {
-  try {
-    if (!encryptedId) return null;
-    return decryptId(encryptedId);
-  } catch (error) {
-    logError('Error safely decrypting ID:', error);
-    return null;
+  if (!encryptedId) throw new Error('Missing ID');
+  const decoded = decryptId(encryptedId);
+  const numeric = parseInt(decoded, 10);
+  if (!Number.isFinite(numeric)) {
+    throw new Error(`Decrypted ID is not a valid number: ${decoded} (type: ${typeof decoded})`);
   }
+  return numeric;
 };
 
 /**
@@ -1913,6 +2013,7 @@ const createErrorResponse = (statusCode, error, details = null) => {
 // Common success response function (Express version - returns JSON body only)
 const createSuccessResponse = (message, data = null) => {
   return {
+    success: true,
     message,
     status: 200,
     ...(data && { data }),
