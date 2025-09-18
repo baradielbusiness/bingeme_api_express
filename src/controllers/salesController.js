@@ -16,7 +16,7 @@ export const getSales = async (req, res) => {
     const { userId, errorResponse } = getAuthenticatedUserId(req, { action: 'my_sales.getMySales' });
     if (errorResponse) {
       // TODO: Convert return errorResponse to return res.status(errorResponse.statusCode).json(errorResponse.body)
-      return res.status(errorResponse.statusCode).json(errorResponse.body);
+      return res.status(errorResponse.statusCode).json(createErrorResponse(errorResponse.statusCode, errorResponse.body.message || errorResponse.body.error));
     }
 
     // Destructure query parameters for sorting, filtering, and pagination
@@ -66,7 +66,7 @@ export const deliveredProduct = async (req, res) => {
     const { userId, errorResponse } = getAuthenticatedUserId(req, { action: 'my_sales.deliveredProduct' });
     if (errorResponse) {
       // TODO: Convert return errorResponse to return res.status(errorResponse.statusCode).json(errorResponse.body)
-      return res.status(errorResponse.statusCode).json(errorResponse.body);
+      return res.status(errorResponse.statusCode).json(createErrorResponse(errorResponse.statusCode, errorResponse.body.message || errorResponse.body.error));
     }
 
     // Validate HTTP method
@@ -132,7 +132,7 @@ export const rejectOrder = async (req, res) => {
     const { userId, errorResponse } = getAuthenticatedUserId(req, { action: 'my_sales.rejectOrder' });
     if (errorResponse) {
       // TODO: Convert return errorResponse to return res.status(errorResponse.statusCode).json(errorResponse.body)
-      return res.status(errorResponse.statusCode).json(errorResponse.body);
+      return res.status(errorResponse.statusCode).json(createErrorResponse(errorResponse.statusCode, errorResponse.body.message || errorResponse.body.error));
     }
 
     // Validate HTTP method

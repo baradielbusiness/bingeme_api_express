@@ -91,7 +91,7 @@ export const init = async (req, res) => {
     // Swagger client: no App Attest, just issue tokens
     if (isSwagger) {
       const session = await issueAnonymousSession(req);
-      if (session.error) return res.status(500).json(session.error);
+      if (session.error) return res.status(500).json(createErrorResponse(500, session.error.message || session.error.error));
       return res.json(createExpressSuccessResponse('Swagger session initialized', {
         ...session,
         client: 'swagger'
@@ -109,7 +109,7 @@ export const init = async (req, res) => {
     // iOS (default) flow: App Attest with fallback
     if (unsupported === true) {
       const session = await issueAnonymousSession(req);
-      if (session.error) return res.status(500).json(session.error);
+      if (session.error) return res.status(500).json(createErrorResponse(500, session.error.message || session.error.error));
       return res.json(createExpressSuccessResponse('Anonymous session initialized (fallback)', {
         ...session,
         fallback: true
@@ -141,7 +141,7 @@ export const init = async (req, res) => {
     }
 
     const session = await issueAnonymousSession(req);
-    if (session.error) return res.status(500).json(session.error);
+    if (session.error) return res.status(500).json(createErrorResponse(500, session.error.message || session.error.error));
     
     return res.json(createExpressSuccessResponse('Anonymous session initialized', {
       ...session,
@@ -152,7 +152,7 @@ export const init = async (req, res) => {
     }));
   } catch (error) {
     logError('Anonymous user initialization error', error);
-    return res.status(500).json(createExpressErrorResponse('Internal server error', 500));
+    return res.status(500).json(createErrorResponse(500, 'Internal server error'));
   }
 };
 
@@ -181,7 +181,7 @@ export const register = async (req, res) => {
 
     // Validate input fields
     const inputError = validateRegistrationInput({ name, email, phone, countryCode, terms });
-    if (inputError) return res.status(400).json(createExpressErrorResponse(inputError.error, 400));
+    if (inputError) return res.status(400).json(createErrorResponse(400, inputError.error));
 
     // Rate limiting to prevent abuse
     logInfo('Checking rate limit');
@@ -256,7 +256,7 @@ export const register = async (req, res) => {
     return res.json(createExpressSuccessResponse('OTP sent successfully'));
   } catch (error) {
     logError('Signup error:', error);
-    return res.status(500).json(createExpressErrorResponse('Internal server error', 500));
+    return res.status(500).json(createErrorResponse(500, 'Internal server error'));
   }
 };
 
@@ -455,7 +455,7 @@ export const verifyOtp = async (req, res) => {
     }));
   } catch (error) {
     logError('OTP verification error:', error);
-    return res.status(500).json(createExpressErrorResponse('Internal server error', 500));
+    return res.status(500).json(createErrorResponse(500, 'Internal server error'));
   }
 };
 
@@ -560,7 +560,7 @@ export const login = async (req, res) => {
           return res.status(401).json(createExpressErrorResponse('Invalid credentials', 401));
         }
       } catch (compareError) {
-        return res.status(500).json(createExpressErrorResponse('Internal server error', 500));
+        return res.status(500).json(createErrorResponse(500, 'Internal server error'));
       }
     }
 
@@ -638,7 +638,7 @@ export const login = async (req, res) => {
     }));
   } catch (error) {
     logError('Login error', error);
-    return res.status(500).json(createExpressErrorResponse('Internal server error', 500));
+    return res.status(500).json(createErrorResponse(500, 'Internal server error'));
   }
 };
 
@@ -740,7 +740,7 @@ export const loginVerify = async (req, res) => {
     }));
   } catch (error) {
     logError('Login verification error', error);
-    return res.status(500).json(createExpressErrorResponse('Internal server error', 500));
+    return res.status(500).json(createErrorResponse(500, 'Internal server error'));
   }
 };
 
@@ -859,7 +859,7 @@ export const refresh = async (req, res) => {
     return res.json(createExpressSuccessResponse('Tokens refreshed successfully', data));
   } catch (error) {
     logError('Token refresh error', error);
-    return res.status(500).json(createExpressErrorResponse('Internal server error', 500));
+    return res.status(500).json(createErrorResponse(500, 'Internal server error'));
   }
 };
 
@@ -936,7 +936,7 @@ export const logout = async (req, res) => {
     }));
   } catch (error) {
     logError('Logout error', error);
-    return res.status(500).json(createExpressErrorResponse('Internal server error', 500));
+    return res.status(500).json(createErrorResponse(500, 'Internal server error'));
   }
 };
 
@@ -990,7 +990,7 @@ export const validate = async (req, res) => {
     }));
   } catch (error) {
     logError('Token validation error', error);
-    return res.status(500).json(createExpressErrorResponse('Internal server error', 500));
+    return res.status(500).json(createErrorResponse(500, 'Internal server error'));
   }
 };
 
@@ -1026,7 +1026,7 @@ export const forgotPasswordRequest = async (req, res) => {
     return res.json(createExpressSuccessResponse('OTP sent successfully'));
   } catch (error) {
     logError('Forgot password request error', error);
-    return res.status(500).json(createExpressErrorResponse('Internal server error', 500));
+    return res.status(500).json(createErrorResponse(500, 'Internal server error'));
   }
 };
 
@@ -1052,7 +1052,7 @@ export const forgotPasswordVerify = async (req, res) => {
     return res.json(createExpressSuccessResponse('OTP verified successfully'));
   } catch (error) {
     logError('Forgot password verification error', error);
-    return res.status(500).json(createExpressErrorResponse('Internal server error', 500));
+    return res.status(500).json(createErrorResponse(500, 'Internal server error'));
   }
 };
 
@@ -1091,7 +1091,7 @@ export const forgotPasswordReset = async (req, res) => {
     return res.json(createExpressSuccessResponse('Password reset successfully'));
   } catch (error) {
     logError('Password reset error', error);
-    return res.status(500).json(createExpressErrorResponse('Internal server error', 500));
+    return res.status(500).json(createErrorResponse(500, 'Internal server error'));
   }
 };
 
@@ -1198,7 +1198,7 @@ export const googleSignin = async (req, res) => {
     }));
   } catch (error) {
     logError('Google sign-in error', error);
-    return res.status(401).json(createExpressErrorResponse(error.message || 'Unauthorized', 401));
+    return res.status(401).json(createErrorResponse(401, error.message || 'Unauthorized'));
   }
 };
 
@@ -1298,7 +1298,7 @@ export const appleSignin = async (req, res) => {
     }));
   } catch (error) {
     logError('Apple sign-in error', error);
-    return res.status(401).json(createExpressErrorResponse(error.message || 'Unauthorized', 401));
+    return res.status(401).json(createErrorResponse(401, error.message || 'Unauthorized'));
   }
 };
 
@@ -1352,7 +1352,7 @@ export const suspended = async (req, res) => {
     }));
   } catch (error) {
     logError('Suspended handler error', error);
-    return res.status(500).json(createExpressErrorResponse('Internal server error', 500));
+    return res.status(500).json(createErrorResponse(500, 'Internal server error'));
   }
 };
 

@@ -21,7 +21,7 @@ export const getContactUserInfo = async (req, res) => {
     const authResult = getAuthenticatedUserId(req, { allowAnonymous: true, action: 'contact form access' });
     if (authResult.errorResponse) {
       // TODO: Convert return authResult.errorResponse to return res.status(authResult.errorResponse.statusCode).json(authResult.errorResponse.body)
-      return res.status(authResult.errorResponse.statusCode).json(authResult.errorResponse.body);
+      return res.status(authResult.errorResponse.statusCode).json(createErrorResponse(authResult.errorResponse.statusCode, authResult.errorResponse.body.message || authResult.errorResponse.body.error));
     }
     const userId = authResult.userId;
     

@@ -57,7 +57,7 @@ export const getPayoutMethod = async (req, res) => {
 
   } catch (error) {
     logError('[getPayoutMethod] Error:', error);
-    return res.status(500).json(createExpressErrorResponse('Internal server error', 500));
+    return res.status(500).json(createErrorResponse(500, 'Internal server error'));
   }
 };
 
@@ -120,7 +120,7 @@ export const createPayoutMethod = async (req, res) => {
         // Validate email format using existing validation function
         const validation = validatePayPalData({ paypal_email: email });
         if (!validation.valid) {
-          return res.status(400).json(createExpressErrorResponse(validation.error, 400));
+          return res.status(400).json(createErrorResponse(400, validation.error));
         }
 
         // Update user with PayPal configuration
@@ -189,7 +189,7 @@ export const createPayoutMethod = async (req, res) => {
         const validation = validateBankIndiaData({ account_number, holder_name, bank_name, ifsc_code });
         
         if (!validation.valid) {
-          return res.status(400).json(createExpressErrorResponse(validation.error, 400));
+          return res.status(400).json(createErrorResponse(400, validation.error));
         }
 
         // Serialize bank data as PHP serialized format for Laravel compatibility
@@ -226,7 +226,7 @@ export const createPayoutMethod = async (req, res) => {
         // Validate UPI format using existing validation function
         const validation = validateUpiData({ upi_id: upiId });
         if (!validation.valid) {
-          return res.status(400).json(createExpressErrorResponse(validation.error, 400));
+          return res.status(400).json(createErrorResponse(400, validation.error));
         }
 
         // Update user with UPI configuration
@@ -243,7 +243,7 @@ export const createPayoutMethod = async (req, res) => {
 
   } catch (error) {
     logError('[createPayoutMethod] Error:', error);
-    return res.status(500).json(createExpressErrorResponse('Internal server error', 500));
+    return res.status(500).json(createErrorResponse(500, 'Internal server error'));
   }
 };
 
@@ -278,6 +278,6 @@ export const deletePayoutMethod = async (req, res) => {
 
   } catch (error) {
     logError('[deletePayoutMethod] Error:', error);
-    return res.status(500).json(createExpressErrorResponse('Internal server error', 500));
+    return res.status(500).json(createErrorResponse(500, 'Internal server error'));
   }
 };

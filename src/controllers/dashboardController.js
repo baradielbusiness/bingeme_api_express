@@ -35,7 +35,7 @@ export const getDashboard = async (req, res) => {
     const { userId, decoded, errorResponse } = getAuthenticatedUserId(req, { action: 'dashboard handler' });
     if (errorResponse) {
       // TODO: Convert return errorResponse to return res.status(errorResponse.statusCode).json(errorResponse.body)
-      return res.status(errorResponse.statusCode).json(errorResponse.body);
+      return res.status(errorResponse.statusCode).json(createErrorResponse(errorResponse.statusCode, errorResponse.body.message || errorResponse.body.error));
     }
     
     const { email, role, username } = decoded;
@@ -147,7 +147,7 @@ export const getPostsReport = async (req, res) => {
     const { userId, decoded, errorResponse } = getAuthenticatedUserId(req, { action: 'posts report handler' });
     if (errorResponse) {
       // TODO: Convert return errorResponse to return res.status(errorResponse.statusCode).json(errorResponse.body)
-      return res.status(errorResponse.statusCode).json(errorResponse.body);
+      return res.status(errorResponse.statusCode).json(createErrorResponse(errorResponse.statusCode, errorResponse.body.message || errorResponse.body.error));
     }
     
     const { email, role } = decoded;
@@ -197,7 +197,7 @@ export const getIncomeChart = async (req, res) => {
     const { userId, decoded, errorResponse } = getAuthenticatedUserId(req, { action: 'income chart handler' });
     if (errorResponse) {
       // TODO: Convert return errorResponse to return res.status(errorResponse.statusCode).json(errorResponse.body)
-      return res.status(errorResponse.statusCode).json(errorResponse.body);
+      return res.status(errorResponse.statusCode).json(createErrorResponse(errorResponse.statusCode, errorResponse.body.message || errorResponse.body.error));
     }
     
     const { email, role } = decoded;

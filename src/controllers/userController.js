@@ -337,7 +337,7 @@ export const getSubscribers = async (req, res) => {
 
     // Validate pagination parameters
     if (skip < 0 || limit < 1 || limit > 100) {
-      return res.status(400).json(createExpressErrorResponse('Invalid pagination parameters. Skip must be >= 0, limit must be between 1-100.', 400));
+      return res.status(400).json(createErrorResponse(400, 'Invalid pagination parameters. Skip must be >= 0, limit must be between 1-100.'));
     }
 
     // Get subscribers list and count
@@ -358,7 +358,7 @@ export const getSubscribers = async (req, res) => {
     }));
   } catch (error) {
     logError('Error fetching subscribers:', error);
-    return res.status(500).json(createExpressErrorResponse('Failed to fetch subscribers', 500));
+    return res.status(500).json(createErrorResponse(500, 'Failed to fetch subscribers'));
   }
 };
 
@@ -390,7 +390,7 @@ export const getMyPosts = async (req, res) => {
     }));
   } catch (error) {
     logError('Error fetching posts:', error);
-    return res.status(500).json(createExpressErrorResponse('Failed to fetch posts', 500));
+    return res.status(500).json(createErrorResponse(500, 'Failed to fetch posts'));
   }
 };
 
@@ -404,7 +404,7 @@ export const getSettings = async (req, res) => {
     const user = await getUserById(userId);
     
     if (!user) {
-      return res.status(404).json(createExpressErrorResponse('User not found', 404));
+      return res.status(404).json(createErrorResponse(404, 'User not found'));
     }
 
     // Format user data for settings response
@@ -422,7 +422,7 @@ export const getSettings = async (req, res) => {
     return res.json(createExpressSuccessResponse('User settings retrieved successfully', { user: settings }));
   } catch (error) {
     logError('Error fetching user settings:', error);
-    return res.status(500).json(createExpressErrorResponse('Failed to fetch user settings', 500));
+    return res.status(500).json(createErrorResponse(500, 'Failed to fetch user settings'));
   }
 };
 
@@ -436,7 +436,7 @@ export const postSettings = async (req, res) => {
 
     const success = await updateUserSettings(userId, settingsData);
     if (!success) {
-      return res.status(400).json(createExpressErrorResponse('Failed to update settings', 400));
+      return res.status(400).json(createErrorResponse(400, 'Failed to update settings'));
     }
 
     logInfo('User settings updated successfully', { userId });
@@ -520,10 +520,10 @@ const processJwtToken = (token) => {
       const decryptedId = decryptId(userId);
       logInfo('Decoded encrypted user ID:', { encodedId: userId, decodedId: decryptedId });
       return { userId: decryptedId };
-    } catch (error) {
+  } catch (error) {
       logError('Failed to decode encrypted user ID:', { encodedId: userId, error: error.message });
       return { error: 'Invalid token format' };
-    }
+  }
   }
 
   return { userId };
@@ -634,7 +634,7 @@ export const changePassword = async (req, res) => {
     const { userId, errorResponse } = getAuthenticatedUserId(req, { action: 'change password' });
     if (errorResponse) {
       // TODO: Convert return errorResponse to return res.status(errorResponse.statusCode).json(errorResponse.body)
-      return res.status(errorResponse.statusCode).json(errorResponse.body);
+      return res.status(errorResponse.statusCode).json(createErrorResponse(errorResponse.statusCode, errorResponse.body.message || errorResponse.body.error));
     }
     if (!userId) {
       // TODO: Convert createErrorResponse(401, 'Access token required or invalid') to res.status(401).json({ error: 'Access token required or invalid' })
@@ -701,7 +701,7 @@ export const changePassword = async (req, res) => {
     if (!updatePassword) {
       logError('Password update failed for user:', userId);
       // TODO: Convert createErrorResponse(500, 'Failed to update password') to res.status(500).json({ error: 'Failed to update password' })
-      return res.status(500).json({ error: 'Failed to update password' });
+      return res.status(500).json(createErrorResponse(500, 'Failed to update password'));
     }
 
     // 6. Return success response
@@ -782,7 +782,7 @@ export const createPasswordOtp = async (req, res) => {
     const { userId, errorResponse } = getAuthenticatedUserId(req, { allowAnonymous: false, action: 'create password' });
     if (errorResponse) {
       // TODO: Convert return errorResponse to return res.status(errorResponse.statusCode).json(errorResponse.body)
-      return res.status(errorResponse.statusCode).json(errorResponse.body);
+      return res.status(errorResponse.statusCode).json(createErrorResponse(errorResponse.statusCode, errorResponse.body.message || errorResponse.body.error));
     }
 
     // Parse body and validate (accept new_password)
@@ -824,10 +824,7 @@ export const createPasswordOtp = async (req, res) => {
       
       logInfo('Password updated directly without OTP', { userId });
       // TODO: Convert Lambda response format to Express response format
-      return res.status(200).json({ 
-        success: true, 
-        message: 'Password updated successfully (no verified contact found, OTP verification skipped)' 
-      });
+      return res.status(200).json(createSuccessResponse('Password updated successfully (no verified contact found, OTP verification skipped)'));
     }
 
     // Generate and send OTP to verified destinations
@@ -897,7 +894,7 @@ export const createPasswordOtp = async (req, res) => {
 
     logInfo('Password create OTP sent', { userId, destinations });
     // TODO: Convert Lambda response format to Express response format
-    return res.status(200).json({ success: true, message });
+    return res.status(200).json(createSuccessResponse(message));
   } catch (error) {
     logError('createPasswordOtp error', error);
     // TODO: Convert createErrorResponse(500, 'Internal server error') to res.status(500).json({ error: 'Internal server error' })
@@ -922,7 +919,7 @@ export const verifyPasswordOtp = async (req, res) => {
     const { userId, errorResponse } = getAuthenticatedUserId(req, { allowAnonymous: false, action: 'verify password otp' });
     if (errorResponse) {
       // TODO: Convert return errorResponse to return res.status(errorResponse.statusCode).json(errorResponse.body)
-      return res.status(errorResponse.statusCode).json(errorResponse.body);
+      return res.status(errorResponse.statusCode).json(createErrorResponse(errorResponse.statusCode, errorResponse.body.message || errorResponse.body.error));
     }
 
     // Parse input (accept only otp and password)
@@ -961,10 +958,7 @@ export const verifyPasswordOtp = async (req, res) => {
       
       logInfo('Password updated directly without OTP verification', { userId });
       // TODO: Convert Lambda response format to Express response format
-      return res.status(200).json({ 
-        success: true, 
-        message: 'Password updated successfully (no verified contact found, OTP verification skipped)' 
-      });
+      return res.status(200).json(createSuccessResponse('Password updated successfully (no verified contact found, OTP verification skipped)'));
     }
 
     // Try verifying OTP against email first if verified, else mobile
@@ -981,7 +975,7 @@ export const verifyPasswordOtp = async (req, res) => {
 
     if (!verified) {
       // TODO: Convert Lambda response format to Express response format
-      return res.status(400).json({ success: false, message: 'Invalid or expired OTP' });
+      return res.status(400).json(createErrorResponse(400, 'Invalid or expired OTP'));
     }
 
     // OTP ok: update password
@@ -992,7 +986,7 @@ export const verifyPasswordOtp = async (req, res) => {
     }
 
     // TODO: Convert Lambda response format to Express response format
-    return res.status(200).json({ success: true, message: 'OTP verified successfully' });
+    return res.status(200).json(createSuccessResponse('OTP verified successfully'));
   } catch (error) {
     logError('verifyPasswordOtp error', error);
     // TODO: Convert createErrorResponse(500, 'Internal server error') to res.status(500).json({ error: 'Internal server error' })
@@ -1106,7 +1100,7 @@ export const blockUser = async (req, res) => {
     const { userId, errorResponse } = getAuthenticatedUserId(req, { action: 'block user' });
     if (errorResponse) {
       // TODO: Convert return errorResponse to return res.status(errorResponse.statusCode).json(errorResponse.body)
-      return res.status(errorResponse.statusCode).json(errorResponse.body);
+      return res.status(errorResponse.statusCode).json(createErrorResponse(errorResponse.statusCode, errorResponse.body.message || errorResponse.body.error));
     }
 
     // Get the user ID to block from path parameters
@@ -1388,7 +1382,7 @@ export const getProfile = async (req, res) => {
     const authResult = getAuthenticatedUserId(req, { allowAnonymous: false, action: 'profile access' });
     if (authResult.errorResponse) {
       // TODO: Convert return authResult.errorResponse to return res.status(authResult.errorResponse.statusCode).json(authResult.errorResponse.body)
-      return res.status(authResult.errorResponse.statusCode).json(authResult.errorResponse.body);
+      return res.status(authResult.errorResponse.statusCode).json(createErrorResponse(authResult.errorResponse.statusCode, authResult.errorResponse.body.message || authResult.errorResponse.body.error));
     }
     
     const userId = authResult.userId;
@@ -1505,7 +1499,7 @@ export const darkMode = async (req, res) => {
     const { userId, decoded, errorResponse } = getAuthenticatedUserId(req, { allowAnonymous: false, action: 'dark_mode handler' });
     if (errorResponse) {
       // TODO: Convert return errorResponse to return res.status(errorResponse.statusCode).json(errorResponse.body)
-      return res.status(errorResponse.statusCode).json(errorResponse.body);
+      return res.status(errorResponse.statusCode).json(createErrorResponse(errorResponse.statusCode, errorResponse.body.message || errorResponse.body.error));
     }
     const { email, role } = decoded;
     logInfo('Access token verified successfully:', { userId, email, role });
@@ -1593,7 +1587,7 @@ export const getUserCoverUploadUrl = async (req, res) => {
     return res.status(result.statusCode).json(JSON.parse(result.body));
   }
   
-  return res.json(result);
+    return res.json(result);
 };
 
 /**
@@ -1760,7 +1754,7 @@ export const restrictUser = async (req, res) => {
     const { userId, errorResponse } = getAuthenticatedUserId(req, { action: 'restriction' });
     if (errorResponse) {
       // TODO: Convert return errorResponse to return res.status(errorResponse.statusCode).json(errorResponse.body)
-      return res.status(errorResponse.statusCode).json(errorResponse.body);
+      return res.status(errorResponse.statusCode).json(createErrorResponse(errorResponse.statusCode, errorResponse.body.message || errorResponse.body.error));
     }
 
     // Get the user ID to restrict from path parameters
@@ -1776,7 +1770,7 @@ export const restrictUser = async (req, res) => {
     try {
       userToRestrictId = safeDecryptId(encryptedUserToRestrictId);
       logInfo('Decoded user ID:', { originalId: encryptedUserToRestrictId, decodedId: userToRestrictId });
-    } catch (error) {
+  } catch (error) {
       logError('Error decrypting user ID:', { encryptedUserToRestrictId, error: error.message });
       // TODO: Convert createErrorResponse(400, 'Invalid user ID format') to res.status(400).json({ error: 'Invalid user ID format' })
       return res.status(400).json(createErrorResponse(400, 'Invalid user ID format'));
@@ -1876,7 +1870,7 @@ export const getRestrictions = async (req, res) => {
     const { userId, errorResponse } = getAuthenticatedUserId(req, { action: 'restrictions' });
     if (errorResponse) {
       // TODO: Convert return errorResponse to return res.status(errorResponse.statusCode).json(errorResponse.body)
-      return res.status(errorResponse.statusCode).json(errorResponse.body);
+      return res.status(errorResponse.statusCode).json(createErrorResponse(errorResponse.statusCode, errorResponse.body.message || errorResponse.body.error));
     }
 
     // Pagination: skip (offset), limit (default 15, max 100)
@@ -1937,7 +1931,7 @@ export const getCreatorSubscribers = async (req, res) => {
     logInfo('Creator subscribers request received');
     const { userId, errorResponse } = getAuthenticatedUserId(req, { allowAnonymous: false, action: 'get creator subscribers' });
     if (errorResponse) {
-      return res.status(errorResponse.statusCode).json(errorResponse.body);
+      return res.status(errorResponse.statusCode).json(createErrorResponse(errorResponse.statusCode, errorResponse.body.message || errorResponse.body.error));
     }
     const { page = 1, limit = 10, sort = 'newest' } = req.query || {};
     const pageNum = parseInt(page, 10);
@@ -2032,7 +2026,7 @@ export const getPosts = async (req, res) => {
     logInfo('Posts request received');
     const { userId, errorResponse } = getAuthenticatedUserId(req, { allowAnonymous: false, action: 'get posts' });
     if (errorResponse) {
-      return res.status(errorResponse.statusCode).json(errorResponse.body);
+      return res.status(errorResponse.statusCode).json(createErrorResponse(errorResponse.statusCode, errorResponse.body.message || errorResponse.body.error));
     }
     const { page = 1, limit = 10, type = 'all' } = req.query || {};
     const pageNum = parseInt(page, 10);
@@ -2135,7 +2129,7 @@ export const getUpdates = async (req, res) => {
     logInfo('Updates request received');
     const { userId, errorResponse } = getAuthenticatedUserId(req, { allowAnonymous: false, action: 'get updates' });
     if (errorResponse) {
-      return res.status(errorResponse.statusCode).json(errorResponse.body);
+      return res.status(errorResponse.statusCode).json(createErrorResponse(errorResponse.statusCode, errorResponse.body.message || errorResponse.body.error));
     }
     const { page = 1, limit = 10, type = 'all', media_type = 'all' } = req.query || {};
     const pageNum = parseInt(page, 10);
@@ -2248,7 +2242,7 @@ export const editPost = async (req, res) => {
     logInfo('Edit post request received');
     const { userId, errorResponse } = getAuthenticatedUserId(req, { allowAnonymous: false, action: 'edit post' });
     if (errorResponse) {
-      return res.status(errorResponse.statusCode).json(errorResponse.body);
+      return res.status(errorResponse.statusCode).json(createErrorResponse(errorResponse.statusCode, errorResponse.body.message || errorResponse.body.error));
     }
     const { post_id, title, description, price, tags } = req.body || {};
     if (!post_id) {
@@ -2303,7 +2297,7 @@ export const deletePost = async (req, res) => {
     logInfo('Delete post request received');
     const { userId, errorResponse } = getAuthenticatedUserId(req, { allowAnonymous: false, action: 'delete post' });
     if (errorResponse) {
-      return res.status(errorResponse.statusCode).json(errorResponse.body);
+      return res.status(errorResponse.statusCode).json(createErrorResponse(errorResponse.statusCode, errorResponse.body.message || errorResponse.body.error));
     }
     const { id } = req.params || {};
     if (!id) {
@@ -2340,7 +2334,7 @@ export const getComments = async (req, res) => {
     logInfo('Get comments request received');
     const { userId, errorResponse } = getAuthenticatedUserId(req, { allowAnonymous: false, action: 'get comments' });
     if (errorResponse) {
-      return res.status(errorResponse.statusCode).json(errorResponse.body);
+      return res.status(errorResponse.statusCode).json(createErrorResponse(errorResponse.statusCode, errorResponse.body.message || errorResponse.body.error));
     }
     const { id } = req.params || {};
     if (!id) {
@@ -2435,7 +2429,7 @@ export const sendOtp = async (req, res) => {
     logInfo('Send OTP request received');
     const { userId, errorResponse } = getAuthenticatedUserId(req, { allowAnonymous: false, action: 'send OTP' });
     if (errorResponse) {
-      return res.status(errorResponse.statusCode).json(errorResponse.body);
+      return res.status(errorResponse.statusCode).json(createErrorResponse(errorResponse.statusCode, errorResponse.body.message || errorResponse.body.error));
     }
     if (!userId) {
       return res.status(401).json(createErrorResponse(401, 'Access token required or invalid'));
@@ -2500,30 +2494,30 @@ export const verifyOtp = async (req, res) => {
     logInfo('Verify OTP request received');
     const { userId, errorResponse } = getAuthenticatedUserId(req, { allowAnonymous: false, action: 'verify OTP' });
     if (errorResponse) {
-      return res.status(errorResponse.statusCode).json(errorResponse.body);
+      return res.status(errorResponse.statusCode).json(createErrorResponse(errorResponse.statusCode, errorResponse.body.message || errorResponse.body.error));
     }
     if (!userId) {
       return res.status(401).json(createErrorResponse(401, 'Access token required or invalid'));
     }
     const { email, emailOtp, mobile, mobileOtp, country_code, email_otp, mobile_otp } = req.body || {};
     if (!email_otp && !mobile_otp) {
-      return res.status(400).json({ error: 'At least one of email_otp or mobile_otp must be true' });
+      return res.status(400).json(createErrorResponse(400, 'At least one of email_otp or mobile_otp must be true'));
     }
     let emailValid = true, mobileValid = true, updateSuccess = true;
     let updateFields = {};
     if (email_otp) {
       if (!email || !emailOtp) {
-        return res.status(400).json({ error: 'Email and OTP are required when email_otp is true' });
+        return res.status(400).json(createErrorResponse(400, 'Email and OTP are required when email_otp is true'));
       }
       emailValid = await verifyEmailOTP(email, emailOtp);
       if (emailValid) updateFields.email = email;
     }
     if (mobile_otp) {
       if (!mobile || !mobileOtp) {
-        return res.status(400).json({ error: 'Mobile and OTP are required when mobile_otp is true' });
+        return res.status(400).json(createErrorResponse(400, 'Mobile and OTP are required when mobile_otp is true'));
       }
       if (!country_code) {
-        return res.status(400).json({ error: 'Country code is required when verifying mobile OTP' });
+        return res.status(400).json(createErrorResponse(400, 'Country code is required when verifying mobile OTP'));
       }
       const mobileIdentifier = country_code + mobile;
       mobileValid = await verifyEmailOTP(mobileIdentifier, mobileOtp);
@@ -2535,7 +2529,7 @@ export const verifyOtp = async (req, res) => {
       let errorMsg = [];
       if (email_otp && !emailValid) errorMsg.push('Invalid or expired email OTP');
       if (mobile_otp && !mobileValid) errorMsg.push('Invalid or expired mobile OTP');
-      return res.status(400).json({ error: errorMsg.join(' and ') });
+      return res.status(400).json(createErrorResponse(400, errorMsg.join(' and ')));
     }
     if (Object.keys(updateFields).length > 0) {
       updateSuccess = await updateUserAfterOTP(userId, updateFields);
@@ -2545,7 +2539,7 @@ export const verifyOtp = async (req, res) => {
       logInfo('OTP verified and profile updated successfully', { userId, updatedFields });
       return res.status(200).json(createSuccessResponse(`${updatedFields.charAt(0).toUpperCase() + updatedFields.slice(1)} updated successfully`));
     } else {
-      return res.status(500).json({ error: 'Failed to update user details' });
+      return res.status(500).json(createErrorResponse(500, 'Failed to update user details'));
     }
   } catch (error) {
     logError('Verify OTP error:', error);
@@ -2562,7 +2556,7 @@ export const getUserProfile = async (req, res) => {
     logInfo('Get user profile request received');
     const { userId, errorResponse } = getAuthenticatedUserId(req, { allowAnonymous: false, action: 'get user profile' });
     if (errorResponse) {
-      return res.status(errorResponse.statusCode).json(errorResponse.body);
+      return res.status(errorResponse.statusCode).json(createErrorResponse(errorResponse.statusCode, errorResponse.body.message || errorResponse.body.error));
     }
     if (!userId) {
       return res.status(401).json(createErrorResponse(401, 'Access token required or invalid'));
@@ -2632,23 +2626,23 @@ export const updateUserProfile = async (req, res) => {
     logInfo('Update user profile request received');
     const { userId, errorResponse } = getAuthenticatedUserId(req, { allowAnonymous: false, action: 'update user profile' });
     if (errorResponse) {
-      return res.status(errorResponse.statusCode).json(errorResponse.body);
+      return res.status(errorResponse.statusCode).json(createErrorResponse(errorResponse.statusCode, errorResponse.body.message || errorResponse.body.error));
     }
     if (!userId) {
       return res.status(401).json(createErrorResponse(401, 'Access token required or invalid'));
     }
     const validation = validateUserSettings(req.body);
     if (!validation.valid) {
-      return res.status(400).json({ error: validation.message });
+      return res.status(400).json(createErrorResponse(400, validation.message));
     }
     if (req.body.username && await checkUserFieldExists(userId, 'username', req.body.username)) {
-      return res.status(409).json({ error: 'Username already taken' });
+      return res.status(409).json(createErrorResponse(409, 'Username already taken'));
     }
     if (req.body.email && await checkUserFieldExists(userId, 'email', req.body.email)) {
-      return res.status(409).json({ error: 'Email already taken' });
+      return res.status(409).json(createErrorResponse(409, 'Email already taken'));
     }
     if (req.body.mobile && await checkMobileExists(userId, req.body.mobile, req.body.country_code)) {
-      return res.status(409).json({ error: 'Mobile number already taken' });
+      return res.status(409).json(createErrorResponse(409, 'Mobile number already taken'));
     }
     const comparison = await compareUserFields(userId, req.body.email, req.body.mobile, req.body.country_code);
     const emailMatches = comparison.emailMatches;
@@ -2663,18 +2657,18 @@ export const updateUserProfile = async (req, res) => {
       }
       const updateSuccess = await updateUserSettings(userId, updateFields);
       if (!updateSuccess) {
-        return res.status(500).json({ error: 'Failed to update user settings' });
+        return res.status(500).json(createErrorResponse(500, 'Failed to update user settings'));
       }
       return res.status(200).json(createSuccessResponse('Profile updated successfully'));
     }
     if (emailMatches && !mobileMatches) {
       if (!mobile_otp) {
-        return res.status(400).json({ error: 'Mobile OTP is required for mobile number change' });
+        return res.status(400).json(createErrorResponse(400, 'Mobile OTP is required for mobile number change'));
       }
       const mobileIdentifier = req.body.country_code + req.body.mobile;
       const mobileValid = await verifyEmailOTP(mobileIdentifier, mobile_otp);
       if (!mobileValid) {
-        return res.status(400).json({ error: 'Invalid or expired mobile OTP' });
+        return res.status(400).json(createErrorResponse(400, 'Invalid or expired mobile OTP'));
       }
       const updateFields = { ...req.body };
       delete updateFields.email_otp;
@@ -2682,17 +2676,17 @@ export const updateUserProfile = async (req, res) => {
       updateFields.mobile = req.body.country_code + req.body.mobile;
       const updateSuccess = await updateUserSettings(userId, updateFields);
       if (!updateSuccess) {
-        return res.status(500).json({ error: 'Failed to update user settings' });
+        return res.status(500).json(createErrorResponse(500, 'Failed to update user settings'));
       }
       return res.status(200).json(createSuccessResponse('Profile updated successfully'));
     }
     if (!emailMatches && mobileMatches) {
       if (!email_otp) {
-        return res.status(400).json({ error: 'Email OTP is required for email change' });
+        return res.status(400).json(createErrorResponse(400, 'Email OTP is required for email change'));
       }
       const emailValid = await verifyEmailOTP(req.body.email, email_otp);
       if (!emailValid) {
-        return res.status(400).json({ error: 'Invalid or expired email OTP' });
+        return res.status(400).json(createErrorResponse(400, 'Invalid or expired email OTP'));
       }
       const updateFields = { ...req.body };
       delete updateFields.email_otp;
@@ -2702,13 +2696,13 @@ export const updateUserProfile = async (req, res) => {
       }
       const updateSuccess = await updateUserSettings(userId, updateFields);
       if (!updateSuccess) {
-        return res.status(500).json({ error: 'Failed to update user settings' });
+        return res.status(500).json(createErrorResponse(500, 'Failed to update user settings'));
       }
       return res.status(200).json(createSuccessResponse('Profile updated successfully'));
     }
     if (!emailMatches && !mobileMatches) {
       if (!email_otp || !mobile_otp) {
-        return res.status(400).json({ error: 'Both email and mobile OTPs are required for changes' });
+        return res.status(400).json(createErrorResponse(400, 'Both email and mobile OTPs are required for changes'));
       }
       const emailValid = await verifyEmailOTP(req.body.email, email_otp);
       const mobileIdentifier = req.body.country_code + req.body.mobile;
@@ -2717,7 +2711,7 @@ export const updateUserProfile = async (req, res) => {
         let errorMsg = [];
         if (!emailValid) errorMsg.push('Invalid or expired email OTP');
         if (!mobileValid) errorMsg.push('Invalid or expired mobile OTP');
-        return res.status(400).json({ error: errorMsg.join(' and ') });
+        return res.status(400).json(createErrorResponse(400, errorMsg.join(' and ')));
       }
       const updateFields = { ...req.body };
       delete updateFields.email_otp;
@@ -2725,7 +2719,7 @@ export const updateUserProfile = async (req, res) => {
       updateFields.mobile = req.body.country_code + req.body.mobile;
       const updateSuccess = await updateUserSettings(userId, updateFields);
       if (!updateSuccess) {
-        return res.status(500).json({ error: 'Failed to update user settings' });
+        return res.status(500).json(createErrorResponse(500, 'Failed to update user settings'));
       }
       return res.status(200).json(createSuccessResponse('Profile updated successfully'));
     }
@@ -2744,7 +2738,7 @@ export const searchUsers = async (req, res) => {
     logInfo('Search users request received');
     const { userId, errorResponse } = getAuthenticatedUserId(req, { allowAnonymous: false, action: 'search users' });
     if (errorResponse) {
-      return res.status(errorResponse.statusCode).json(errorResponse.body);
+      return res.status(errorResponse.statusCode).json(createErrorResponse(errorResponse.statusCode, errorResponse.body.message || errorResponse.body.error));
     }
     const { search = '', q = '', type = '' } = req.query || {};
     const searchTerm = (search || q).trim();
@@ -2754,7 +2748,7 @@ export const searchUsers = async (req, res) => {
     }
     if (searchType && !['user', 'creator'].includes(searchType)) {
       logInfo('Invalid type parameter', { type: searchType });
-      return res.status(400).json({ error: 'Invalid type parameter. Must be "user" or "creator"', users: [] });
+      return res.status(400).json(createErrorResponse(400, 'Invalid type parameter. Must be "user" or "creator"'));
     }
     logInfo('Search parameters', { search, q, searchTerm, searchLength: searchTerm.length, type: searchType });
     if (searchTerm.length < 2) {
@@ -2762,7 +2756,7 @@ export const searchUsers = async (req, res) => {
       return res.status(200).json(createSuccessResponse('Search completed', { users: [] }));
     }
     const user = await getUserById(userId);
-    if (!user) return res.status(404).json({ error: 'User not found' });
+    if (!user) return res.status(404).json(createErrorResponse(404, 'User not found'));
     const { verified_id } = user;
     logInfo('User info retrieved', { userId, verified_id });
     const isSupportSearchRequest = searchTerm.toLowerCase().includes('sup');

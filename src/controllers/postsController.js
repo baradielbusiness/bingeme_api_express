@@ -865,7 +865,7 @@ export const getPostCreateData = async (req, res) => {
     });
     if (errorResponse) {
       // TODO: Convert return errorResponse to return res.status(errorResponse.statusCode).json(errorResponse.body)
-      return res.status(errorResponse.statusCode).json(errorResponse.body);
+      return res.status(errorResponse.statusCode).json(createErrorResponse(errorResponse.statusCode, errorResponse.body.message || errorResponse.body.error));
     }
 
     // Step 2: Validate HTTP method (early return on failure)
@@ -964,7 +964,7 @@ export const createPost = async (req, res) => {
     });
     if (errorResponse) {
       // TODO: Convert return errorResponse to return res.status(errorResponse.statusCode).json(errorResponse.body)
-      return res.status(errorResponse.statusCode).json(errorResponse.body);
+      return res.status(errorResponse.statusCode).json(createErrorResponse(errorResponse.statusCode, errorResponse.body.message || errorResponse.body.error));
     }
 
     // Step 2: Validate HTTP method (only POST allowed)
@@ -1109,11 +1109,11 @@ export const createPost = async (req, res) => {
       calculatedExpiredAt: expired_at
     });
 
-    return res.status(200).json(createExpressSuccessResponse('Post created successfully', responseData));
+    return res.status(200).json(createSuccessResponse('Post created successfully', responseData));
 
   } catch (error) {
     logError('Unexpected error in createPost:', { error: error.message, stack: error.stack });
-    return res.status(500).json(createExpressErrorResponse('Internal server error', 500));
+    return res.status(500).json(createErrorResponse(500, 'Internal server error'));
   }
 };
 
@@ -1158,7 +1158,7 @@ export const getPostByUsernameAndId = async (req, res) => {
     const { userId, errorResponse } = getAuthenticatedUserId(req, { action: 'get_post_by_username_and_id' });
     if (errorResponse) {
       // TODO: Convert return errorResponse to return res.status(errorResponse.statusCode).json(errorResponse.body)
-      return res.status(errorResponse.statusCode).json(errorResponse.body);
+      return res.status(errorResponse.statusCode).json(createErrorResponse(errorResponse.statusCode, errorResponse.body.message || errorResponse.body.error));
     }
 
     // 2) Validate path params
@@ -1224,7 +1224,7 @@ export const getPostByUsernameAndId = async (req, res) => {
     return res.status(200).json(createExpressSuccessResponse('Post details retrieved', response));
   } catch (error) {
     logError('Error in getPostByUsernameAndId:', error);
-    return res.status(500).json(createExpressErrorResponse('Internal server error', 500));
+    return res.status(500).json(createErrorResponse(500, 'Internal server error'));
   }
 };
 
@@ -1241,7 +1241,7 @@ export const addComment = async (req, res) => {
     const { userId, errorResponse } = getAuthenticatedUserId(req, { action: 'store_comment' });
     if (errorResponse) {
       // TODO: Convert return errorResponse to return res.status(errorResponse.statusCode).json(errorResponse.body)
-      return res.status(errorResponse.statusCode).json(errorResponse.body);
+      return res.status(errorResponse.statusCode).json(createErrorResponse(errorResponse.statusCode, errorResponse.body.message || errorResponse.body.error));
     }
 
     // Parse request body
@@ -1338,7 +1338,7 @@ export const deleteComment = async (req, res) => {
     const { userId, errorResponse } = getAuthenticatedUserId(req, { action: 'delete_comment' });
     if (errorResponse) {
       // TODO: Convert return errorResponse to return res.status(errorResponse.statusCode).json(errorResponse.body)
-      return res.status(errorResponse.statusCode).json(errorResponse.body);
+      return res.status(errorResponse.statusCode).json(createErrorResponse(errorResponse.statusCode, errorResponse.body.message || errorResponse.body.error));
     }
 
     // Parse request body
@@ -1433,7 +1433,7 @@ export const toggleLike = async (req, res) => {
     const { userId, errorResponse } = getAuthenticatedUserId(req, { action: 'post_like' });
     if (errorResponse) {
       // TODO: Convert return errorResponse to return res.status(errorResponse.statusCode).json(errorResponse.body)
-      return res.status(errorResponse.statusCode).json(errorResponse.body);
+      return res.status(errorResponse.statusCode).json(createErrorResponse(errorResponse.statusCode, errorResponse.body.message || errorResponse.body.error));
     }
 
     // Parse request body
@@ -1541,7 +1541,7 @@ export const toggleCommentLike = async (req, res) => {
     const { userId, errorResponse } = getAuthenticatedUserId(req, { action: 'comment_like' });
     if (errorResponse) {
       // TODO: Convert return errorResponse to return res.status(errorResponse.statusCode).json(errorResponse.body)
-      return res.status(errorResponse.statusCode).json(errorResponse.body);
+      return res.status(errorResponse.statusCode).json(createErrorResponse(errorResponse.statusCode, errorResponse.body.message || errorResponse.body.error));
     }
 
     // Parse request body
@@ -1637,7 +1637,7 @@ export const pinPost = async (req, res) => {
     const authResult = getAuthenticatedUserId(req, { allowAnonymous: false, action: 'pin post' });
     if (authResult.errorResponse) {
       // TODO: Convert return authResult.errorResponse to return res.status(authResult.errorResponse.statusCode).json(authResult.errorResponse.body)
-      return res.status(authResult.errorResponse.statusCode).json(authResult.errorResponse.body);
+      return res.status(authResult.errorResponse.statusCode).json(createErrorResponse(authResult.errorResponse.statusCode, authResult.errorResponse.body.message || authResult.errorResponse.body.error));
     }
     
     const userId = authResult.userId;

@@ -43,7 +43,7 @@ export const getCreatorSettings = async (req, res) => {
   const { userId, errorResponse } = getAuthenticatedUserId(req, { action: 'creator_settings getCreatorSettingsHandler' });
   if (errorResponse) {
     // TODO: Convert return errorResponse to return res.status(errorResponse.statusCode).json(errorResponse.body)
-    return res.status(errorResponse.statusCode).json(errorResponse.body);
+    return res.status(errorResponse.statusCode).json(createErrorResponse(errorResponse.statusCode, errorResponse.body.message || errorResponse.body.error));
   }
   try {
     logInfo('Fetching creator settings', { userId });
@@ -296,7 +296,7 @@ export const updateCreatorSettings = async (req, res) => {
   const { userId, errorResponse } = getAuthenticatedUserId(req, { action: 'creator_settings updateCreatorSettingsHandler' });
   if (errorResponse) {
     // TODO: Convert return errorResponse to return res.status(errorResponse.statusCode).json(errorResponse.body)
-    return res.status(errorResponse.statusCode).json(errorResponse.body);
+    return res.status(errorResponse.statusCode).json(createErrorResponse(errorResponse.statusCode, errorResponse.body.message || errorResponse.body.error));
   }
   try {
     logInfo('Updating creator settings', { userId });
@@ -424,10 +424,7 @@ export const updateCreatorSettings = async (req, res) => {
     // If validation errors, return all
     if (errors.length > 0) {
       // TODO: Convert Lambda response format to Express response format
-      return res.status(400).json({
-        success: false,
-        errors
-      });
+      return res.status(400).json(createErrorResponse(400, 'Validation failed'));
     }
 
     // Transform flat format to the expected nested format for the utility function
@@ -507,7 +504,7 @@ export const getBlockedCountries = async (req, res) => {
     const { userId, errorResponse } = getAuthenticatedUserId(req, { action: 'block_countries GET handler' });
     if (errorResponse) {
       // TODO: Convert return errorResponse to return res.status(errorResponse.statusCode).json(errorResponse.body)
-      return res.status(errorResponse.statusCode).json(errorResponse.body);
+      return res.status(errorResponse.statusCode).json(createErrorResponse(errorResponse.statusCode, errorResponse.body.message || errorResponse.body.error));
     }
 
     // Check user verification status
@@ -583,7 +580,7 @@ export const updateBlockedCountries = async (req, res) => {
     const { userId, errorResponse } = getAuthenticatedUserId(req, { action: 'block_countries POST handler' });
     if (errorResponse) {
       // TODO: Convert return errorResponse to return res.status(errorResponse.statusCode).json(errorResponse.body)
-      return res.status(errorResponse.statusCode).json(errorResponse.body);
+      return res.status(errorResponse.statusCode).json(createErrorResponse(errorResponse.statusCode, errorResponse.body.message || errorResponse.body.error));
     }
 
     // Check user verification status
@@ -809,7 +806,7 @@ export const getSubscriptionSettings = async (req, res) => {
     const { userId, errorResponse } = getAuthenticatedUserId(req, { action: 'fetch subscription settings' });
     if (errorResponse) {
       // TODO: Convert return errorResponse to return res.status(errorResponse.statusCode).json(errorResponse.body)
-      return res.status(errorResponse.statusCode).json(errorResponse.body);
+      return res.status(errorResponse.statusCode).json(createErrorResponse(errorResponse.statusCode, errorResponse.body.message || errorResponse.body.error));
     }
 
     const user = await getUserById(userId);
@@ -855,7 +852,7 @@ export const updateSubscriptionSettings = async (req, res) => {
     const { userId, errorResponse } = getAuthenticatedUserId(req, { action: 'update subscription settings' });
     if (errorResponse) {
       // TODO: Convert return errorResponse to return res.status(errorResponse.statusCode).json(errorResponse.body)
-      return res.status(errorResponse.statusCode).json(errorResponse.body);
+      return res.status(errorResponse.statusCode).json(createErrorResponse(errorResponse.statusCode, errorResponse.body.message || errorResponse.body.error));
     }
 
     let requestBody;
@@ -958,7 +955,7 @@ export const getCreatorAgreement = async (req, res) => {
     if (errorResponse) {
       logError('Authentication failed for creator agreement', { userId, error: errorResponse });
       // TODO: Convert return errorResponse to return res.status(errorResponse.statusCode).json(errorResponse.body)
-      return res.status(errorResponse.statusCode).json(errorResponse.body);
+      return res.status(errorResponse.statusCode).json(createErrorResponse(errorResponse.statusCode, errorResponse.body.message || errorResponse.body.error));
     }
 
     // Get user details from database
@@ -1059,7 +1056,7 @@ const createTicketConversations = async (userId, imageName, processedMedia, crea
       'INSERT INTO ticket_conversations (user_id, to_user_id, message, image, type, created_at, updated_at) VALUES (?, ?, ?, ?, ?, NOW(), NOW())',
       [userId, 1, 'agreement-image', imageFilename, '2']
     );
-
+    
     logInfo('Ticket conversations created for agreement', { userId, imageName, imageFilename });
   } catch (error) {
     logError('Error creating ticket conversations', { userId, error: error.message });
@@ -1102,7 +1099,7 @@ export const postCreatorAgreement = async (req, res) => {
     const { userId, errorResponse } = getAuthenticatedUserId(req, { action: 'creator agreement submission' });
     if (errorResponse) {
       // TODO: Convert return errorResponse to return res.status(errorResponse.statusCode).json(errorResponse.body)
-      return res.status(errorResponse.statusCode).json(errorResponse.body);
+      return res.status(errorResponse.statusCode).json(createErrorResponse(errorResponse.statusCode, errorResponse.body.message || errorResponse.body.error));
     }
 
     // Parse request body
@@ -1333,7 +1330,7 @@ export const downloadCreatorAgreementPdf = async (req, res) => {
 
     if (errorResponse) {
       // TODO: Convert return errorResponse to return res.status(errorResponse.statusCode).json(errorResponse.body)
-      return res.status(errorResponse.statusCode).json(errorResponse.body);
+      return res.status(errorResponse.statusCode).json(createErrorResponse(errorResponse.statusCode, errorResponse.body.message || errorResponse.body.error));
     }
 
     // Fetch user to build a friendly download filename
@@ -1401,7 +1398,7 @@ export const getPaymentsReceived = async (req, res) => {
     const { userId, errorResponse } = getAuthenticatedUserId(req, { action: 'get payments received' });
     if (errorResponse) {
       // TODO: Convert return errorResponse to return res.status(errorResponse.statusCode).json(errorResponse.body)
-      return res.status(errorResponse.statusCode).json(errorResponse.body);
+      return res.status(errorResponse.statusCode).json(createErrorResponse(errorResponse.statusCode, errorResponse.body.message || errorResponse.body.error));
     }
 
     const { page = 1, limit = 10 } = req.query;
@@ -1460,7 +1457,7 @@ export const getWithdrawals = async (req, res) => {
     const { userId, errorResponse } = getAuthenticatedUserId(req, { action: 'get withdrawals' });
     if (errorResponse) {
       // TODO: Convert return errorResponse to return res.status(errorResponse.statusCode).json(errorResponse.body)
-      return res.status(errorResponse.statusCode).json(errorResponse.body);
+      return res.status(errorResponse.statusCode).json(createErrorResponse(errorResponse.statusCode, errorResponse.body.message || errorResponse.body.error));
     }
 
     const { page = 1, limit = 10 } = req.query;

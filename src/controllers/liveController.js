@@ -110,7 +110,7 @@ export const getLiveCreate = async (req, res) => {
   const { userId, errorResponse } = getAuthenticatedUserId(req, { action: 'access' });
   if (errorResponse) {
     // TODO: Convert return errorResponse to return res.status(errorResponse.statusCode).json(errorResponse.body)
-    return res.status(errorResponse.statusCode).json(errorResponse.body);
+    return res.status(errorResponse.statusCode).json(createErrorResponse(errorResponse.statusCode, errorResponse.body.message || errorResponse.body.error));
   }
 
   // Fetch user and verify
@@ -170,7 +170,7 @@ export const postLiveCreate = async (req, res) => {
   const { userId, errorResponse } = getAuthenticatedUserId(req, { action: 'access' });
   if (errorResponse) {
     // TODO: Convert return errorResponse to return res.status(errorResponse.statusCode).json(errorResponse.body)
-    return res.status(errorResponse.statusCode).json(errorResponse.body);
+    return res.status(errorResponse.statusCode).json(createErrorResponse(errorResponse.statusCode, errorResponse.body.message || errorResponse.body.error));
   }
 
   // Fetch user and verify
@@ -694,7 +694,7 @@ export const getLiveFilter = async (req, res) => {
     const { userId, errorResponse } = getAuthenticatedUserId(req, { action: 'access' });
     if (errorResponse) {
       // TODO: Convert return errorResponse to return res.status(errorResponse.statusCode).json(errorResponse.body)
-      return res.status(errorResponse.statusCode).json(errorResponse.body);
+      return res.status(errorResponse.statusCode).json(createErrorResponse(errorResponse.statusCode, errorResponse.body.message || errorResponse.body.error));
     }
 
     // Step 2: Parse and validate the encrypted live stream ID from query params
@@ -779,7 +779,7 @@ export const postLiveFilter = async (req, res) => {
     const { userId, errorResponse } = getAuthenticatedUserId(req, { action: 'access' });
     if (errorResponse) {
       // TODO: Convert return errorResponse to return res.status(errorResponse.statusCode).json(errorResponse.body)
-      return res.status(errorResponse.statusCode).json(errorResponse.body);
+      return res.status(errorResponse.statusCode).json(createErrorResponse(errorResponse.statusCode, errorResponse.body.message || errorResponse.body.error));
     }
 
     // Step 2: Parse and validate the request body
@@ -1168,12 +1168,9 @@ export const postLiveGoal = async (req, res) => {
         coins: goal.coins
       }));
 
-      return res.status(200).json({
-        message: 'Goal Updated successfully',
-        status: 200,
-        data: { 
-          live: encryptedActiveGoals
-        },
+      return res.status(200).json(createSuccessResponse('Goal Updated successfully', { 
+        live: encryptedActiveGoals
+      }));
         timestamp: new Date().toISOString()
       });
     } catch (error) {
@@ -1207,7 +1204,7 @@ export const getLiveGo = async (req, res) => {
   const { userId, errorResponse } = getAuthenticatedUserId(req, { action: 'access' });
   if (errorResponse) {
     // TODO: Convert return errorResponse to return res.status(errorResponse.statusCode).json(errorResponse.body)
-    return res.status(errorResponse.statusCode).json(errorResponse.body);
+    return res.status(errorResponse.statusCode).json(createErrorResponse(errorResponse.statusCode, errorResponse.body.message || errorResponse.body.error));
   }
 
   // Get live ID from path and decrypt it
@@ -1243,7 +1240,7 @@ export const getLiveGo = async (req, res) => {
   const live = await getLiveStreamings(liveId);
   if (!live) {
     // TODO: Convert createErrorResponse(404, 'Live not found') to res.status(404).json({ error: 'Live not found' })
-    return res.status(404).json({ error: 'Live not found' });
+    return res.status(404).json(createErrorResponse(404, 'Live not found'));
   }
   if (live.status !== '0') {
     // TODO: Convert createErrorResponse(400, 'Live already closed') to res.status(400).json({ error: 'Live already closed' })

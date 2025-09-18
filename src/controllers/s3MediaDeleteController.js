@@ -158,7 +158,7 @@ export const deleteS3Media = async (req, res) => {
     if (errorResponse) {
       logError('Authentication failed:', { errorResponse });
       // TODO: Convert return errorResponse to return res.status(errorResponse.statusCode).json(errorResponse.body)
-      return res.status(errorResponse.statusCode).json(errorResponse.body);
+      return res.status(errorResponse.statusCode).json(createErrorResponse(errorResponse.statusCode, errorResponse.body.message || errorResponse.body.error));
     }
     logInfo('Authentication successful:', { userId });
 
@@ -167,7 +167,7 @@ export const deleteS3Media = async (req, res) => {
     if (req.method !== 'DELETE') {
       logError('Invalid HTTP method for S3 media deletion:', { method: req.method });
       // TODO: Convert createErrorResponse(405, 'Method not allowed. Only DELETE requests are accepted.') to res.status(405).json({ error: 'Method not allowed. Only DELETE requests are accepted.' })
-      return res.status(405).json({ error: 'Method not allowed. Only DELETE requests are accepted.' });
+      return res.status(405).json(createErrorResponse(405, 'Method not allowed. Only DELETE requests are accepted.'));
     }
 
     // Step 3: Extract S3 object key from request
@@ -176,7 +176,7 @@ export const deleteS3Media = async (req, res) => {
     if (!keyExtraction.success) {
       logError('S3 key extraction failed:', { errors: keyExtraction.errors });
       // TODO: Convert createErrorResponse(400, 'Invalid request format', keyExtraction.errors) to res.status(400).json({ error: 'Invalid request format', details: keyExtraction.errors })
-      return res.status(400).json({ error: 'Invalid request format', details: keyExtraction.errors });
+      return res.status(400).json(createErrorResponse(400, 'Invalid request format'));
     }
     
     const { key: rawS3Key } = keyExtraction;
@@ -187,7 +187,7 @@ export const deleteS3Media = async (req, res) => {
     if (!keyValidation.success) {
       logError('S3 key validation failed:', { errors: keyValidation.errors });
       // TODO: Convert createErrorResponse(422, 'Validation failed', keyValidation.errors) to res.status(422).json({ error: 'Validation failed', details: keyValidation.errors })
-      return res.status(422).json({ error: 'Validation failed', details: keyValidation.errors });
+      return res.status(422).json(createErrorResponse(422, 'Validation failed'));
     }
     
     const s3Key = keyValidation.key;
@@ -198,7 +198,7 @@ export const deleteS3Media = async (req, res) => {
     if (!bucketName) {
       logError('S3 bucket configuration missing from environment');
       // TODO: Convert createErrorResponse(500, 'Media storage not configured') to res.status(500).json({ error: 'Media storage not configured' })
-      return res.status(500).json({ error: 'Media storage not configured' });
+      return res.status(500).json(createErrorResponse(500, 'Media storage not configured'));
     }
     logInfo('S3 bucket configuration retrieved:', { bucketName });
 
@@ -211,7 +211,7 @@ export const deleteS3Media = async (req, res) => {
     } catch (error) {
       logError('Error checking file existence in S3:', { error: error.message });
       // TODO: Convert createErrorResponse(500, 'Failed to check file existence', error.message) to res.status(500).json({ error: 'Failed to check file existence', details: error.message })
-      return res.status(500).json({ error: 'Failed to check file existence', details: error.message });
+      return res.status(500).json(createErrorResponse(500, 'Failed to check file existence'));
     }
 
     // Step 7: Delete file from S3 if it exists
@@ -223,7 +223,7 @@ export const deleteS3Media = async (req, res) => {
       } catch (error) {
         logError('Error deleting file from S3:', { error: error.message });
         // TODO: Convert createErrorResponse(500, 'Failed to delete file from S3', error.message) to res.status(500).json({ error: 'Failed to delete file from S3', details: error.message })
-        return res.status(500).json({ error: 'Failed to delete file from S3', details: error.message });
+        return res.status(500).json(createErrorResponse(500, 'Failed to delete file from S3'));
       }
     } else {
       logInfo('File does not exist in S3, no deletion needed');
@@ -254,6 +254,6 @@ export const deleteS3Media = async (req, res) => {
       stack: error.stack 
     });
     // TODO: Convert createErrorResponse(500, 'Internal server error', error.message) to res.status(500).json({ error: 'Internal server error', details: error.message })
-    return res.status(500).json({ error: 'Internal server error', details: error.message });
+    return res.status(500).json(createErrorResponse(500, 'Internal server error'));
   }
 };

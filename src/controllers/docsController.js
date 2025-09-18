@@ -163,7 +163,7 @@ export const getSwaggerJSON = async (req, res) => {
       swaggerJson = JSON.parse(swaggerContent);
     } catch (error) {
       logError('Error reading swagger.json:', error);
-      return res.status(500).json(createExpressErrorResponse('Error reading API documentation', 500, { details: error.message }));
+      return res.status(500).json(createErrorResponse(500, 'Error reading API documentation'));
     }
 
     res.setHeader('Content-Type', 'application/json');

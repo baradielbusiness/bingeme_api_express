@@ -47,7 +47,7 @@ export const getProductCreateData = async (req, res) => {
     });
     if (errorResponse) {
       // TODO: Convert return errorResponse to return res.status(errorResponse.statusCode).json(errorResponse.body)
-      return res.status(errorResponse.statusCode).json(errorResponse.body);
+      return res.status(errorResponse.statusCode).json(createErrorResponse(errorResponse.statusCode, errorResponse.body.message || errorResponse.body.error));
     }
 
     // Validate HTTP method
@@ -113,7 +113,7 @@ export const getProducts = async (req, res) => {
     const { userId, errorResponse } = getAuthenticatedUserId(req, { action: 'products' });
     if (errorResponse) {
       // TODO: Convert return errorResponse to return res.status(errorResponse.statusCode).json(errorResponse.body)
-      return res.status(errorResponse.statusCode).json(errorResponse.body);
+      return res.status(errorResponse.statusCode).json(createErrorResponse(errorResponse.statusCode, errorResponse.body.message || errorResponse.body.error));
     }
 
     // Destructure and parse query parameters for pagination and filtering
@@ -159,7 +159,7 @@ export const createProduct = async (req, res) => {
     const { userId, errorResponse } = getAuthenticatedUserId(req, { action: 'creation' });
     if (errorResponse) {
       // TODO: Convert return errorResponse to return res.status(errorResponse.statusCode).json(errorResponse.body)
-      return res.status(errorResponse.statusCode).json(errorResponse.body);
+      return res.status(errorResponse.statusCode).json(createErrorResponse(errorResponse.statusCode, errorResponse.body.message || errorResponse.body.error));
     }
 
     // Parse and validate request body
@@ -292,7 +292,7 @@ export const getProductById = async (req, res) => {
     const { userId, errorResponse } = getAuthenticatedUserId(req, { action: 'edit' });
     if (errorResponse) {
       // TODO: Convert return errorResponse to return res.status(errorResponse.statusCode).json(errorResponse.body)
-      return res.status(errorResponse.statusCode).json(errorResponse.body);
+      return res.status(errorResponse.statusCode).json(createErrorResponse(errorResponse.statusCode, errorResponse.body.message || errorResponse.body.error));
     }
 
     // Get and decrypt product ID from path parameters
@@ -344,7 +344,7 @@ export const updateProduct = async (req, res) => {
     const { userId, errorResponse } = getAuthenticatedUserId(req, { action: 'edit' });
     if (errorResponse) {
       // TODO: Convert return errorResponse to return res.status(errorResponse.statusCode).json(errorResponse.body)
-      return res.status(errorResponse.statusCode).json(errorResponse.body);
+      return res.status(errorResponse.statusCode).json(createErrorResponse(errorResponse.statusCode, errorResponse.body.message || errorResponse.body.error));
     }
 
     // Validate HTTP method
@@ -430,7 +430,7 @@ export const deleteProduct = async (req, res) => {
     const { userId, errorResponse } = getAuthenticatedUserId(req, { action: 'delete' });
     if (errorResponse) {
       // TODO: Convert return errorResponse to return res.status(errorResponse.statusCode).json(errorResponse.body)
-      return res.status(errorResponse.statusCode).json(errorResponse.body);
+      return res.status(errorResponse.statusCode).json(createErrorResponse(errorResponse.statusCode, errorResponse.body.message || errorResponse.body.error));
     }
 
     // Validate HTTP method
@@ -503,9 +503,9 @@ export const getProductUploadUrl = async (req, res) => {
     
     // TODO: Convert return result to return res.status(result.statusCode).json(JSON.parse(result.body))
     if (result.statusCode === 200) {
-      return res.status(200).json(JSON.parse(result.body));
+      return res.status(200).json(createSuccessResponse('Product upload URL generated successfully', JSON.parse(result.body)));
     } else {
-      return res.status(result.statusCode).json(JSON.parse(result.body));
+      return res.status(result.statusCode).json(createErrorResponse(result.statusCode, JSON.parse(result.body).message || JSON.parse(result.body).error));
     }
   } catch (error) {
     logError('Error in getProductUploadUrl:', error);

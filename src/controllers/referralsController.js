@@ -40,7 +40,7 @@ export const getReferrals = async (req, res) => {
   
   if (errorResponse) {
     // TODO: Convert return errorResponse to return res.status(errorResponse.statusCode).json(errorResponse.body)
-    return res.status(errorResponse.statusCode).json(errorResponse.body);
+    return res.status(errorResponse.statusCode).json(createErrorResponse(errorResponse.statusCode, errorResponse.body.message || errorResponse.body.error));
   }
 
   // Parse pagination parameters with defaults
@@ -67,7 +67,7 @@ export const getReferrals = async (req, res) => {
   } catch (error) {
     logError('Failed to fetch referrals:', error);
     // TODO: Convert createErrorResponse(500, 'Failed to fetch referrals') to res.status(500).json({ error: 'Failed to fetch referrals' })
-    return res.status(500).json({ error: 'Failed to fetch referrals' });
+    return res.status(500).json(createErrorResponse(500, 'Failed to fetch referrals'));
   }
 };
 

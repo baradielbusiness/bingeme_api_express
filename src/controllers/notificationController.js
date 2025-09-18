@@ -379,7 +379,7 @@ export const getNotifications = async (req, res) => {
     const { userId, errorResponse } = getAuthenticatedUserId(req, { action: 'notifications' });
     if (errorResponse) {
       // TODO: Convert return errorResponse to return res.status(errorResponse.statusCode).json(errorResponse.body)
-      return res.status(errorResponse.statusCode).json(errorResponse.body);
+      return res.status(errorResponse.statusCode).json(createErrorResponse(errorResponse.statusCode, errorResponse.body.message || errorResponse.body.error));
     }
 
     // Step 2: Parse and validate pagination parameters
@@ -466,7 +466,7 @@ export const getNotificationSettings = async (req, res) => {
     const { userId, errorResponse } = getAuthenticatedUserId(req, { action: 'notification settings' });
     if (errorResponse) {
       // TODO: Convert return errorResponse to return res.status(errorResponse.statusCode).json(errorResponse.body)
-      return res.status(errorResponse.statusCode).json(errorResponse.body);
+      return res.status(errorResponse.statusCode).json(createErrorResponse(errorResponse.statusCode, errorResponse.body.message || errorResponse.body.error));
     }
     
     // Fetch settings from the database for the authenticated user
@@ -627,7 +627,7 @@ export const updateNotificationSettings = async (req, res) => {
     const { userId, errorResponse } = getAuthenticatedUserId(req, { action: 'notification settings' });
     if (errorResponse) {
       // TODO: Convert return errorResponse to return res.status(errorResponse.statusCode).json(errorResponse.body)
-      return res.status(errorResponse.statusCode).json(errorResponse.body);
+      return res.status(errorResponse.statusCode).json(createErrorResponse(errorResponse.statusCode, errorResponse.body.message || errorResponse.body.error));
     }
     
     // Update settings in the database for the authenticated user
@@ -734,7 +734,7 @@ export const deleteNotificationById = async (req, res) => {
     const { userId, errorResponse } = getAuthenticatedUserId(req, { action: 'delete notification' });
     if (errorResponse) {
       // TODO: Convert return errorResponse to return res.status(errorResponse.statusCode).json(errorResponse.body)
-      return res.status(errorResponse.statusCode).json(errorResponse.body);
+      return res.status(errorResponse.statusCode).json(createErrorResponse(errorResponse.statusCode, errorResponse.body.message || errorResponse.body.error));
     }
 
     // Get notification ID from path parameters
@@ -825,7 +825,7 @@ export const deleteAllNotifications = async (req, res) => {
     const { userId, errorResponse } = getAuthenticatedUserId(req, { action: 'delete all notifications' });
     if (errorResponse) {
       // TODO: Convert return errorResponse to return res.status(errorResponse.statusCode).json(errorResponse.body)
-      return res.status(errorResponse.statusCode).json(errorResponse.body);
+      return res.status(errorResponse.statusCode).json(createErrorResponse(errorResponse.statusCode, errorResponse.body.message || errorResponse.body.error));
     }
 
     // Validate HTTP method

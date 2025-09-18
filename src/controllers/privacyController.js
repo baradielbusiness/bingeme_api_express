@@ -16,7 +16,7 @@ export const getPrivacySecurity = async (req, res) => {
     const { userId, errorResponse } = getAuthenticatedUserId(req, { action: 'privacy & security' });
     if (errorResponse) {
       // TODO: Convert return errorResponse to return res.status(errorResponse.statusCode).json(errorResponse.body)
-      return res.status(errorResponse.statusCode).json(errorResponse.body);
+      return res.status(errorResponse.statusCode).json(createErrorResponse(errorResponse.statusCode, errorResponse.body.message || errorResponse.body.error));
     }
 
     // Fetch privacy/security details using the DB utility function
@@ -24,7 +24,7 @@ export const getPrivacySecurity = async (req, res) => {
     if (!privacyData) {
       logError('User not found:', { userId });
       // TODO: Convert createErrorResponse(404, 'User not found') to res.status(404).json({ error: 'User not found' })
-      return res.status(404).json({ error: 'User not found' });
+      return res.status(404).json(createErrorResponse(404, 'User not found'));
     }
 
     // hasPassword indicates whether the user has a password configured (true/false)
@@ -44,7 +44,7 @@ export const getPrivacySecurity = async (req, res) => {
   } catch (error) {
     logError('Privacy & Security error:', error);
     // TODO: Convert createErrorResponse(500, 'Internal server error') to res.status(500).json({ error: 'Internal server error' })
-    return res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json(createErrorResponse(500, 'Internal server error'));
   }
 };
 
@@ -61,7 +61,7 @@ export const updatePrivacySecurity = async (req, res) => {
     const { userId, errorResponse } = getAuthenticatedUserId(req, { action: 'privacy & security' });
     if (errorResponse) {
       // TODO: Convert return errorResponse to return res.status(errorResponse.statusCode).json(errorResponse.body)
-      return res.status(errorResponse.statusCode).json(errorResponse.body);
+      return res.status(errorResponse.statusCode).json(createErrorResponse(errorResponse.statusCode, errorResponse.body.message || errorResponse.body.error));
     }
 
     // Parse request body
@@ -72,14 +72,14 @@ export const updatePrivacySecurity = async (req, res) => {
     } catch (parseError) {
       logError('Invalid JSON in request body:', parseError);
       // TODO: Convert createErrorResponse(400, 'Invalid JSON in request body') to res.status(400).json({ error: 'Invalid JSON in request body' })
-      return res.status(400).json({ error: 'Invalid JSON in request body' });
+      return res.status(400).json(createErrorResponse(400, 'Invalid JSON in request body'));
     }
 
     // Validate request body using the validation utility function
     const validationResult = validatePrivacySecurityUpdateRequest(requestBody);
     if (!validationResult.isValid) {
       // TODO: Convert createErrorResponse(400, 'Validation failed', validationResult.errors) to res.status(400).json({ error: 'Validation failed', details: validationResult.errors })
-      return res.status(400).json({ error: 'Validation failed', details: validationResult.errors });
+      return res.status(400).json(createErrorResponse(400, 'Validation failed'));
     }
 
     // Update privacy/security details using the DB utility function
@@ -87,7 +87,7 @@ export const updatePrivacySecurity = async (req, res) => {
     if (!success) {
       logError('User not found for update:', { userId });
       // TODO: Convert createErrorResponse(404, 'User not found') to res.status(404).json({ error: 'User not found' })
-      return res.status(404).json({ error: 'User not found' });
+      return res.status(404).json(createErrorResponse(404, 'User not found'));
     }
 
     logInfo('Privacy & Security settings updated successfully:', { userId });
@@ -96,7 +96,7 @@ export const updatePrivacySecurity = async (req, res) => {
   } catch (error) {
     logError('Privacy & Security update error:', error);
     // TODO: Convert createErrorResponse(500, 'Internal server error') to res.status(500).json({ error: 'Internal server error' })
-    return res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json(createErrorResponse(500, 'Internal server error'));
   }
 };
 
@@ -113,14 +113,14 @@ export const getAccountDeletionStatus = async (req, res) => {
     const { userId, errorResponse } = getAuthenticatedUserId(req, { action: 'account deletion status' });
     if (errorResponse) {
       // TODO: Convert return errorResponse to return res.status(errorResponse.statusCode).json(errorResponse.body)
-      return res.status(errorResponse.statusCode).json(errorResponse.body);
+      return res.status(errorResponse.statusCode).json(createErrorResponse(errorResponse.statusCode, errorResponse.body.message || errorResponse.body.error));
     }
 
     // Get user details to check deletion status
     const user = await getUserById(userId);
     if (!user) {
       // TODO: Convert createErrorResponse(404, 'User not found') to res.status(404).json({ error: 'User not found' })
-      return res.status(404).json({ error: 'User not found' });
+      return res.status(404).json(createErrorResponse(404, 'User not found'));
     }
 
     // Check if account is already soft deleted
@@ -153,7 +153,7 @@ export const getAccountDeletionStatus = async (req, res) => {
   } catch (error) {
     logError('Account deletion status error:', error);
     // TODO: Convert createErrorResponse(500, 'Internal server error') to res.status(500).json({ error: 'Internal server error' })
-    return res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json(createErrorResponse(500, 'Internal server error'));
   }
 };
 
@@ -172,7 +172,7 @@ export const deleteAccount = async (req, res) => {
     const { userId, errorResponse } = getAuthenticatedUserId(req, { action: 'account deletion' });
     if (errorResponse) {
       // TODO: Convert return errorResponse to return res.status(errorResponse.statusCode).json(errorResponse.body)
-      return res.status(errorResponse.statusCode).json(errorResponse.body);
+      return res.status(errorResponse.statusCode).json(createErrorResponse(errorResponse.statusCode, errorResponse.body.message || errorResponse.body.error));
     }
 
     // Parse request body
@@ -183,21 +183,21 @@ export const deleteAccount = async (req, res) => {
     } catch (parseError) {
       logError('Invalid JSON in request body:', parseError);
       // TODO: Convert createErrorResponse(400, 'Invalid JSON in request body') to res.status(400).json({ error: 'Invalid JSON in request body' })
-      return res.status(400).json({ error: 'Invalid JSON in request body' });
+      return res.status(400).json(createErrorResponse(400, 'Invalid JSON in request body'));
     }
 
     // Validate request body
     const validationResult = validateAccountDeletionRequest(requestBody);
     if (!validationResult.isValid) {
       // TODO: Convert createErrorResponse(400, 'Validation failed', validationResult.errors) to res.status(400).json({ error: 'Validation failed', details: validationResult.errors })
-      return res.status(400).json({ error: 'Validation failed', details: validationResult.errors });
+      return res.status(400).json(createErrorResponse(400, 'Validation failed'));
     }
 
     // Get user details to check if they have a password
     const user = await getUserById(userId);
     if (!user) {
       // TODO: Convert createErrorResponse(404, 'User not found') to res.status(404).json({ error: 'User not found' })
-      return res.status(404).json({ error: 'User not found' });
+      return res.status(404).json(createErrorResponse(404, 'User not found'));
     }
 
     // Check if user has a password
@@ -205,7 +205,7 @@ export const deleteAccount = async (req, res) => {
       // User has password - verify password
       if (!requestBody.password) {
         // TODO: Convert createErrorResponse(400, 'Password is required for account deletion') to res.status(400).json({ error: 'Password is required for account deletion' })
-        return res.status(400).json({ error: 'Password is required for account deletion' });
+        return res.status(400).json(createErrorResponse(400, 'Password is required for account deletion'));
       }
 
       // Verify password
@@ -213,14 +213,14 @@ export const deleteAccount = async (req, res) => {
       const isPasswordValid = await bcrypt.compare(requestBody.password, user.password);
       if (!isPasswordValid) {
         // TODO: Convert createErrorResponse(400, 'Invalid password') to res.status(400).json({ error: 'Invalid password' })
-        return res.status(400).json({ error: 'Invalid password' });
+        return res.status(400).json(createErrorResponse(400, 'Invalid password'));
       }
 
       // Password is valid - proceed with account deletion
       const deletionResult = await softDeleteUserAccount(userId, 'User requested account deletion with password verification');
       if (!deletionResult.success) {
         // TODO: Convert createErrorResponse(500, 'Failed to delete account') to res.status(500).json({ error: 'Failed to delete account' })
-        return res.status(500).json({ error: 'Failed to delete account' });
+        return res.status(500).json(createErrorResponse(500, 'Failed to delete account'));
       }
 
       logInfo('Account delete successfully with password verification:', { userId });
@@ -231,7 +231,7 @@ export const deleteAccount = async (req, res) => {
       const otpResult = await generateAccountDeletionOTP(userId, 'User requested account deletion');
       if (!otpResult.success) {
         // TODO: Convert createErrorResponse(500, 'Failed to generate OTP for account deletion') to res.status(500).json({ error: 'Failed to generate OTP for account deletion' })
-        return res.status(500).json({ error: 'Failed to generate OTP for account deletion' });
+        return res.status(500).json(createErrorResponse(500, 'Failed to generate OTP for account deletion'));
       }
 
       // Create the masked message with email and mobile
@@ -259,7 +259,7 @@ export const deleteAccount = async (req, res) => {
   } catch (error) {
     logError('Account deletion error:', error);
     // TODO: Convert createErrorResponse(500, 'Internal server error') to res.status(500).json({ error: 'Internal server error' })
-    return res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json(createErrorResponse(500, 'Internal server error'));
   }
 };
 
@@ -277,7 +277,7 @@ export const deleteAccountWithOtp = async (req, res) => {
     const { userId, errorResponse } = getAuthenticatedUserId(req, { action: 'account deletion with OTP' });
     if (errorResponse) {
       // TODO: Convert return errorResponse to return res.status(errorResponse.statusCode).json(errorResponse.body)
-      return res.status(errorResponse.statusCode).json(errorResponse.body);
+      return res.status(errorResponse.statusCode).json(createErrorResponse(errorResponse.statusCode, errorResponse.body.message || errorResponse.body.error));
     }
 
     // Parse request body
@@ -288,41 +288,41 @@ export const deleteAccountWithOtp = async (req, res) => {
     } catch (parseError) {
       logError('Invalid JSON in request body:', parseError);
       // TODO: Convert createErrorResponse(400, 'Invalid JSON in request body') to res.status(400).json({ error: 'Invalid JSON in request body' })
-      return res.status(400).json({ error: 'Invalid JSON in request body' });
+      return res.status(400).json(createErrorResponse(400, 'Invalid JSON in request body'));
     }
 
     // Validate request body
     const validationResult = validateAccountDeletionOTPRequest(requestBody);
     if (!validationResult.isValid) {
       // TODO: Convert createErrorResponse(400, 'Validation failed', validationResult.errors) to res.status(400).json({ error: 'Validation failed', details: validationResult.errors })
-      return res.status(400).json({ error: 'Validation failed', details: validationResult.errors });
+      return res.status(400).json(createErrorResponse(400, 'Validation failed'));
     }
 
     // Get user details to check if they have a password
     const user = await getUserById(userId);
     if (!user) {
       // TODO: Convert createErrorResponse(404, 'User not found') to res.status(404).json({ error: 'User not found' })
-      return res.status(404).json({ error: 'User not found' });
+      return res.status(404).json(createErrorResponse(404, 'User not found'));
     }
 
     // If user has password, they should use password verification instead
     if (user.password) {
       // TODO: Convert createErrorResponse(400, 'Password verification is required for this account. Please use password instead of OTP.') to res.status(400).json({ error: 'Password verification is required for this account. Please use password instead of OTP.' })
-      return res.status(400).json({ error: 'Password verification is required for this account. Please use password instead of OTP.' });
+      return res.status(400).json(createErrorResponse(400, 'Password verification is required for this account. Please use password instead of OTP.'));
     }
 
     // Verify OTP for account deletion
     const otpVerification = await verifyAccountDeletionOTP(userId, requestBody.otp);
     if (!otpVerification.success) {
       // TODO: Convert createErrorResponse(400, 'Invalid or expired OTP') to res.status(400).json({ error: 'Invalid or expired OTP' })
-      return res.status(400).json({ error: 'Invalid or expired OTP' });
+      return res.status(400).json(createErrorResponse(400, 'Invalid or expired OTP'));
     }
 
     // Perform soft delete of user account
     const deletionResult = await softDeleteUserAccount(userId, 'User requested account deletion with OTP verification');
     if (!deletionResult.success) {
       // TODO: Convert createErrorResponse(500, 'Failed to delete account') to res.status(500).json({ error: 'Failed to delete account' })
-      return res.status(500).json({ error: 'Failed to delete account' });
+      return res.status(500).json(createErrorResponse(500, 'Failed to delete account'));
     }
 
     logInfo('Account delete successfully with OTP verification:', { userId });
@@ -331,7 +331,7 @@ export const deleteAccountWithOtp = async (req, res) => {
   } catch (error) {
     logError('Account deletion with OTP error:', error);
     // TODO: Convert createErrorResponse(500, 'Internal server error') to res.status(500).json({ error: 'Internal server error' })
-    return res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json(createErrorResponse(500, 'Internal server error'));
   }
 };
 
@@ -348,7 +348,7 @@ export const clearSessions = async (req, res) => {
     const { userId, errorResponse } = getAuthenticatedUserId(req, { action: 'clear sessions' });
     if (errorResponse) {
       // TODO: Convert return errorResponse to return res.status(errorResponse.statusCode).json(errorResponse.body)
-      return res.status(errorResponse.statusCode).json(errorResponse.body);
+      return res.status(errorResponse.statusCode).json(createErrorResponse(errorResponse.statusCode, errorResponse.body.message || errorResponse.body.error));
     }
 
     logInfo('Clearing sessions for user:', { userId });
@@ -375,13 +375,13 @@ export const clearSessions = async (req, res) => {
     } else {
       logError('Failed to clear sessions:', { userId, clearResult });
       // TODO: Convert createErrorResponse(500, 'Failed to clear some sessions') to res.status(500).json({ error: 'Failed to clear some sessions' })
-      return res.status(500).json({ error: 'Failed to clear some sessions' });
+      return res.status(500).json(createErrorResponse(500, 'Failed to clear some sessions'));
     }
 
   } catch (error) {
     logError('Error in clearSessions:', error);
     // TODO: Convert createErrorResponse(500, 'Internal server error') to res.status(500).json({ error: 'Internal server error' })
-    return res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json(createErrorResponse(500, 'Internal server error'));
   }
 };
 
@@ -399,7 +399,7 @@ export const getAccountRetrieve = async (req, res) => {
     const { userId, errorResponse } = getAuthenticatedUserId(req, { action: 'account retrieve info' });
     if (errorResponse) {
       // TODO: Convert return errorResponse to return res.status(errorResponse.statusCode).json(errorResponse.body)
-      return res.status(errorResponse.statusCode).json(errorResponse.body);
+      return res.status(errorResponse.statusCode).json(createErrorResponse(errorResponse.statusCode, errorResponse.body.message || errorResponse.body.error));
     }
 
     // Get account retrieve information
@@ -407,7 +407,7 @@ export const getAccountRetrieve = async (req, res) => {
     if (!retrieveInfo.success) {
       logError('Failed to get account retrieve info:', { userId, error: retrieveInfo.error });
       // TODO: Convert createErrorResponse(400, retrieveInfo.message || retrieveInfo.error) to res.status(400).json({ error: retrieveInfo.message || retrieveInfo.error })
-      return res.status(400).json({ error: retrieveInfo.message || retrieveInfo.error });
+      return res.status(400).json(createErrorResponse(400, retrieveInfo.message || retrieveInfo.error));
     }
 
     logInfo('Account retrieve info retrieved successfully:', { userId, remainingDays: retrieveInfo.remainingDays });
@@ -425,7 +425,7 @@ export const getAccountRetrieve = async (req, res) => {
   } catch (error) {
     logError('Account retrieve info error:', error);
     // TODO: Convert createErrorResponse(500, 'Internal server error') to res.status(500).json({ error: 'Internal server error' })
-    return res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json(createErrorResponse(500, 'Internal server error'));
   }
 };
 
@@ -442,7 +442,7 @@ export const retrieveAccount = async (req, res) => {
     const { userId, errorResponse } = getAuthenticatedUserId(req, { action: 'account retrieve' });
     if (errorResponse) {
       // TODO: Convert return errorResponse to return res.status(errorResponse.statusCode).json(errorResponse.body)
-      return res.status(errorResponse.statusCode).json(errorResponse.body);
+      return res.status(errorResponse.statusCode).json(createErrorResponse(errorResponse.statusCode, errorResponse.body.message || errorResponse.body.error));
     }
 
     // Parse request body
@@ -453,7 +453,7 @@ export const retrieveAccount = async (req, res) => {
     } catch (parseError) {
       logError('Invalid JSON in request body:', parseError);
       // TODO: Convert createErrorResponse(400, 'Invalid JSON in request body') to res.status(400).json({ error: 'Invalid JSON in request body' })
-      return res.status(400).json({ error: 'Invalid JSON in request body' });
+      return res.status(400).json(createErrorResponse(400, 'Invalid JSON in request body'));
     }
 
     // First check if account can be retrieved
@@ -461,7 +461,7 @@ export const retrieveAccount = async (req, res) => {
     if (!retrieveInfo.success || !retrieveInfo.canRetrieve) {
       logError('Account cannot be retrieved:', { userId, error: retrieveInfo.error });
       // TODO: Convert createErrorResponse(400, retrieveInfo.message || retrieveInfo.error) to res.status(400).json({ error: retrieveInfo.message || retrieveInfo.error })
-      return res.status(400).json({ error: retrieveInfo.message || retrieveInfo.error });
+      return res.status(400).json(createErrorResponse(400, retrieveInfo.message || retrieveInfo.error));
     }
 
     // Reactivate the account
@@ -469,7 +469,7 @@ export const retrieveAccount = async (req, res) => {
     if (!reactivationResult.success) {
       logError('Failed to reactivate account:', { userId, error: reactivationResult.error });
       // TODO: Convert createErrorResponse(500, 'Failed to reactivate account') to res.status(500).json({ error: 'Failed to reactivate account' })
-      return res.status(500).json({ error: 'Failed to reactivate account' });
+      return res.status(500).json(createErrorResponse(500, 'Failed to reactivate account'));
     }
 
     logInfo('Account retrieved successfully:', { userId });
@@ -481,6 +481,6 @@ export const retrieveAccount = async (req, res) => {
   } catch (error) {
     logError('Account retrieve error:', error);
     // TODO: Convert createErrorResponse(500, 'Internal server error') to res.status(500).json({ error: 'Internal server error' })
-    return res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json(createErrorResponse(500, 'Internal server error'));
   }
 };

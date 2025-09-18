@@ -57,7 +57,7 @@ export const getPrivacySecurity = async (req, res) => {
     return res.json(createExpressSuccessResponse('Privacy & Security retrieved successfully', { Privacy: privacyData }));
   } catch (error) {
     logError('Privacy & Security error:', error);
-    return res.status(500).json(createExpressErrorResponse('Internal server error', 500));
+    return res.status(500).json(createErrorResponse(500, 'Internal server error'));
   }
 };
 
@@ -88,7 +88,7 @@ export const updatePrivacySecurity = async (req, res) => {
     return res.json(createExpressSuccessResponse('Privacy & Security settings updated successfully'));
   } catch (error) {
     logError('Privacy & Security update error:', error);
-    return res.status(500).json(createExpressErrorResponse('Internal server error', 500));
+    return res.status(500).json(createErrorResponse(500, 'Internal server error'));
   }
 };
 
@@ -120,7 +120,7 @@ export const clearSessions = async (req, res) => {
 
   } catch (error) {
     logError('Error in clearSessions:', error);
-    return res.status(500).json(createExpressErrorResponse('Internal server error', 500));
+    return res.status(500).json(createErrorResponse(500, 'Internal server error'));
   }
 };
 
@@ -158,7 +158,7 @@ export const getAccountDeletionStatus = async (req, res) => {
 
   } catch (error) {
     logError('Account deletion status error:', error);
-    return res.status(500).json(createExpressErrorResponse('Internal server error', 500));
+    return res.status(500).json(createErrorResponse(500, 'Internal server error'));
   }
 };
 
@@ -236,7 +236,7 @@ export const deleteAccount = async (req, res) => {
     }
   } catch (error) {
     logError('Account deletion error:', error);
-    return res.status(500).json(createExpressErrorResponse('Internal server error', 500));
+    return res.status(500).json(createErrorResponse(500, 'Internal server error'));
   }
 };
 
@@ -283,7 +283,7 @@ export const deleteAccountWithOtp = async (req, res) => {
     return res.json(createExpressSuccessResponse('Account delete successfully'));
   } catch (error) {
     logError('Account deletion with OTP error:', error);
-    return res.status(500).json(createExpressErrorResponse('Internal server error', 500));
+    return res.status(500).json(createErrorResponse(500, 'Internal server error'));
   }
 };
 
@@ -300,7 +300,7 @@ export const getAccountRetrieve = async (req, res) => {
     const retrieveInfo = await getAccountRetrieveInfo(userId);
     if (!retrieveInfo.success) {
       logError('Failed to get account retrieve info:', { userId, error: retrieveInfo.error });
-      return res.status(400).json(createExpressErrorResponse(retrieveInfo.message || retrieveInfo.error, 400));
+      return res.status(400).json(createErrorResponse(400, retrieveInfo.message || retrieveInfo.error));
     }
 
     logInfo('Account retrieve info retrieved successfully:', { userId, remainingDays: retrieveInfo.remainingDays });
@@ -312,7 +312,7 @@ export const getAccountRetrieve = async (req, res) => {
     }));
   } catch (error) {
     logError('Account retrieve info error:', error);
-    return res.status(500).json(createExpressErrorResponse('Internal server error', 500));
+    return res.status(500).json(createErrorResponse(500, 'Internal server error'));
   }
 };
 
@@ -330,7 +330,7 @@ export const retrieveAccount = async (req, res) => {
     const retrieveInfo = await getAccountRetrieveInfo(userId);
     if (!retrieveInfo.success || !retrieveInfo.canRetrieve) {
       logError('Account cannot be retrieved:', { userId, error: retrieveInfo.error });
-      return res.status(400).json(createExpressErrorResponse(retrieveInfo.message || retrieveInfo.error, 400));
+      return res.status(400).json(createErrorResponse(400, retrieveInfo.message || retrieveInfo.error));
     }
 
     // Reactivate the account
@@ -344,6 +344,6 @@ export const retrieveAccount = async (req, res) => {
     return res.json(createExpressSuccessResponse('Account retrieved successfully. Welcome back!'));
   } catch (error) {
     logError('Account retrieve error:', error);
-    return res.status(500).json(createExpressErrorResponse('Internal server error', 500));
+    return res.status(500).json(createErrorResponse(500, 'Internal server error'));
   }
 };

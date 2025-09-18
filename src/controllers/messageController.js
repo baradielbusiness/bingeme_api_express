@@ -273,7 +273,7 @@ export const getConversation = async (req, res) => {
     const { userId, errorResponse } = getAuthenticatedUserId(req, { action: 'conversation getUserMessagesHandler' });
     if (errorResponse) {
       // TODO: Convert return errorResponse to return res.status(errorResponse.statusCode).json(errorResponse.body)
-      return res.status(errorResponse.statusCode).json(errorResponse.body);
+      return res.status(errorResponse.statusCode).json(createErrorResponse(errorResponse.statusCode, errorResponse.body.message || errorResponse.body.error));
     }
     
     logInfo('My messages request received', { userId });
@@ -322,7 +322,7 @@ export const getConversation = async (req, res) => {
     const nextUrl = hasMore ? `messages/conversation?skip=${skip + limit}&limit=${limit}` : '';
     
     // TODO: Convert createApiResponse(200, 'Messages retrieved successfully', { messagesInbox: finalMessagesInbox, pagination: { total: totalMessages, next: nextUrl } }) to res.status(200).json(createApiResponse(200, 'Messages retrieved successfully', { messagesInbox: finalMessagesInbox, pagination: { total: totalMessages, next: nextUrl } }))
-    return res.status(200).json(createApiResponse(200, 'Messages retrieved successfully', {
+    return res.status(200).json(createSuccessResponse('Messages retrieved successfully', {
       messagesInbox: finalMessagesInbox,
       pagination: { total: totalMessages, next: nextUrl }
     }));
@@ -359,7 +359,7 @@ export const getConversationSearch = async (req, res) => {
     });
     if (errorResponse) {
       // TODO: Convert return errorResponse to return res.status(errorResponse.statusCode).json(errorResponse.body)
-      return res.status(errorResponse.statusCode).json(errorResponse.body);
+      return res.status(errorResponse.statusCode).json(createErrorResponse(errorResponse.statusCode, errorResponse.body.message || errorResponse.body.error));
     }
 
     logInfo('searchConversationHandler: User authenticated', { userId });
@@ -387,7 +387,7 @@ export const getConversationSearch = async (req, res) => {
 
     // Step 4: Build and return response
     // TODO: Convert createApiResponse(200, 'Messages retrieved successfully', { messagesInbox: messages }) to res.status(200).json(createApiResponse(200, 'Messages retrieved successfully', { messagesInbox: messages }))
-    return res.status(200).json(createApiResponse(200, 'Messages retrieved successfully', {
+    return res.status(200).json(createSuccessResponse('Messages retrieved successfully', {
       messagesInbox: messages
     }));
 
@@ -437,7 +437,7 @@ export const getMessagesInbox = async (req, res) => {
     });
     if (errorResponse) {
       // TODO: Convert return errorResponse to return res.status(errorResponse.statusCode).json(errorResponse.body)
-      return res.status(errorResponse.statusCode).json(errorResponse.body);
+      return res.status(errorResponse.statusCode).json(createErrorResponse(errorResponse.statusCode, errorResponse.body.message || errorResponse.body.error));
     }
 
     // Security check: Prevent user from accessing their own messages
@@ -657,7 +657,7 @@ export const deleteMessage = async (req, res) => {
     });
     if (errorResponse) {
       // TODO: Convert return errorResponse to return res.status(errorResponse.statusCode).json(errorResponse.body)
-      return res.status(errorResponse.statusCode).json(errorResponse.body);
+      return res.status(errorResponse.statusCode).json(createErrorResponse(errorResponse.statusCode, errorResponse.body.message || errorResponse.body.error));
     }
 
     logInfo('Processing message deletion request', { 
@@ -789,7 +789,7 @@ export const deleteConversation = async (req, res) => {
     });
     if (errorResponse) {
       // TODO: Convert return errorResponse to return res.status(errorResponse.statusCode).json(errorResponse.body)
-      return res.status(errorResponse.statusCode).json(errorResponse.body);
+      return res.status(errorResponse.statusCode).json(createErrorResponse(errorResponse.statusCode, errorResponse.body.message || errorResponse.body.error));
     }
 
     logInfo('Processing conversation deletion request', { 
@@ -894,7 +894,7 @@ export const getMessageUploadUrl = async (req, res) => {
     });
     if (errorResponse) {
       // TODO: Convert return errorResponse to return res.status(errorResponse.statusCode).json(errorResponse.body)
-      return res.status(errorResponse.statusCode).json(errorResponse.body);
+      return res.status(errorResponse.statusCode).json(createErrorResponse(errorResponse.statusCode, errorResponse.body.message || errorResponse.body.error));
     }
 
     logInfo('Processing message upload URL request', { 
@@ -972,7 +972,7 @@ export const sendMessage = async (req, res) => {
     });
     if (errorResponse) {
       // TODO: Convert return errorResponse to return res.status(errorResponse.statusCode).json(errorResponse.body)
-      return res.status(errorResponse.statusCode).json(errorResponse.body);
+      return res.status(errorResponse.statusCode).json(createErrorResponse(errorResponse.statusCode, errorResponse.body.message || errorResponse.body.error));
     }
 
     logInfo('Processing send message request', { 
@@ -1343,7 +1343,7 @@ export const sendMassiveMessage = async (req, res) => {
     });
     if (errorResponse) {
       // TODO: Convert return errorResponse to return res.status(errorResponse.statusCode).json(errorResponse.body)
-      return res.status(errorResponse.statusCode).json(errorResponse.body);
+      return res.status(errorResponse.statusCode).json(createErrorResponse(errorResponse.statusCode, errorResponse.body.message || errorResponse.body.error));
     }
 
     logInfo('Processing massive message request', { 
@@ -1538,7 +1538,7 @@ export const getMessageById = async (req, res) => {
     });
     if (errorResponse) {
       // TODO: Convert return errorResponse to return res.status(errorResponse.statusCode).json(errorResponse.body)
-      return res.status(errorResponse.statusCode).json(errorResponse.body);
+      return res.status(errorResponse.statusCode).json(createErrorResponse(errorResponse.statusCode, errorResponse.body.message || errorResponse.body.error));
     }
 
     logInfo('Processing message by ID request', { 

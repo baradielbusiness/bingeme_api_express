@@ -49,7 +49,7 @@ export const getPage = async (req, res) => {
     const pageSlug = pathParameters?.slug;
     if (!pageSlug) {
       // TODO: Convert createErrorResponse(400, 'Bad request', 'Page slug is required') to res.status(400).json({ error: 'Bad request', message: 'Page slug is required' })
-      return res.status(400).json({ error: 'Bad request', message: 'Page slug is required' });
+      return res.status(400).json(createErrorResponse(400, 'Page slug is required'));
     }
     
     // Step 2: Handle user authentication (required for profile routes)
@@ -57,7 +57,7 @@ export const getPage = async (req, res) => {
     const authResult = getAuthenticatedUserId(req, { action: 'page access' });
     if (authResult.errorResponse) {
       // TODO: Convert return authResult.errorResponse to return res.status(authResult.errorResponse.statusCode).json(authResult.errorResponse.body)
-      return res.status(authResult.errorResponse.statusCode).json(authResult.errorResponse.body);
+      return res.status(authResult.errorResponse.statusCode).json(createErrorResponse(authResult.errorResponse.statusCode, authResult.errorResponse.body.message || authResult.errorResponse.body.error));
     }
     
     const userId = authResult.userId;
@@ -67,14 +67,14 @@ export const getPage = async (req, res) => {
     
     if (!page) {
       // TODO: Convert createErrorResponse(404, 'Page not found', `The requested page '${pageSlug}' could not be found`) to res.status(404).json({ error: 'Page not found', message: `The requested page '${pageSlug}' could not be found` })
-      return res.status(404).json({ error: 'Page not found', message: `The requested page '${pageSlug}' could not be found` });
+      return res.status(404).json(createErrorResponse(404, `The requested page '${pageSlug}' could not be found`));
     }
     
     // Check access permissions
     if (page.access === 'creators') {
       if (!userId) {
         // TODO: Convert createErrorResponse(403, 'Access denied', 'This page is only accessible to verified creators. Please login with a creator account.') to res.status(403).json({ error: 'Access denied', message: 'This page is only accessible to verified creators. Please login with a creator account.' })
-        return res.status(403).json({ error: 'Access denied', message: 'This page is only accessible to verified creators. Please login with a creator account.' });
+        return res.status(403).json(createErrorResponse(403, 'This page is only accessible to verified creators. Please login with a creator account.'));
       }
       
       // Check if user is a verified creator
@@ -83,11 +83,11 @@ export const getPage = async (req, res) => {
       logInfo('Verified user result:', { userId, verifiedUser: !!verifiedUser, verifiedUserDetails: verifiedUser });
       if (!verifiedUser) {
         // TODO: Convert createErrorResponse(403, 'Access denied', 'This page is only accessible to verified creators') to res.status(403).json({ error: 'Access denied', message: 'This page is only accessible to verified creators' })
-        return res.status(403).json({ error: 'Access denied', message: 'This page is only accessible to verified creators' });
+        return res.status(403).json(createErrorResponse(403, 'This page is only accessible to verified creators'));
       }
     } else if (page.access === 'members' && !userId) {
       // TODO: Convert createErrorResponse(403, 'Access denied', 'This page is only accessible to authenticated members') to res.status(403).json({ error: 'Access denied', message: 'This page is only accessible to authenticated members' })
-      return res.status(403).json({ error: 'Access denied', message: 'This page is only accessible to authenticated members' });
+      return res.status(403).json(createErrorResponse(403, 'This page is only accessible to authenticated members'));
     }
     
     // Return page data
@@ -105,7 +105,7 @@ export const getPage = async (req, res) => {
   } catch (error) {
     logError('Error in pages handler:', error);
     // TODO: Convert createErrorResponse(500, 'Internal server error', 'An error occurred while processing your request') to res.status(500).json({ error: 'Internal server error', message: 'An error occurred while processing your request' })
-    return res.status(500).json({ error: 'Internal server error', message: 'An error occurred while processing your request' });
+    return res.status(500).json(createErrorResponse(500, 'An error occurred while processing your request'));
   }
 };
 

@@ -300,7 +300,7 @@ export const getVerificationAccount = async (req, res) => {
     if (errorResponse) {
       logError('Verification account: Authentication failed', { errorResponse });
       // TODO: Convert return errorResponse to return res.status(errorResponse.statusCode).json(errorResponse.body)
-      return res.status(errorResponse.statusCode).json(errorResponse.body);
+      return res.status(errorResponse.statusCode).json(createErrorResponse(errorResponse.statusCode, errorResponse.body.message || errorResponse.body.error));
     }
     
     logInfo('Verification account: User authenticated successfully', { userId });
@@ -315,7 +315,7 @@ export const getVerificationAccount = async (req, res) => {
       // TODO: Convert createErrorResponse(404, 'User not found') to res.status(404).json({ error: 'User not found' })
       return res.status(404).json(createErrorResponse(404, 'User not found'));
     }
-    
+
     // Step 3: Get verification-specific data
     const [verificationInfo, userCategories, allCategories] = await Promise.all([
       getVerificationRequestInfoHelper(userId),
@@ -380,7 +380,7 @@ export const verifyAccountSend = async (req, res) => {
     if (errorResponse) {
       logError('Authentication failed for verification upload', { errorResponse });
       // TODO: Convert return errorResponse to return res.status(errorResponse.statusCode).json(errorResponse.body)
-      return res.status(errorResponse.statusCode).json(errorResponse.body);
+      return res.status(errorResponse.statusCode).json(createErrorResponse(errorResponse.statusCode, errorResponse.body.message || errorResponse.body.error));
     }
 
     // 2) HTTP method validation
@@ -549,7 +549,7 @@ export const getVerificationConversations = async (req, res) => {
     if (errorResponse) {
       logError('Authentication failed for verification conversations', { errorResponse });
       // TODO: Convert return errorResponse to return res.status(errorResponse.statusCode).json(errorResponse.body)
-      return res.status(errorResponse.statusCode).json(errorResponse.body);
+      return res.status(errorResponse.statusCode).json(createErrorResponse(errorResponse.statusCode, errorResponse.body.message || errorResponse.body.error));
     }
 
     // TODO: Convert event.queryStringParameters to req.query
@@ -583,7 +583,7 @@ export const storeVerificationConversation = async (req, res) => {
     if (errorResponse) {
       logError('Authentication failed for verification conversation store', { errorResponse });
       // TODO: Convert return errorResponse to return res.status(errorResponse.statusCode).json(errorResponse.body)
-      return res.status(errorResponse.statusCode).json(errorResponse.body);
+      return res.status(errorResponse.statusCode).json(createErrorResponse(errorResponse.statusCode, errorResponse.body.message || errorResponse.body.error));
     }
 
     // TODO: Convert JSON.parse(event.body || '{}') to JSON.parse(req.body || '{}')

@@ -52,7 +52,7 @@ export const deleteMediaFile = async (req, res) => {
     // Validate S3 key
     const validation = validateS3Key(s3Key);
     if (!validation.isValid) {
-      return res.status(400).json(createErrorResponse(400, 'Invalid S3 key', validation.errors));
+      return res.status(400).json(createErrorResponse(400, 'Invalid S3 key'));
     }
 
     // Check if file exists before attempting deletion
@@ -64,7 +64,7 @@ export const deleteMediaFile = async (req, res) => {
     // Delete the file
     const deleteResult = await deleteFile(s3Key);
     if (!deleteResult.success) {
-      return res.status(500).json(createErrorResponse(500, 'Failed to delete file', deleteResult.error));
+      return res.status(500).json(createErrorResponse(500, 'Failed to delete file'));
     }
 
     logInfo('Media file deleted successfully', { userId, s3Key });
