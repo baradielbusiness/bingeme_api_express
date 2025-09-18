@@ -10,16 +10,23 @@ const s3Client = new S3Client({
 
 /**
  * Process media files - convert images to WebP and optimize
+ * Returns { original: string[], converted: string[] }
  */
 const processMediaFiles = async (fileKeys) => {
   try {
-    const processedFiles = [];
+    const bucketName = process.env.S3_BUCKET_NAME || process.env.AWS_BUCKET_NAME || process.env.AWS_S3_BUCKET;
+    if (!bucketName) {
+      throw new Error('S3 bucket name is not configured. Set S3_BUCKET_NAME (or AWS_BUCKET_NAME/AWS_S3_BUCKET).');
+    }
+
+    const original = [];
+    const converted = [];
     
     for (const fileKey of fileKeys) {
       try {
         // Download file from S3
         const getCommand = new GetObjectCommand({
-          Bucket: process.env.S3_BUCKET_NAME,
+          Bucket: bucketName,
           Key: fileKey
         });
         
@@ -36,7 +43,7 @@ const processMediaFiles = async (fileKeys) => {
           
           // Upload processed file
           const putCommand = new PutObjectCommand({
-            Bucket: process.env.S3_BUCKET_NAME,
+            Bucket: bucketName,
             Key: newKey,
             Body: processedBuffer,
             ContentType: 'image/webp'
@@ -46,40 +53,30 @@ const processMediaFiles = async (fileKeys) => {
           
           // Delete original file
           const deleteCommand = new DeleteObjectCommand({
-            Bucket: process.env.S3_BUCKET_NAME,
+            Bucket: bucketName,
             Key: fileKey
           });
           
           await s3Client.send(deleteCommand);
           
-          processedFiles.push({
-            originalKey: fileKey,
-            processedKey: newKey,
-            processed: true
-          });
+          original.push(fileKey);
+          converted.push(newKey);
           
           logInfo(`Processed image: ${fileKey} -> ${newKey}`);
         } else {
           // Keep original file for non-images
-          processedFiles.push({
-            originalKey: fileKey,
-            processedKey: fileKey,
-            processed: false
-          });
+          original.push(fileKey);
         }
       } catch (error) {
         logError(`Error processing file ${fileKey}:`, error);
-        // Keep original file if processing fails
-        processedFiles.push({
-          originalKey: fileKey,
-          processedKey: fileKey,
-          processed: false,
-          error: error.message
-        });
+        // Throw detailed error to match Lambda behavior
+        const notFoundMessage = `payout media file not found in S3 bucket: ${fileKey}`;
+        const reason = error.name === 'NoSuchKey' ? notFoundMessage : error.message;
+        throw new Error(`Failed to process payout media file ${fileKey}: ${reason}`);
       }
     }
     
-    return processedFiles;
+    return { original, converted };
   } catch (error) {
     logError('Error processing media files:', error);
     throw error;
@@ -89,12 +86,18 @@ const processMediaFiles = async (fileKeys) => {
 /**
  * Cleanup S3 files
  */
-const cleanupS3Files = async (fileKeys) => {
+const cleanupS3Files = async (originalKeys = [], convertedKeys = []) => {
   try {
-    for (const fileKey of fileKeys) {
+    const bucketName = process.env.S3_BUCKET_NAME || process.env.AWS_BUCKET_NAME || process.env.AWS_S3_BUCKET;
+    if (!bucketName) {
+      throw new Error('S3 bucket name is not configured. Set S3_BUCKET_NAME (or AWS_BUCKET_NAME/AWS_S3_BUCKET).');
+    }
+    const allKeys = [...(originalKeys || []), ...(convertedKeys || [])];
+    for (const fileKey of allKeys) {
       try {
+        if (!fileKey) continue;
         const deleteCommand = new DeleteObjectCommand({
-          Bucket: process.env.S3_BUCKET_NAME,
+          Bucket: bucketName,
           Key: fileKey
         });
         
