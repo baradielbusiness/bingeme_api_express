@@ -25,6 +25,7 @@ const router = express.Router();
 // Products
 router.get('/products', setEdgeCacheHeaders, authMiddleware, productsController.getProducts);
 router.get('/products/create', authMiddleware, productsController.getProductCreateData);
+router.post('/product/create', authMiddleware, productsController.createProductHandler);
 router.get('/product/edit/:id', authMiddleware, productsController.getProductById);
 router.put('/product/edit/:id', authMiddleware, productsController.updateProductHandler);
 router.delete('/product/delete/:id', authMiddleware, productsController.deleteProductHandler);
@@ -68,8 +69,8 @@ router.post('/user/cover', authMiddleware, userController.createUserCover);
 router.get('/user/avatar/upload-url', authMiddleware, userController.getUserAvatarUploadUrl);
 router.post('/user/avatar', authMiddleware, userController.createUserAvatar);
 router.post('/user/block/:id', authMiddleware, userController.blockUser);
-router.post('/restrict/:id', authMiddleware, userController.restrictUser);
-router.delete('/restrict/:id', authMiddleware, userController.unrestrictUser);
+router.post('/restrict/user/:id', authMiddleware, userController.restrictUser);
+router.delete('/restrict/user/:id', authMiddleware, userController.unrestrictUser);
 router.get('/restrict/user', authMiddleware, userController.getRestrictions);
 router.get('/:slug', optionalAuthMiddleware, userController.getProfile);
 

@@ -1921,17 +1921,12 @@ const restrictUser = async (req, res) => {
 
     // Do not restrict super admin (role = 'admin' and id = 1)
     if (targetUser.role === 'admin' && targetUser.id === 1) {
-      // TODO: Convert createSuccessResponse('Restriction updated successfully', { message: 'Restriction updated successfully', status: 200, success: true, timestamp: new Date().toISOString() }) to res.json({ success: true, message: 'Restriction updated successfully', data: { message: 'Restriction updated successfully', status: 200, success: true, timestamp: new Date().toISOString() } })
-      return res.json({
-        success: true,
+      return res.status(200).json(createSuccessResponse('Restriction updated successfully', {
         message: 'Restriction updated successfully',
-        data: {
-          message: 'Restriction updated successfully',
-          status: 200,
-          success: true,
-          timestamp: new Date().toISOString()
-        }
-      });
+        status: 200,
+        success: true,
+        timestamp: new Date().toISOString()
+      }));
     }
 
     // Check if restriction already exists
@@ -1965,17 +1960,12 @@ const restrictUser = async (req, res) => {
     }
 
     logInfo('Restriction cache cleared');
-    // TODO: Convert createSuccessResponse('Restriction updated successfully', { message: 'Restriction updated successfully', status: 200, success: true, timestamp: new Date().toISOString() }) to res.json({ success: true, message: 'Restriction updated successfully', data: { message: 'Restriction updated successfully', status: 200, success: true, timestamp: new Date().toISOString() } })
-    return res.json({
-      success: true,
+    return res.status(200).json(createSuccessResponse('Restriction updated successfully', {
       message: 'Restriction updated successfully',
-      data: {
-        message: 'Restriction updated successfully',
-        status: 200,
-        success: true,
-        timestamp: new Date().toISOString()
-      }
-    });
+      status: 200,
+      success: true,
+      timestamp: new Date().toISOString()
+    }));
   } catch (error) {
     logError('Restrict user error:', error);
     // TODO: Convert createErrorResponse(500, 'Internal server error') to res.status(500).json({ error: 'Internal server error' })
@@ -2030,19 +2020,14 @@ const getRestrictions = async (req, res) => {
       next = `/restrict/user?skip=${skip + limit}&limit=${limit}`;
     }
 
-    // Return paginated response matching the specified JSON structure
-    // TODO: Convert createSuccessResponse('Restrictions retrieved successfully', { restrictions: restrictionsList, pagination: { total: totalRestrictions, next } }) to res.json({ success: true, message: 'Restrictions retrieved successfully', data: { restrictions: restrictionsList, pagination: { total: totalRestrictions, next } } })
-    return res.json({
-      success: true,
-      message: 'Restrictions retrieved successfully',
-      data: {
-        restrictions: restrictionsList,
-        pagination: {
-          total: totalRestrictions,
-          next
-        }
+    // Return paginated response matching Lambda JSON structure
+    return res.status(200).json(createSuccessResponse('Restrictions retrieved successfully', {
+      restrictions: restrictionsList,
+      pagination: {
+        total: totalRestrictions,
+        next
       }
-    });
+    }));
   } catch (error) {
     logError('Get restrictions error:', error);
     // TODO: Convert createErrorResponse(500, 'Internal server error') to res.status(500).json({ error: 'Internal server error' })

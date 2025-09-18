@@ -23,8 +23,12 @@ const processUploadRequest = async (fileNames, folder = 'uploads') => {
         const uniqueFileName = `${folder}/${timestamp}_${randomString}.${fileExtension}`;
         
         // Generate pre-signed URL for upload
+        const bucketName = process.env.S3_BUCKET_NAME || process.env.AWS_BUCKET_NAME || process.env.AWS_S3_BUCKET;
+        if (!bucketName) {
+          throw new Error('S3 bucket name is not configured. Set S3_BUCKET_NAME (or AWS_BUCKET_NAME/AWS_S3_BUCKET).');
+        }
         const putCommand = new PutObjectCommand({
-          Bucket: process.env.S3_BUCKET_NAME,
+          Bucket: bucketName,
           Key: uniqueFileName,
           ContentType: getContentType(fileExtension)
         });
