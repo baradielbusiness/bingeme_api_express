@@ -17,7 +17,7 @@ console.log(process.env)
 // Determine host and port based on NODE_ENV
 const NODE_ENV = process.env.NODE_ENV || 'dev';
 const PORT = process.env.PORT || (NODE_ENV === 'dev' ? 4000 : 3000);
-const HOST = NODE_ENV === 'prod' ? 'api.bingeme.com' : 'localhost:4000';
+const HOST = NODE_ENV === 'prod' ? 'h2k9v3-api.bingeme.com' : 'localhost:4000';
 const PROTOCOL = NODE_ENV === 'prod' ? 'https' : 'http';
 // Update swagger.json with dynamic host (only if changed)
 const swaggerPath = path.join(__dirname, '..', 'swagger.json');

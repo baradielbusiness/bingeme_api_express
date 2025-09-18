@@ -24,30 +24,42 @@ const getPostsReportData = async (userId, period = 'month') => {
     
     switch (period) {
       case 'day':
-        dateCondition = 'DATE(created_at) = CURDATE()';
+        dateCondition = 'DATE(date) = CURDATE()';
         break;
       case 'week':
-        dateCondition = 'created_at >= DATE_SUB(NOW(), INTERVAL 1 WEEK)';
+        dateCondition = 'date >= DATE_SUB(NOW(), INTERVAL 1 WEEK)';
         break;
       case 'month':
-        dateCondition = 'created_at >= DATE_SUB(NOW(), INTERVAL 1 MONTH)';
+        dateCondition = 'date >= DATE_SUB(NOW(), INTERVAL 1 MONTH)';
         break;
       case 'year':
-        dateCondition = 'created_at >= DATE_SUB(NOW(), INTERVAL 1 YEAR)';
+        dateCondition = 'date >= DATE_SUB(NOW(), INTERVAL 1 YEAR)';
         break;
       default:
-        dateCondition = 'created_at >= DATE_SUB(NOW(), INTERVAL 1 MONTH)';
+        dateCondition = 'date >= DATE_SUB(NOW(), INTERVAL 1 MONTH)';
     }
     
-    // Query posts data for the period
+    // Query posts data for the period with proper joins to get counts
     const [postsRows] = await db.execute(`
       SELECT 
-        COUNT(*) as total_posts,
-        COALESCE(SUM(likes_count), 0) as total_likes,
-        COALESCE(SUM(comments_count), 0) as total_comments,
-        COALESCE(SUM(views_count), 0) as total_views
-      FROM updates 
-      WHERE user_id = ? AND ${dateCondition}
+        COUNT(DISTINCT u.id) as total_posts,
+        COALESCE(SUM(likes.likes_count), 0) as total_likes,
+        COALESCE(SUM(comments.comments_count), 0) as total_comments,
+        0 as total_views
+      FROM updates u
+      LEFT JOIN (
+        SELECT updates_id, COUNT(*) as likes_count 
+        FROM likes 
+        WHERE status = '1' 
+        GROUP BY updates_id
+      ) likes ON u.id = likes.updates_id
+      LEFT JOIN (
+        SELECT updates_id, COUNT(*) as comments_count 
+        FROM comments 
+        WHERE status = '1' 
+        GROUP BY updates_id
+      ) comments ON u.id = comments.updates_id
+      WHERE u.user_id = ? AND ${dateCondition}
     `, [userId]);
     
     const postsData = postsRows[0] || { 

@@ -4,6 +4,14 @@
 FROM node:22-alpine AS deps
 WORKDIR /app
 COPY package*.json ./
+
+# Install build dependencies (for sharp / native modules)
+RUN apk add --no-cache \
+    python3 \
+    make \
+    g++ \
+    libc6-compat
+
 # Prefer lockfile install; fall back to npm install if lock is out of sync
 RUN npm ci --omit=dev || npm install --omit=dev
 
@@ -22,12 +30,6 @@ COPY --from=builder /app .
 # Create logs dir for PM2 (if used in container) and app
 RUN mkdir -p logs
 
-# Expose default port (override with PORT env)
 EXPOSE 4000
 
-# Healthcheck endpoint should be available at /health if implemented
-# HEALTHCHECK CMD wget -qO- http://localhost:4000/health || exit 1
-
 CMD ["node", "src/server.js"]
-
-

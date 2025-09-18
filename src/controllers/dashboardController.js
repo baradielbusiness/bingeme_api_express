@@ -166,8 +166,9 @@ const getPostsReport = async (req, res) => {
       role, 
       period,
       totalPosts: postsReportData.total_posts,
-      year: postsReportData.year,
-      dataLength: postsReportData.data.length
+      totalLikes: postsReportData.total_likes,
+      totalComments: postsReportData.total_comments,
+      totalViews: postsReportData.total_views
     });
 
     // TODO: Convert createSuccessResponse('Posts report data retrieved successfully', postsReportData) to res.status(200).json(createSuccessResponse('Posts report data retrieved successfully', postsReportData))
