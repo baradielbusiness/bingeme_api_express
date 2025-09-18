@@ -52,13 +52,13 @@ export const getCreatorSettings = async (req, res) => {
     const user = await getUserById(userId);
     if (!user) {
       // TODO: Convert createErrorResponse(404, 'User not found') to res.status(404).json({ error: 'User not found' })
-      return res.status(404).json({ error: 'User not found' });
+      return res.status(404).json(createErrorResponse(404, 'User not found'));
     }
     
     // Core Enablement Check: User must be verified
     if (user.verified_id !== 'yes') {
       // TODO: Convert createErrorResponse(404, 'User must be verified to access creator settings') to res.status(404).json({ error: 'User must be verified to access creator settings' })
-      return res.status(404).json({ error: 'User must be verified to access creator settings' });
+      return res.status(404).json(createErrorResponse(404, 'User must be verified to access creator settings'));
     }
     
     const adminSettings = await getAdminSettings();
@@ -73,7 +73,7 @@ export const getCreatorSettings = async (req, res) => {
     const isCreatorSettingsEnable = isVcEnable || isAcEnable || isPaidChatEnable || isFreeVcEnable;
     if (!isCreatorSettingsEnable) {
       // TODO: Convert createErrorResponse(404, 'Creator settings not available for this user') to res.status(404).json({ error: 'Creator settings not available for this user' })
-      return res.status(404).json({ error: 'Creator settings not available for this user' });
+      return res.status(404).json(createErrorResponse(404, 'Creator settings not available for this user'));
     }
     
     // Fetch creator settings
@@ -279,7 +279,7 @@ export const getCreatorSettings = async (req, res) => {
   } catch (error) {
     logError('Error fetching creator settings', error);
     // TODO: Convert createErrorResponse(500, 'Failed to fetch creator settings') to res.status(500).json({ error: 'Failed to fetch creator settings' })
-    return res.status(500).json({ error: 'Failed to fetch creator settings' });
+    return res.status(500).json(createErrorResponse(500, 'Failed to fetch creator settings'));
   }
 };
 
@@ -308,20 +308,20 @@ export const updateCreatorSettings = async (req, res) => {
       requestBody = req.body;
     } catch (parseError) {
       // TODO: Convert createErrorResponse(400, 'Invalid JSON in request body') to res.status(400).json({ error: 'Invalid JSON in request body' })
-      return res.status(400).json({ error: 'Invalid JSON in request body' });
+      return res.status(400).json(createErrorResponse(400, 'Invalid JSON in request body'));
     }
     
     // Fetch user and admin settings
     const user = await getUserById(userId);
     if (!user) {
       // TODO: Convert createErrorResponse(404, 'User not found') to res.status(404).json({ error: 'User not found' })
-      return res.status(404).json({ error: 'User not found' });
+      return res.status(404).json(createErrorResponse(404, 'User not found'));
     }
     
     // Core Enablement Check: User must be verified
     if (user.verified_id !== 'yes') {
       // TODO: Convert createErrorResponse(404, 'User must be verified to update creator settings') to res.status(404).json({ error: 'User must be verified to update creator settings' })
-      return res.status(404).json({ error: 'User must be verified to update creator settings' });
+      return res.status(404).json(createErrorResponse(404, 'User must be verified to update creator settings'));
     }
     
     const adminSettings = await getAdminSettings();
@@ -336,7 +336,7 @@ export const updateCreatorSettings = async (req, res) => {
     const isCreatorSettingsEnable = isVcEnable || isAcEnable || isPaidChatEnable || isFreeVcEnable;
     if (!isCreatorSettingsEnable) {
       // TODO: Convert createErrorResponse(404, 'Creator settings not available for this user') to res.status(404).json({ error: 'Creator settings not available for this user' })
-      return res.status(404).json({ error: 'Creator settings not available for this user' });
+      return res.status(404).json(createErrorResponse(404, 'Creator settings not available for this user'));
     }
 
     // --- Structured Validation for Flat Array Format ---
@@ -461,7 +461,7 @@ export const updateCreatorSettings = async (req, res) => {
     
     if (!updateResult.success) {
       // TODO: Convert createErrorResponse(400, updateResult.message) to res.status(400).json({ error: updateResult.message })
-      return res.status(400).json({ error: updateResult.message });
+      return res.status(400).json(createErrorResponse(400, updateResult.message));
     }
     
     // TODO: Convert createSuccessResponse('Creator settings updated successfully') to res.status(200).json(createSuccessResponse('Creator settings updated successfully'))
@@ -469,7 +469,7 @@ export const updateCreatorSettings = async (req, res) => {
   } catch (error) {
     logError('Error updating creator settings', error);
     // TODO: Convert createErrorResponse(500, 'Failed to update creator settings') to res.status(500).json({ error: 'Failed to update creator settings' })
-    return res.status(500).json({ error: 'Failed to update creator settings' });
+    return res.status(500).json(createErrorResponse(500, 'Failed to update creator settings'));
   }
 };
 
@@ -515,7 +515,7 @@ export const getBlockedCountries = async (req, res) => {
     const user = await getUserById(userId);
     if (!user || user.verified_id !== 'yes') {
       // TODO: Convert createErrorResponse(404, 'User not found or access denied') to res.status(404).json({ error: 'User not found or access denied' })
-      return res.status(404).json({ error: 'User not found or access denied' });
+      return res.status(404).json(createErrorResponse(404, 'User not found or access denied'));
     }
 
     // Fetch user's blocked countries (array of country codes)
@@ -528,7 +528,7 @@ export const getBlockedCountries = async (req, res) => {
   } catch (error) {
     logError('Error in getBlockedCountriesHandler:', error);
     // TODO: Convert createErrorResponse(500, 'Internal server error') to res.status(500).json({ error: 'Internal server error' })
-    return res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json(createErrorResponse(500, 'Internal server error'));
   }
 };
 
@@ -591,7 +591,7 @@ export const updateBlockedCountries = async (req, res) => {
     const user = await getUserById(userId);
     if (!user || user.verified_id !== 'yes') {
       // TODO: Convert createErrorResponse(404, 'User not found or access denied') to res.status(404).json({ error: 'User not found or access denied' })
-      return res.status(404).json({ error: 'User not found or access denied' });
+      return res.status(404).json(createErrorResponse(404, 'User not found or access denied'));
     }
 
     // Parse and validate request body
@@ -601,18 +601,18 @@ export const updateBlockedCountries = async (req, res) => {
       requestBody = req.body;
     } catch (error) {
       // TODO: Convert createErrorResponse(400, 'Invalid JSON in request body') to res.status(400).json({ error: 'Invalid JSON in request body' })
-      return res.status(400).json({ error: 'Invalid JSON in request body' });
+      return res.status(400).json(createErrorResponse(400, 'Invalid JSON in request body'));
     }
     const { countries } = requestBody;
     if (!Array.isArray(countries)) {
       // TODO: Convert createErrorResponse(400, 'Countries must be an array') to res.status(400).json({ error: 'Countries must be an array' })
-      return res.status(400).json({ error: 'Countries must be an array' });
+      return res.status(400).json(createErrorResponse(400, 'Countries must be an array'));
     }
     // Validate country codes
     const valid = await validateCountryCodes(countries);
     if (!valid) {
       // TODO: Convert createErrorResponse(400, 'Invalid country code provided') to res.status(400).json({ error: 'Invalid country code provided' })
-      return res.status(400).json({ error: 'Invalid country code provided' });
+      return res.status(400).json(createErrorResponse(400, 'Invalid country code provided'));
     }
     
     // Determine update mode: default to toggling provided countries (remove if already blocked, add if not)
@@ -651,14 +651,14 @@ export const updateBlockedCountries = async (req, res) => {
     const success = await updateBlockedCountriesByUserId(userId, finalBlockedCountries);
     if (!success) {
       // TODO: Convert createErrorResponse(500, 'Failed to update blocked countries') to res.status(500).json({ error: 'Failed to update blocked countries' })
-      return res.status(500).json({ error: 'Failed to update blocked countries' });
+      return res.status(500).json(createErrorResponse(500, 'Failed to update blocked countries'));
     }
     // TODO: Convert createSuccessResponse('Block countries updated successfully') to res.status(200).json(createSuccessResponse('Block countries updated successfully'))
     return res.status(200).json(createSuccessResponse('Block countries updated successfully'));
   } catch (error) {
     logError('Error in postBlockedCountriesHandler:', error);
     // TODO: Convert createErrorResponse(500, 'Internal server error') to res.status(500).json({ error: 'Internal server error' })
-    return res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json(createErrorResponse(500, 'Internal server error'));
   }
 };
 
@@ -815,13 +815,13 @@ export const getSubscriptionSettings = async (req, res) => {
     const user = await getUserById(userId);
     if (!user) {
       // TODO: Convert createErrorResponse(404, 'Creator not found') to res.status(404).json({ error: 'Creator not found' })
-      return res.status(404).json({ error: 'Creator not found' });
+      return res.status(404).json(createErrorResponse(404, 'Creator not found'));
     }
 
     const subscriptionData = await getUserSubscriptionPlans(userId, SUBSCRIPTION_INTERVALS);
     if (!subscriptionData) {
       // TODO: Convert createErrorResponse(500, 'Failed to fetch subscription data') to res.status(500).json({ error: 'Failed to fetch subscription data' })
-      return res.status(500).json({ error: 'Failed to fetch subscription data' });
+      return res.status(500).json(createErrorResponse(500, 'Failed to fetch subscription data'));
     }
     
     // Compute commission percentage: use user's custom_fee; if 0 use admin fee_commission
@@ -838,7 +838,7 @@ export const getSubscriptionSettings = async (req, res) => {
   } catch (error) {
     logError('Unexpected error in creator subscription handler:', { error: error.message, stack: error.stack });
     // TODO: Convert createErrorResponse(500, 'Internal server error', error.message) to res.status(500).json({ error: 'Internal server error', message: error.message })
-    return res.status(500).json({ error: 'Internal server error', message: error.message });
+    return res.status(500).json(createErrorResponse(500, 'Internal server error'));
   }
 };
 
@@ -864,52 +864,52 @@ export const updateSubscriptionSettings = async (req, res) => {
       requestBody = req.body;
     } catch (parseError) {
       // TODO: Convert createErrorResponse(400, 'Invalid JSON in request body') to res.status(400).json({ error: 'Invalid JSON in request body' })
-      return res.status(400).json({ error: 'Invalid JSON in request body' });
+      return res.status(400).json(createErrorResponse(400, 'Invalid JSON in request body'));
     }
 
     const user = await getUserById(userId);
     if (!user) {
       // TODO: Convert createErrorResponse(404, 'Creator not found') to res.status(404).json({ error: 'Creator not found' })
-      return res.status(404).json({ error: 'Creator not found' });
+      return res.status(404).json(createErrorResponse(404, 'Creator not found'));
     }
 
     const adminSettings = await getAdminSettings();
     if (!adminSettings) {
       // TODO: Convert createErrorResponse(500, 'Failed to fetch admin settings') to res.status(500).json({ error: 'Failed to fetch admin settings' })
-      return res.status(500).json({ error: 'Failed to fetch admin settings' });
+      return res.status(500).json(createErrorResponse(500, 'Failed to fetch admin settings'));
     }
 
     const validation = validateSubscriptionRequest(requestBody, adminSettings);
     if (!validation.isValid) {
       // TODO: Convert createErrorResponse(400, 'Validation failed', validation.errors) to res.status(400).json({ error: 'Validation failed', errors: validation.errors })
-      return res.status(400).json({ error: 'Validation failed', errors: validation.errors });
+      return res.status(400).json(createErrorResponse(400, 'Validation failed'));
     }
 
     const planUpdateSuccess = await processSubscriptionPlanUpdates(userId, requestBody);
     if (!planUpdateSuccess) {
       // TODO: Convert createErrorResponse(500, 'Failed to update some subscription plans') to res.status(500).json({ error: 'Failed to update some subscription plans' })
-      return res.status(500).json({ error: 'Failed to update some subscription plans' });
+      return res.status(500).json(createErrorResponse(500, 'Failed to update some subscription plans'));
     }
 
     if (!requestBody.free_subscription || requestBody.free_subscription !== 'yes') {
       const messageUpdateSuccess = await updateSubscriptionMessage(userId, requestBody.subscribe_chatmessage);
       if (!messageUpdateSuccess) {
         // TODO: Convert createErrorResponse(500, 'Failed to update subscription message') to res.status(500).json({ error: 'Failed to update subscription message' })
-        return res.status(500).json({ error: 'Failed to update subscription message' });
+        return res.status(500).json(createErrorResponse(500, 'Failed to update subscription message'));
       }
     }
 
     const freeSubscriptionUpdateSuccess = await updateUserFreeSubscription(userId, requestBody.free_subscription);
     if (!freeSubscriptionUpdateSuccess) {
       // TODO: Convert createErrorResponse(500, 'Failed to update free subscription status') to res.status(500).json({ error: 'Failed to update free subscription status' })
-      return res.status(500).json({ error: 'Failed to update free subscription status' });
+      return res.status(500).json(createErrorResponse(500, 'Failed to update free subscription status'));
     }
 
     // Fetch updated subscription data to return in response
     const updatedSubscriptionData = await getUserSubscriptionPlans(userId, SUBSCRIPTION_INTERVALS);
     if (!updatedSubscriptionData) {
       // TODO: Convert createErrorResponse(500, 'Failed to fetch updated subscription data') to res.status(500).json({ error: 'Failed to fetch updated subscription data' })
-      return res.status(500).json({ error: 'Failed to fetch updated subscription data' });
+      return res.status(500).json(createErrorResponse(500, 'Failed to fetch updated subscription data'));
     }
 
     // Recompute commission percentage for response
@@ -933,7 +933,7 @@ export const updateSubscriptionSettings = async (req, res) => {
   } catch (error) {
     logError('Unexpected error in creator subscription update handler:', { error: error.message, stack: error.stack });
     // TODO: Convert createErrorResponse(500, 'Internal server error', error.message) to res.status(500).json({ error: 'Internal server error', message: error.message })
-    return res.status(500).json({ error: 'Internal server error', message: error.message });
+    return res.status(500).json(createErrorResponse(500, 'Internal server error'));
   }
 };
 
@@ -966,7 +966,7 @@ export const getCreatorAgreement = async (req, res) => {
     if (!user) {
       logError('User not found for creator agreement', { userId });
       // TODO: Convert createErrorResponse(404, 'User not found') to res.status(404).json({ error: 'User not found' })
-      return res.status(404).json({ error: 'User not found' });
+      return res.status(404).json(createErrorResponse(404, 'User not found'));
     }
 
     // Prepare response data based on what's shown in creator_agreement.blade.php
@@ -993,7 +993,7 @@ export const getCreatorAgreement = async (req, res) => {
 
   } catch (error) {
     // TODO: Convert createErrorResponse(500, 'Internal server error while retrieving agreement data') to res.status(500).json({ error: 'Internal server error while retrieving agreement data' })
-    return res.status(500).json({ error: 'Internal server error while retrieving agreement data' });
+    return res.status(500).json(createErrorResponse(500, 'Internal server error while retrieving agreement data'));
   }
 };
 
@@ -1116,7 +1116,7 @@ export const postCreatorAgreement = async (req, res) => {
     if (missingFields.length > 0) {
       logError('Missing required fields for creator agreement', { userId, missingFields });
       // TODO: Convert createErrorResponse(400, `Missing required fields: ${missingFields.join(', ')}`) to res.status(400).json({ error: `Missing required fields: ${missingFields.join(', ')}` })
-      return res.status(400).json({ error: `Missing required fields: ${missingFields.join(', ')}` });
+      return res.status(400).json(createErrorResponse(400, `Missing required fields: ${missingFields.join(', ')}`));
     }
 
     // Extract data from request
@@ -1133,19 +1133,19 @@ export const postCreatorAgreement = async (req, res) => {
     // Validate that images are filenames (uploaded via upload URL first)
     if (!creatorPhoto || typeof creatorPhoto !== 'string' || creatorPhoto.trim().length === 0) {
       // TODO: Convert createErrorResponse(400, 'Creator photo filename is required') to res.status(400).json({ error: 'Creator photo filename is required' })
-      return res.status(400).json({ error: 'Creator photo filename is required' });
+      return res.status(400).json(createErrorResponse(400, 'Creator photo filename is required'));
     }
     
     if (!signature || typeof signature !== 'string' || signature.trim().length === 0) {
       // TODO: Convert createErrorResponse(400, 'Signature filename is required') to res.status(400).json({ error: 'Signature filename is required' })
-      return res.status(400).json({ error: 'Signature filename is required' });
+      return res.status(400).json(createErrorResponse(400, 'Signature filename is required'));
     }
 
     // Get user details to verify
     const user = await getUserById(userId);
     if (!user) {
       // TODO: Convert createErrorResponse(404, 'User not found') to res.status(404).json({ error: 'User not found' })
-      return res.status(404).json({ error: 'User not found' });
+      return res.status(404).json(createErrorResponse(404, 'User not found'));
     }
 
     // Get S3 bucket configuration from environment
@@ -1153,7 +1153,7 @@ export const postCreatorAgreement = async (req, res) => {
     if (!bucketName) {
       logError('S3 bucket configuration missing from environment');
       // TODO: Convert createErrorResponse(500, 'Media storage not configured') to res.status(500).json({ error: 'Media storage not configured' })
-      return res.status(500).json({ error: 'Media storage not configured' });
+      return res.status(500).json(createErrorResponse(500, 'Media storage not configured'));
     }
 
     // Process media files if provided (exactly like posts, messages, and payout do)
@@ -1185,7 +1185,7 @@ export const postCreatorAgreement = async (req, res) => {
       }
       
       // TODO: Convert createErrorResponse(500, 'Media processing failed', error.message) to res.status(500).json({ error: 'Media processing failed', message: error.message })
-      return res.status(500).json({ error: 'Media processing failed', message: error.message });
+      return res.status(500).json(createErrorResponse(500, 'Media processing failed'));
     }
 
     // Check if face is visible using AWS Rekognition (only for creator photo)
@@ -1201,7 +1201,7 @@ export const postCreatorAgreement = async (req, res) => {
             // Clean up uploaded files if face detection fails
             await cleanupS3Files(processedMedia.original, processedMedia.converted, bucketName, 'creator_agreement');
             // TODO: Convert createErrorResponse(400, 'Face is not visible in creator photo') to res.status(400).json({ error: 'Face is not visible in creator photo' })
-            return res.status(400).json({ error: 'Face is not visible in creator photo' });
+            return res.status(400).json(createErrorResponse(400, 'Face is not visible in creator photo'));
           }
         }
       } catch (faceError) {
@@ -1209,7 +1209,7 @@ export const postCreatorAgreement = async (req, res) => {
         // Clean up uploaded files if face detection fails
         await cleanupS3Files(processedMedia.original, processedMedia.converted, bucketName, 'creator_agreement');
         // TODO: Convert createErrorResponse(500, 'Face detection failed') to res.status(500).json({ error: 'Face detection failed' })
-        return res.status(500).json({ error: 'Face detection failed' });
+        return res.status(500).json(createErrorResponse(500, 'Face detection failed'));
       }
     }
 
@@ -1281,7 +1281,7 @@ export const postCreatorAgreement = async (req, res) => {
     });
     
     // TODO: Convert createErrorResponse(500, 'Internal server error while submitting agreement') to res.status(500).json({ error: 'Internal server error while submitting agreement' })
-    return res.status(500).json({ error: 'Internal server error while submitting agreement' });
+    return res.status(500).json(createErrorResponse(500, 'Internal server error while submitting agreement'));
   }
 };
 
@@ -1359,7 +1359,7 @@ export const downloadCreatorAgreementPdf = async (req, res) => {
     const exists = await checkFileExists(bucketName, pdfKey);
     if (!exists) {
       // TODO: Convert createErrorResponse(404, 'PDF not found') to res.status(404).json({ error: 'PDF not found' })
-      return res.status(404).json({ error: 'PDF not found' });
+      return res.status(404).json(createErrorResponse(404, 'PDF not found'));
     }
     
     const pdfBuffer = await downloadFile(bucketName, pdfKey);
@@ -1384,7 +1384,7 @@ export const downloadCreatorAgreementPdf = async (req, res) => {
     });
     
     // TODO: Convert createErrorResponse(500, 'Internal server error while downloading PDF') to res.status(500).json({ error: 'Internal server error while downloading PDF' })
-    return res.status(500).json({ error: 'Internal server error while downloading PDF' });
+    return res.status(500).json(createErrorResponse(500, 'Internal server error while downloading PDF'));
   }
 };
 
@@ -1443,7 +1443,7 @@ export const getPaymentsReceived = async (req, res) => {
   } catch (error) {
     logError('Error fetching payments received:', error);
     // TODO: Convert createErrorResponse(500, 'Internal server error') to res.status(500).json({ error: 'Internal server error' })
-    return res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json(createErrorResponse(500, 'Internal server error'));
   }
 };
 
@@ -1498,51 +1498,6 @@ export const getWithdrawals = async (req, res) => {
   } catch (error) {
     logError('Error fetching withdrawals:', error);
     // TODO: Convert createErrorResponse(500, 'Internal server error') to res.status(500).json({ error: 'Internal server error' })
-    return res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json(createErrorResponse(500, 'Internal server error'));
   }
-};
-
-/**
- * GET Withdrawals
- * @param {object} req - Express request object
- * @param {object} res - Express response object
- */
-export const getWithdrawals = async (req, res) => {
-  try {
-    const userId = req.userId;
-    const { page = 1, limit = 10 } = req.query;
-    const pool = getDB();
-    
-    const offset = (page - 1) * limit;
-    
-    // Get withdrawals
-    const [withdrawals] = await pool.query(`
-      SELECT *
-      FROM withdrawals
-      WHERE user_id = ?
-      ORDER BY created_at DESC
-      LIMIT ? OFFSET ?
-    `, [userId, parseInt(limit), parseInt(offset)]);
-    
-    // Get total count
-    const [countResult] = await pool.query(
-      'SELECT COUNT(*) as total FROM withdrawals WHERE user_id = ?',
-      [userId]
-    );
-    
-    const total = countResult[0].total;
-    
-    return res.json(createExpressSuccessResponse('Withdrawals retrieved successfully', {
-      withdrawals,
-      pagination: {
-        page: parseInt(page),
-        limit: parseInt(limit),
-        total,
-        pages: Math.ceil(total / limit)
-      }
-    }));
-  } catch (error) {
-    logError('Error fetching withdrawals:', error);
-    return res.status(500).json(createExpressErrorResponse('Internal server error', 500));
-  }
-};
+}

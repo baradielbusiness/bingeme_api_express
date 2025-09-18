@@ -931,8 +931,7 @@ export const getPostCreateData = async (req, res) => {
     const duration = Date.now() - startTime;
     logError('Handler error:', { error: error.message, duration: `${duration}ms` });
     
-    // TODO: Convert createErrorResponse(500, 'Internal server error', error.message) to res.status(500).json({ error: 'Internal server error', message: error.message })
-    return res.status(500).json({ error: 'Internal server error', message: error.message });
+    return res.status(500).json(createErrorResponse(500, error.message));
   }
 };
 
@@ -972,8 +971,7 @@ export const createPost = async (req, res) => {
     // TODO: Convert event.httpMethod to req.method
     if (req.method !== 'POST') {
       logError('Invalid HTTP method for post creation:', { method: req.method });
-      // TODO: Convert createErrorResponse(405, 'Method not allowed. Only POST requests are accepted.') to res.status(405).json({ error: 'Method not allowed. Only POST requests are accepted.' })
-      return res.status(405).json({ error: 'Method not allowed. Only POST requests are accepted.' });
+      return res.status(405).json(createErrorResponse(405, 'Method not allowed. Only POST requests are accepted.'));
     }
 
     // Step 3: Parse and validate JSON request body
@@ -983,20 +981,14 @@ export const createPost = async (req, res) => {
       requestBody = JSON.parse(req.body || '{}');
     } catch (error) {
       logError('Invalid JSON in request body:', { error: error.message });
-      // TODO: Convert createErrorResponse(400, 'Invalid JSON format in request body') to res.status(400).json({ error: 'Invalid JSON format in request body' })
-      return res.status(400).json({ error: 'Invalid JSON format in request body' });
+      return res.status(400).json(createErrorResponse(400, 'Invalid JSON format in request body'));
     }
 
     // Step 4: Validate required fields and data types
     const validation = validatePostInput(requestBody);
     if (!validation.success) {
       logError('Post validation failed:', { errors: validation.errors });
-<<<<<<< HEAD
-      // TODO: Convert createErrorResponse(422, 'Validation failed', validation.errors) to res.status(422).json({ error: 'Validation failed', details: validation.errors })
-      return res.status(422).json({ error: 'Validation failed', details: validation.errors });
-=======
       return res.status(422).json(createExpressErrorResponse('Validation failed', 422));
->>>>>>> main
     }
 
     const { description, tags, price, post_type, media, scheduled_date, scheduled_time, timezone } = requestBody;
@@ -1036,12 +1028,7 @@ export const createPost = async (req, res) => {
     const { AWS_BUCKET_NAME: bucketName } = process.env;
     if (!bucketName) {
       logError('S3 bucket configuration missing from environment');
-<<<<<<< HEAD
-      // TODO: Convert createErrorResponse(500, 'Media storage not configured') to res.status(500).json({ error: 'Media storage not configured' })
-      return res.status(500).json({ error: 'Media storage not configured' });
-=======
       return res.status(500).json(createExpressErrorResponse('Media storage not configured', 500));
->>>>>>> main
     }
 
     // Step 7.1: Resolve watermark settings without altering existing behaviors
@@ -1080,12 +1067,7 @@ export const createPost = async (req, res) => {
         logInfo('Media processing completed successfully');
       } catch (error) {
         logError('Media processing failed:', { error: error.message });
-<<<<<<< HEAD
-        // TODO: Convert createErrorResponse(500, 'Media processing failed', error.message) to res.status(500).json({ error: 'Media processing failed', details: error.message })
-        return res.status(500).json({ error: 'Media processing failed', details: error.message });
-=======
         return res.status(500).json(createExpressErrorResponse('Media processing failed', 500));
->>>>>>> main
       }
     }
 
@@ -1108,12 +1090,7 @@ export const createPost = async (req, res) => {
       logInfo('Post saved to database successfully');
     } catch (error) {
       logError('Database save operation failed:', { error: error.message });
-<<<<<<< HEAD
-      // TODO: Convert createErrorResponse(500, 'Failed to save post to database', error.message) to res.status(500).json({ error: 'Failed to save post to database', details: error.message })
-      return res.status(500).json({ error: 'Failed to save post to database', details: error.message });
-=======
       return res.status(500).json(createExpressErrorResponse('Failed to save post to database', 500));
->>>>>>> main
     }
 
     // Step 10: Build success response with empty data object
@@ -1132,22 +1109,11 @@ export const createPost = async (req, res) => {
       calculatedExpiredAt: expired_at
     });
 
-<<<<<<< HEAD
-    // TODO: Convert createSuccessResponse('Post created successfully', responseData) to res.json(createSuccessResponse('Post created successfully', responseData))
-    return res.json(createSuccessResponse('Post created successfully', responseData));
-
-  } catch (error) {
-    // Handle any unexpected errors
-    logError('Unexpected error in post creation handler:', { error: error.message, stack: error.stack });
-    // TODO: Convert createErrorResponse(500, 'Internal server error', error.message) to res.status(500).json({ error: 'Internal server error', details: error.message })
-    return res.status(500).json({ error: 'Internal server error', details: error.message });
-=======
     return res.status(200).json(createExpressSuccessResponse('Post created successfully', responseData));
 
   } catch (error) {
     logError('Unexpected error in createPost:', { error: error.message, stack: error.stack });
     return res.status(500).json(createExpressErrorResponse('Internal server error', 500));
->>>>>>> main
   }
 };
 
@@ -1161,23 +1127,23 @@ export const createPost = async (req, res) => {
  */
 export const getPostUploadUrl = async (req, res) => {
   // Configuration options for posts upload processing with destructuring
-  const uploadOptions = {
-    action: 'getPostUploadUrl',
+    const uploadOptions = {
+      action: 'getPostUploadUrl',
     basePath: 'uploads/updates',
     useFolderOrganization: true, // Posts use folder organization by file type
     successMessage: 'Pre-signed upload URLs generated',
-    getAuthenticatedUserId
-  };
-  
-  // Use shared upload processing utility and return result directly
+      getAuthenticatedUserId
+    };
+    
+    // Use shared upload processing utility and return result directly
   // TODO: Convert processUploadRequest(event, uploadOptions) to processUploadRequest(req, uploadOptions)
-  const result = await processUploadRequest(req, uploadOptions);
-  
+    const result = await processUploadRequest(req, uploadOptions);
+    
   // TODO: Convert Lambda response format to Express response format
-  if (result.statusCode === 200) {
-    return res.status(200).json(JSON.parse(result.body));
-  } else {
-    return res.status(result.statusCode).json(JSON.parse(result.body));
+    if (result.statusCode === 200) {
+      return res.status(200).json(JSON.parse(result.body));
+    } else {
+      return res.status(result.statusCode).json(JSON.parse(result.body));
   }
 };
 
@@ -1199,43 +1165,23 @@ export const getPostByUsernameAndId = async (req, res) => {
     // TODO: Convert event.pathParameters to req.params
     const { username, id } = req.params;
     if (!username || !id) {
-<<<<<<< HEAD
-      // TODO: Convert createErrorResponse(400, 'Username and id are required') to res.status(400).json({ error: 'Username and id are required' })
-      return res.status(400).json({ error: 'Username and id are required' });
-=======
       return res.status(400).json(createExpressErrorResponse('Username and id are required', 400));
->>>>>>> main
     }
 
     // 3) Resolve post id
     const updateId = resolveUpdateId(id);
     if (!updateId) {
-<<<<<<< HEAD
-      // TODO: Convert createErrorResponse(400, 'Invalid id format') to res.status(400).json({ error: 'Invalid id format' })
-      return res.status(400).json({ error: 'Invalid id format' });
-=======
       return res.status(400).json(createExpressErrorResponse('Invalid id format', 400));
->>>>>>> main
     }
 
     // 4) Fetch owner and post
     const owner = await fetchOwnerByUsername(username);
     if (!owner) {
-<<<<<<< HEAD
-      // TODO: Convert createErrorResponse(404, 'User not found') to res.status(404).json({ error: 'User not found' })
-      return res.status(404).json({ error: 'User not found' });
-    }
-    const post = await fetchPostByIdAndOwner(updateId, owner.id);
-    if (!post) {
-      // TODO: Convert createErrorResponse(404, 'Post not found') to res.status(404).json({ error: 'Post not found' })
-      return res.status(404).json({ error: 'Post not found' });
-=======
       return res.status(404).json(createExpressErrorResponse('User not found', 404));
     }
     const post = await fetchPostByIdAndOwner(updateId, owner.id);
     if (!post) {
       return res.status(404).json(createExpressErrorResponse('Post not found', 404));
->>>>>>> main
     }
 
     // 5) Fetch related data
@@ -1275,19 +1221,10 @@ export const getPostByUsernameAndId = async (req, res) => {
       post_url: `${appBaseUrl}/posts/${owner.username}/${encryptId(postId)}`
     };
 
-<<<<<<< HEAD
-    // TODO: Convert createSuccessResponse('Post details retrieved', response) to res.json(createSuccessResponse('Post details retrieved', response))
-    return res.json(createSuccessResponse('Post details retrieved', response));
-  } catch (error) {
-    logError('Error in getPostByUsernameAndIdHandler:', error);
-    // TODO: Convert createErrorResponse(500, 'Internal server error') to res.status(500).json({ error: 'Internal server error' })
-    return res.status(500).json({ error: 'Internal server error' });
-=======
     return res.status(200).json(createExpressSuccessResponse('Post details retrieved', response));
   } catch (error) {
     logError('Error in getPostByUsernameAndId:', error);
     return res.status(500).json(createExpressErrorResponse('Internal server error', 500));
->>>>>>> main
   }
 };
 
@@ -1299,7 +1236,6 @@ export const getPostByUsernameAndId = async (req, res) => {
  */
 export const addComment = async (req, res) => {
   try {
-<<<<<<< HEAD
     // Get authenticated user ID
     // TODO: Convert getAuthenticatedUserId(event, { action: 'store_comment' }) to getAuthenticatedUserId(req, { action: 'store_comment' })
     const { userId, errorResponse } = getAuthenticatedUserId(req, { action: 'store_comment' });
@@ -1315,7 +1251,7 @@ export const addComment = async (req, res) => {
       requestBody = JSON.parse(req.body || '{}');
     } catch (error) {
       // TODO: Convert createErrorResponse(400, 'Invalid JSON in request body') to res.status(400).json({ error: 'Invalid JSON in request body' })
-      return res.status(400).json({ error: 'Invalid JSON in request body' });
+      return res.status(400).json(createErrorResponse(400, 'Invalid JSON in request body'));
     }
 
     const { update_id, comment } = requestBody;
@@ -1323,17 +1259,17 @@ export const addComment = async (req, res) => {
     // Validate update ID
     if (!update_id) {
       // TODO: Convert createErrorResponse(400, 'Update ID is required') to res.status(400).json({ error: 'Update ID is required' })
-      return res.status(400).json({ error: 'Update ID is required' });
+      return res.status(400).json(createErrorResponse(400, 'Update ID is required'));
     }
 
     // Decrypt update ID
     let decryptedUpdateId;
     try {
       decryptedUpdateId = safeDecryptId(update_id);
-    } catch (error) {
+  } catch (error) {
       logError('Failed to decrypt update ID:', { update_id, error: error.message });
       // TODO: Convert createErrorResponse(400, 'Invalid update ID format') to res.status(400).json({ error: 'Invalid update ID format' })
-      return res.status(400).json({ error: 'Invalid update ID format' });
+      return res.status(400).json(createErrorResponse(400, 'Invalid update ID format'));
     }
 
     // Get admin settings for comment length validation
@@ -1344,14 +1280,14 @@ export const addComment = async (req, res) => {
     const commentValidation = validateComment(comment, maxCommentLength);
     if (!commentValidation.isValid) {
       // TODO: Convert createErrorResponse(400, commentValidation.error) to res.status(400).json({ error: commentValidation.error })
-      return res.status(400).json({ error: commentValidation.error });
+      return res.status(400).json(createErrorResponse(400, commentValidation.error));
     }
 
     // Get update details and validate accessibility
     const update = await getUpdateDetails(decryptedUpdateId, userId);
     if (!update) {
       // TODO: Convert createErrorResponse(404, 'Post not found or not accessible') to res.status(404).json({ error: 'Post not found or not accessible' })
-      return res.status(404).json({ error: 'Post not found or not accessible' });
+      return res.status(404).json(createErrorResponse(404, 'Post not found or not accessible'));
     }
 
     // Store comment in database
@@ -1385,24 +1321,7 @@ export const addComment = async (req, res) => {
   } catch (error) {
     logError('Error in store comment handler:', error);
     // TODO: Convert createErrorResponse(500, 'Internal server error', { message: 'Failed to store comment' }) to res.status(500).json({ error: 'Internal server error', details: { message: 'Failed to store comment' } })
-    return res.status(500).json({ error: 'Internal server error', details: { message: 'Failed to store comment' } });
-=======
-    const userId = req.userId;
-    const { post_id, content } = req.body;
-
-    if (!post_id || !content) {
-      return res.status(400).json(createExpressErrorResponse('Post ID and content are required', 400));
-    }
-
-    // Add comment logic here - this would need to be implemented in common.js
-    // const result = await addPostComment(userId, post_id, content);
-    
-    logInfo('Comment added successfully', { userId, postId: post_id });
-    return res.json(createExpressSuccessResponse('Comment added successfully'));
-  } catch (error) {
-    logError('Error adding comment:', error);
-    return res.status(500).json(createExpressErrorResponse('Failed to add comment', 500));
->>>>>>> main
+    return res.status(500).json(createErrorResponse(500, 'Failed to store comment'));
   }
 };
 
@@ -1414,7 +1333,6 @@ export const addComment = async (req, res) => {
  */
 export const deleteComment = async (req, res) => {
   try {
-<<<<<<< HEAD
     // Get authenticated user ID
     // TODO: Convert getAuthenticatedUserId(event, { action: 'delete_comment' }) to getAuthenticatedUserId(req, { action: 'delete_comment' })
     const { userId, errorResponse } = getAuthenticatedUserId(req, { action: 'delete_comment' });
@@ -1430,7 +1348,7 @@ export const deleteComment = async (req, res) => {
       requestBody = JSON.parse(req.body || '{}');
     } catch (error) {
       // TODO: Convert createErrorResponse(400, 'Invalid JSON in request body') to res.status(400).json({ error: 'Invalid JSON in request body' })
-      return res.status(400).json({ error: 'Invalid JSON in request body' });
+      return res.status(400).json(createErrorResponse(400, 'Invalid JSON in request body'));
     }
 
     const { comment_id } = requestBody;
@@ -1438,24 +1356,24 @@ export const deleteComment = async (req, res) => {
     // Validate comment ID
     if (!comment_id) {
       // TODO: Convert createErrorResponse(400, 'Comment ID is required') to res.status(400).json({ error: 'Comment ID is required' })
-      return res.status(400).json({ error: 'Comment ID is required' });
+      return res.status(400).json(createErrorResponse(400, 'Comment ID is required'));
     }
 
     // Decrypt comment ID
     let decryptedCommentId;
     try {
       decryptedCommentId = safeDecryptId(comment_id);
-    } catch (error) {
+  } catch (error) {
       logError('Failed to decrypt comment ID:', { comment_id, error: error.message });
       // TODO: Convert createErrorResponse(400, 'Invalid comment ID format') to res.status(400).json({ error: 'Invalid comment ID format' })
-      return res.status(400).json({ error: 'Invalid comment ID format' });
+      return res.status(400).json(createErrorResponse(400, 'Invalid comment ID format'));
     }
 
     // Get comment details and check authorization
     const comment = await getCommentDetails(decryptedCommentId);
     if (!comment) {
       // TODO: Convert createErrorResponse(404, 'Comment not found') to res.status(404).json({ error: 'Comment not found' })
-      return res.status(404).json({ error: 'Comment not found' });
+      return res.status(404).json(createErrorResponse(404, 'Comment not found'));
     }
 
     // Check if user is authorized to delete the comment
@@ -1467,14 +1385,14 @@ export const deleteComment = async (req, res) => {
 
     if (!isCommentAuthor && !isPostOwner && !isAdmin) {
       // TODO: Convert createErrorResponse(403, 'Not authorized to delete this comment') to res.status(403).json({ error: 'Not authorized to delete this comment' })
-      return res.status(403).json({ error: 'Not authorized to delete this comment' });
+      return res.status(403).json(createErrorResponse(403, 'Not authorized to delete this comment'));
     }
 
     // Delete the comment
     const deleteSuccess = await deleteCommentHelper(decryptedCommentId);
     if (!deleteSuccess) {
       // TODO: Convert createErrorResponse(500, 'Failed to delete comment') to res.status(500).json({ error: 'Failed to delete comment' })
-      return res.status(500).json({ error: 'Failed to delete comment' });
+    return res.status(500).json(createErrorResponse(500, 'Failed to delete comment'));
     }
 
     // Get updated comment count
@@ -1498,24 +1416,7 @@ export const deleteComment = async (req, res) => {
   } catch (error) {
     logError('Error in delete comment handler:', error);
     // TODO: Convert createErrorResponse(500, 'Internal server error', { message: 'Failed to delete comment' }) to res.status(500).json({ error: 'Internal server error', details: { message: 'Failed to delete comment' } })
-    return res.status(500).json({ error: 'Internal server error', details: { message: 'Failed to delete comment' } });
-=======
-    const userId = req.userId;
-    const { id: commentId } = req.params;
-
-    if (!commentId) {
-      return res.status(400).json(createExpressErrorResponse('Comment ID is required', 400));
-    }
-
-    // Delete comment logic here - this would need to be implemented in common.js
-    // const result = await deletePostComment(userId, commentId);
-    
-    logInfo('Comment deleted successfully', { userId, commentId });
-    return res.json(createExpressSuccessResponse('Comment deleted successfully'));
-  } catch (error) {
-    logError('Error deleting comment:', error);
-    return res.status(500).json(createExpressErrorResponse('Failed to delete comment', 500));
->>>>>>> main
+    return res.status(500).json(createErrorResponse(500, 'Failed to delete comment'));
   }
 };
 
@@ -1527,7 +1428,6 @@ export const deleteComment = async (req, res) => {
  */
 export const toggleLike = async (req, res) => {
   try {
-<<<<<<< HEAD
     // Get authenticated user ID
     // TODO: Convert getAuthenticatedUserId(event, { action: 'post_like' }) to getAuthenticatedUserId(req, { action: 'post_like' })
     const { userId, errorResponse } = getAuthenticatedUserId(req, { action: 'post_like' });
@@ -1543,7 +1443,7 @@ export const toggleLike = async (req, res) => {
       requestBody = JSON.parse(req.body || '{}');
     } catch (error) {
       // TODO: Convert createErrorResponse(400, 'Invalid JSON in request body') to res.status(400).json({ error: 'Invalid JSON in request body' })
-      return res.status(400).json({ error: 'Invalid JSON in request body' });
+      return res.status(400).json(createErrorResponse(400, 'Invalid JSON in request body'));
     }
 
     const { update_id } = requestBody;
@@ -1551,24 +1451,24 @@ export const toggleLike = async (req, res) => {
     // Validate update ID
     if (!update_id) {
       // TODO: Convert createErrorResponse(400, 'Update ID is required') to res.status(400).json({ error: 'Update ID is required' })
-      return res.status(400).json({ error: 'Update ID is required' });
+      return res.status(400).json(createErrorResponse(400, 'Update ID is required'));
     }
 
     // Decrypt update ID
     let decryptedUpdateId;
     try {
       decryptedUpdateId = safeDecryptId(update_id);
-    } catch (error) {
+  } catch (error) {
       logError('Failed to decrypt update ID:', { update_id, error: error.message });
       // TODO: Convert createErrorResponse(400, 'Invalid update ID format') to res.status(400).json({ error: 'Invalid update ID format' })
-      return res.status(400).json({ error: 'Invalid update ID format' });
+      return res.status(400).json(createErrorResponse(400, 'Invalid update ID format'));
     }
 
     // Get update details and validate accessibility
     const update = await getUpdateDetails(decryptedUpdateId, userId);
     if (!update) {
       // TODO: Convert createErrorResponse(404, 'Post not found or not accessible') to res.status(404).json({ error: 'Post not found or not accessible' })
-      return res.status(404).json({ error: 'Post not found or not accessible' });
+      return res.status(404).json(createErrorResponse(404, 'Post not found or not accessible'));
     }
 
     // Get existing like
@@ -1624,24 +1524,7 @@ export const toggleLike = async (req, res) => {
   } catch (error) {
     logError('Error in post like handler:', error);
     // TODO: Convert createErrorResponse(500, 'Internal server error', { message: 'Failed to update post like' }) to res.status(500).json({ error: 'Internal server error', details: { message: 'Failed to update post like' } })
-    return res.status(500).json({ error: 'Internal server error', details: { message: 'Failed to update post like' } });
-=======
-    const userId = req.userId;
-    const { post_id, comment_id, type } = req.body;
-
-    if (!post_id && !comment_id) {
-      return res.status(400).json(createExpressErrorResponse('Post ID or Comment ID is required', 400));
-    }
-
-    // Toggle like logic here - this would need to be implemented in common.js
-    // const result = await togglePostLike(userId, post_id, comment_id, type);
-    
-    logInfo('Like toggled successfully', { userId, postId: post_id, commentId: comment_id, type });
-    return res.json(createExpressSuccessResponse('Like toggled successfully'));
-  } catch (error) {
-    logError('Error toggling like:', error);
-    return res.status(500).json(createExpressErrorResponse('Failed to toggle like', 500));
->>>>>>> main
+    return res.status(500).json(createErrorResponse(500, 'Failed to update post like'));
   }
 };
 
@@ -1668,7 +1551,7 @@ export const toggleCommentLike = async (req, res) => {
       requestBody = JSON.parse(req.body || '{}');
     } catch (error) {
       // TODO: Convert createErrorResponse(400, 'Invalid JSON in request body') to res.status(400).json({ error: 'Invalid JSON in request body' })
-      return res.status(400).json({ error: 'Invalid JSON in request body' });
+      return res.status(400).json(createErrorResponse(400, 'Invalid JSON in request body'));
     }
 
     const { comment_id } = requestBody;
@@ -1676,7 +1559,7 @@ export const toggleCommentLike = async (req, res) => {
     // Validate comment ID
     if (!comment_id) {
       // TODO: Convert createErrorResponse(400, 'Comment ID is required') to res.status(400).json({ error: 'Comment ID is required' })
-      return res.status(400).json({ error: 'Comment ID is required' });
+      return res.status(400).json(createErrorResponse(400, 'Comment ID is required'));
     }
 
     // Decrypt comment ID
@@ -1686,14 +1569,14 @@ export const toggleCommentLike = async (req, res) => {
     } catch (error) {
       logError('Failed to decrypt comment ID:', { comment_id, error: error.message });
       // TODO: Convert createErrorResponse(400, 'Invalid comment ID format') to res.status(400).json({ error: 'Invalid comment ID format' })
-      return res.status(400).json({ error: 'Invalid comment ID format' });
+      return res.status(400).json(createErrorResponse(400, 'Invalid comment ID format'));
     }
 
     // Get comment details
     const comment = await getCommentDetails(decryptedCommentId);
     if (!comment) {
       // TODO: Convert createErrorResponse(404, 'Comment not found') to res.status(404).json({ error: 'Comment not found' })
-      return res.status(404).json({ error: 'Comment not found' });
+      return res.status(404).json(createErrorResponse(404, 'Comment not found'));
     }
 
     // Get existing like
@@ -1732,13 +1615,12 @@ export const toggleCommentLike = async (req, res) => {
       totalLikes
     });
 
-    // TODO: Convert createSuccessResponse('Comment like updated successfully', responseData) to res.json(createSuccessResponse('Comment like updated successfully', responseData))
     return res.json(createSuccessResponse('Comment like updated successfully', responseData));
 
   } catch (error) {
     logError('Error in comment like handler:', error);
     // TODO: Convert createErrorResponse(500, 'Internal server error', { message: 'Failed to update comment like' }) to res.status(500).json({ error: 'Internal server error', details: { message: 'Failed to update comment like' } })
-    return res.status(500).json({ error: 'Internal server error', details: { message: 'Failed to update comment like' } });
+    return res.status(500).json(createErrorResponse(500, 'Failed to update comment like'));
   }
 };
 
@@ -1750,23 +1632,14 @@ export const toggleCommentLike = async (req, res) => {
  */
 export const pinPost = async (req, res) => {
   try {
-<<<<<<< HEAD
     // Step 1: Authenticate user
     // TODO: Convert getAuthenticatedUserId(event, { allowAnonymous: false, action: 'pin post' }) to getAuthenticatedUserId(req, { allowAnonymous: false, action: 'pin post' })
     const authResult = getAuthenticatedUserId(req, { allowAnonymous: false, action: 'pin post' });
     if (authResult.errorResponse) {
       // TODO: Convert return authResult.errorResponse to return res.status(authResult.errorResponse.statusCode).json(authResult.errorResponse.body)
       return res.status(authResult.errorResponse.statusCode).json(authResult.errorResponse.body);
-=======
-    const userId = req.userId;
-    const { post_id } = req.body;
-
-    if (!post_id) {
-      return res.status(400).json(createExpressErrorResponse('Post ID is required', 400));
->>>>>>> main
     }
     
-<<<<<<< HEAD
     const userId = authResult.userId;
     
     // Step 2: Parse request body
@@ -1777,28 +1650,28 @@ export const pinPost = async (req, res) => {
     } catch (error) {
       logError('[pinPostHandler] JSON parsing failed:', error.message);
       // TODO: Convert createErrorResponse(400, 'Invalid JSON body') to res.status(400).json({ error: 'Invalid JSON body' })
-      return res.status(400).json({ error: 'Invalid JSON body' });
+      return res.status(400).json(createErrorResponse(400, 'Invalid JSON body'));
     }
     
     // Step 3: Validate input
     if (!data.id) {
       // TODO: Convert createErrorResponse(400, 'Post ID is required') to res.status(400).json({ error: 'Post ID is required' })
-      return res.status(400).json({ error: 'Post ID is required' });
+      return res.status(400).json(createErrorResponse(400, 'Post ID is required'));
     }
-    
+
     // Step 4: Decrypt post ID
     let updateId;
     try {
       updateId = safeDecryptId(data.id);
-    } catch (error) {
+  } catch (error) {
       logError('[pinPostHandler] Failed to decrypt post ID:', error.message);
       // TODO: Convert createErrorResponse(400, 'Invalid post ID format') to res.status(400).json({ error: 'Invalid post ID format' })
-      return res.status(400).json({ error: 'Invalid post ID format' });
+      return res.status(400).json(createErrorResponse(400, 'Invalid post ID format'));
     }
     
     if (!updateId) {
       // TODO: Convert createErrorResponse(400, 'Invalid post ID') to res.status(400).json({ error: 'Invalid post ID' })
-      return res.status(400).json({ error: 'Invalid post ID' });
+      return res.status(400).json(createErrorResponse(400, 'Invalid post ID'));
     }
     
     // Step 5: Execute pin/unpin operation
@@ -1814,16 +1687,9 @@ export const pinPost = async (req, res) => {
       }
     ));
     
-  } catch (error) {    
-    // TODO: Convert createErrorResponse(500, 'Failed to pin/unpin post', error.message) to res.status(500).json({ error: 'Failed to pin/unpin post', details: error.message })
-    return res.status(500).json({ error: 'Failed to pin/unpin post', details: error.message });
-=======
-    logInfo('Post pinned successfully', { userId, postId: post_id });
-    return res.json(createExpressSuccessResponse('Post pinned successfully'));
   } catch (error) {
-    logError('Error pinning post:', error);
-    return res.status(500).json(createExpressErrorResponse('Failed to pin post', 500));
->>>>>>> main
+    // TODO: Convert createErrorResponse(500, 'Failed to pin/unpin post', error.message) to res.status(500).json({ error: 'Failed to pin/unpin post', details: error.message })
+    return res.status(500).json(createErrorResponse(500, 'Failed to pin/unpin post'));
   }
 };
 
@@ -1837,7 +1703,6 @@ const pinPostHelper = async (userId, updateId) => {
   const connection = await pool.getConnection();
   
   try {
-<<<<<<< HEAD
     await connection.beginTransaction();
     
     // Find the post to pin/unpin
@@ -1898,22 +1763,5 @@ const pinPostHelper = async (userId, updateId) => {
     throw error;
   } finally {
     connection.release();
-=======
-    const userId = req.userId;
-    const { post_id } = req.body;
-
-    if (!post_id) {
-      return res.status(400).json(createExpressErrorResponse('Post ID is required', 400));
-    }
-
-    // Unpin post logic here - this would need to be implemented in common.js
-    // const result = await unpinUserPost(userId, post_id);
-    
-    logInfo('Post unpinned successfully', { userId, postId: post_id });
-    return res.json(createExpressSuccessResponse('Post unpinned successfully'));
-  } catch (error) {
-    logError('Error unpinning post:', error);
-    return res.status(500).json(createExpressErrorResponse('Failed to unpin post', 500));
->>>>>>> main
   }
 };

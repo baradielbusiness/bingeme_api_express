@@ -57,8 +57,7 @@ export const getContactUserInfo = async (req, res) => {
     
   } catch (error) {
     logError('Error getting contact form info:', error);
-    // TODO: Convert createErrorResponse(500, 'Internal server error', 'Failed to retrieve contact form information') to res.status(500).json({ error: 'Internal server error', message: 'Failed to retrieve contact form information' })
-    return res.status(500).json({ error: 'Internal server error', message: 'Failed to retrieve contact form information' });
+    return res.status(500).json(createErrorResponse(500, 'Failed to retrieve contact form information'));
   }
 };
 
@@ -77,8 +76,7 @@ export const submitContactForm = async (req, res) => {
     try {
       requestBody = req.body || {};
     } catch (error) {
-      // TODO: Convert createErrorResponse(400, 'Invalid JSON in request body') to res.status(400).json({ error: 'Invalid JSON in request body' })
-      return res.status(400).json({ error: 'Invalid JSON in request body' });
+      return res.status(400).json(createErrorResponse(400, 'Invalid JSON in request body'));
     }
     
     const { 
@@ -92,15 +90,13 @@ export const submitContactForm = async (req, res) => {
     
     // Validate required fields
     if (!full_name || !email || !subject || !message) {
-      // TODO: Convert createErrorResponse(400, 'Missing required fields', 'Full name, email, subject, and message are required') to res.status(400).json({ error: 'Missing required fields', message: 'Full name, email, subject, and message are required' })
-      return res.status(400).json({ error: 'Missing required fields', message: 'Full name, email, subject, and message are required' });
+      return res.status(400).json(createErrorResponse(400, 'Full name, email, subject, and message are required'));
     }
     
     // Validate email format
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
-      // TODO: Convert createErrorResponse(400, 'Invalid email format') to res.status(400).json({ error: 'Invalid email format' })
-      return res.status(400).json({ error: 'Invalid email format' });
+      return res.status(400).json(createErrorResponse(400, 'Invalid email format'));
     }
     
     // Get admin settings for validation
@@ -109,22 +105,19 @@ export const submitContactForm = async (req, res) => {
     // Check terms and privacy agreement if required
     if (adminSettings.link_terms && adminSettings.link_privacy) {
       if (agree_terms_privacy !== 'on') {
-        // TODO: Convert createErrorResponse(400, 'Terms and privacy agreement required', 'You must agree to the terms and conditions and privacy policy') to res.status(400).json({ error: 'Terms and privacy agreement required', message: 'You must agree to the terms and conditions and privacy policy' })
-        return res.status(400).json({ error: 'Terms and privacy agreement required', message: 'You must agree to the terms and conditions and privacy policy' });
+        return res.status(400).json(createErrorResponse(400, 'You must agree to the terms and conditions and privacy policy'));
       }
     }
     
     // Validate captcha if enabled
     if (adminSettings.captcha_contact === 'on') {
       if (!captcha_response) {
-        // TODO: Convert createErrorResponse(400, 'Captcha verification required') to res.status(400).json({ error: 'Captcha verification required' })
-        return res.status(400).json({ error: 'Captcha verification required' });
+        return res.status(400).json(createErrorResponse(400, 'Captcha verification required'));
       }
       
       const captchaValid = await validateCaptcha(captcha_response);
       if (!captchaValid) {
-        // TODO: Convert createErrorResponse(400, 'Invalid captcha response') to res.status(400).json({ error: 'Invalid captcha response' })
-        return res.status(400).json({ error: 'Invalid captcha response' });
+        return res.status(400).json(createErrorResponse(400, 'Invalid captcha response'));
       }
     }
     
@@ -152,13 +145,11 @@ export const submitContactForm = async (req, res) => {
       
       if (!emailSent) {
         logError('Failed to send contact message email');
-        // TODO: Convert createErrorResponse(500, 'Failed to send message', 'Your message could not be sent. Please try again later.') to res.status(500).json({ error: 'Failed to send message', message: 'Your message could not be sent. Please try again later.' })
-        return res.status(500).json({ error: 'Failed to send message', message: 'Your message could not be sent. Please try again later.' });
+        return res.status(500).json(createErrorResponse(500, 'Your message could not be sent. Please try again later.'));
       }
     } catch (emailError) {
       logError('Failed to send contact message email:', emailError);
-      // TODO: Convert createErrorResponse(500, 'Failed to send message', 'Your message could not be sent. Please try again later.') to res.status(500).json({ error: 'Failed to send message', message: 'Your message could not be sent. Please try again later.' })
-      return res.status(500).json({ error: 'Failed to send message', message: 'Your message could not be sent. Please try again later.' });
+      return res.status(500).json(createErrorResponse(500, 'Your message could not be sent. Please try again later.'));
     }
     
     logInfo('Contact form submitted successfully:', { 
@@ -176,8 +167,7 @@ export const submitContactForm = async (req, res) => {
     
   } catch (error) {
     logError('Error submitting contact form:', error);
-    // TODO: Convert createErrorResponse(500, 'Internal server error', 'Failed to submit contact form') to res.status(500).json({ error: 'Internal server error', message: 'Failed to submit contact form' })
-    return res.status(500).json({ error: 'Internal server error', message: 'Failed to submit contact form' });
+    return res.status(500).json(createErrorResponse(500, 'Failed to submit contact form'));
   }
 };
 

@@ -46,7 +46,7 @@ export const getSales = async (req, res) => {
     // Log and return error
     logError('Error fetching sales:', error);
     // TODO: Convert createErrorResponse(500, 'Failed to fetch sales') to res.status(500).json({ error: 'Failed to fetch sales' })
-    return res.status(500).json({ error: 'Failed to fetch sales' });
+    return res.status(500).json(createErrorResponse(500, 'Failed to fetch sales'));
   }
 };
 
@@ -73,7 +73,7 @@ export const deliveredProduct = async (req, res) => {
     // TODO: Convert event.httpMethod to req.method
     if (req.method !== 'POST') {
       // TODO: Convert createErrorResponse(405, 'Method not allowed') to res.status(405).json({ error: 'Method not allowed' })
-      return res.status(405).json({ error: 'Method not allowed' });
+      return res.status(405).json(createErrorResponse(405, 'Method not allowed'));
     }
 
     // Extract purchase ID from path parameters and decrypt it
@@ -81,7 +81,7 @@ export const deliveredProduct = async (req, res) => {
     const encryptedPurchaseId = req.params && req.params.id;
     if (!encryptedPurchaseId) {
       // TODO: Convert createErrorResponse(400, 'Purchase id is required in path') to res.status(400).json({ error: 'Purchase id is required in path' })
-      return res.status(400).json({ error: 'Purchase id is required in path' });
+      return res.status(400).json(createErrorResponse(400, 'Purchase id is required in path'));
     }
 
     // Decrypt the encrypted purchase ID
@@ -100,7 +100,7 @@ export const deliveredProduct = async (req, res) => {
         error: error.message
       });
       // TODO: Convert createErrorResponse(400, `Invalid purchase ID format: ${error.message}`) to res.status(400).json({ error: `Invalid purchase ID format: ${error.message}` })
-      return res.status(400).json({ error: `Invalid purchase ID format: ${error.message}` });
+      return res.status(400).json(createErrorResponse(400, `Invalid purchase ID format: ${error.message}`));
     }
 
     // Update purchase status to 'delivered' using a reusable DB utility
@@ -112,7 +112,7 @@ export const deliveredProduct = async (req, res) => {
     // Log and return error
     logError('Error delivering product:', error);
     // TODO: Convert createErrorResponse(error.statusCode || 500, error.message || 'Internal Server Error') to res.status(error.statusCode || 500).json({ error: error.message || 'Internal Server Error' })
-    return res.status(error.statusCode || 500).json({ error: error.message || 'Internal Server Error' });
+    return res.status(error.statusCode || 500).json(createErrorResponse(error.statusCode || 500, error.message || 'Internal Server Error'));
   }
 };
 
@@ -139,7 +139,7 @@ export const rejectOrder = async (req, res) => {
     // TODO: Convert event.httpMethod to req.method
     if (req.method !== 'POST') {
       // TODO: Convert createErrorResponse(405, 'Method not allowed') to res.status(405).json({ error: 'Method not allowed' })
-      return res.status(405).json({ error: 'Method not allowed' });
+      return res.status(405).json(createErrorResponse(405, 'Method not allowed'));
     }
 
     // Extract purchase ID from path parameters and decrypt it
@@ -147,7 +147,7 @@ export const rejectOrder = async (req, res) => {
     const encryptedPurchaseId = req.params && req.params.id;
     if (!encryptedPurchaseId) {
       // TODO: Convert createErrorResponse(400, 'Purchase id is required in path') to res.status(400).json({ error: 'Purchase id is required in path' })
-      return res.status(400).json({ error: 'Purchase id is required in path' });
+      return res.status(400).json(createErrorResponse(400, 'Purchase id is required in path'));
     }
 
     // Decrypt the encrypted purchase ID
@@ -166,7 +166,7 @@ export const rejectOrder = async (req, res) => {
         error: error.message
       });
       // TODO: Convert createErrorResponse(400, `Invalid purchase ID format: ${error.message}`) to res.status(400).json({ error: `Invalid purchase ID format: ${error.message}` })
-      return res.status(400).json({ error: `Invalid purchase ID format: ${error.message}` });
+      return res.status(400).json(createErrorResponse(400, `Invalid purchase ID format: ${error.message}`));
     }
 
     // Update purchase status to 'rejected' using a reusable DB utility
@@ -178,6 +178,6 @@ export const rejectOrder = async (req, res) => {
     // Log and return error
     logError('Error rejecting order:', error);
     // TODO: Convert createErrorResponse(error.statusCode || 500, error.message || 'Internal Server Error') to res.status(error.statusCode || 500).json({ error: error.message || 'Internal Server Error' })
-    return res.status(error.statusCode || 500).json({ error: error.message || 'Internal Server Error' });
+    return res.status(error.statusCode || 500).json(createErrorResponse(error.statusCode || 500, error.message || 'Internal Server Error'));
   }
 };

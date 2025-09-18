@@ -287,7 +287,7 @@ export const getConversation = async (req, res) => {
     const user = await getUserById(userId); // Fetch user info for verification status
     if (!user) {
       // TODO: Convert createErrorResponse(404, 'User not found') to res.status(404).json({ error: 'User not found' })
-      return res.status(404).json({ error: 'User not found' });
+      return res.status(404).json(createErrorResponse(404, 'User not found'));
     }
     
     let supportConfig; // Get support configuration
@@ -329,7 +329,7 @@ export const getConversation = async (req, res) => {
   } catch (error) {
     logError('getUserMessagesHandler error:', error);
     // TODO: Convert createErrorResponse(500, 'Internal server error') to res.status(500).json({ error: 'Internal server error' })
-    return res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json(createErrorResponse(500, 'Internal server error'));
   }
 };
 
@@ -370,7 +370,7 @@ export const getConversationSearch = async (req, res) => {
     if (!validation.valid) {
       logError('searchConversationHandler: Validation failed', { error: validation.error });
       // TODO: Convert createErrorResponse(400, validation.error) to res.status(400).json({ error: validation.error })
-      return res.status(400).json({ error: validation.error });
+      return res.status(400).json(createErrorResponse(400, validation.error));
     }
 
     const { searchTerm } = validation.data;
@@ -394,7 +394,7 @@ export const getConversationSearch = async (req, res) => {
   } catch (error) {
     logError('searchConversationHandler error:', error);
     // TODO: Convert createErrorResponse(500, 'Internal server error') to res.status(500).json({ error: 'Internal server error' })
-    return res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json(createErrorResponse(500, 'Internal server error'));
   }
 };
 
@@ -423,7 +423,7 @@ export const getMessagesInbox = async (req, res) => {
     if (!validation.valid) {
       logError('Request validation failed', { error: validation.error });
       // TODO: Convert createErrorResponse(400, validation.error) to res.status(400).json({ error: validation.error })
-      return res.status(400).json({ error: validation.error });
+      return res.status(400).json(createErrorResponse(400, validation.error));
     }
 
     const { userId, username } = validation.data;
@@ -439,13 +439,13 @@ export const getMessagesInbox = async (req, res) => {
       // TODO: Convert return errorResponse to return res.status(errorResponse.statusCode).json(errorResponse.body)
       return res.status(errorResponse.statusCode).json(errorResponse.body);
     }
-    
+
     // Security check: Prevent user from accessing their own messages
     // This is a business logic requirement to prevent self-conversation access
     if (authenticatedUserId === userId) {
       logError('User attempting to access own messages', { userId: authenticatedUserId });
       // TODO: Convert createErrorResponse(400, 'Cannot access messages with yourself') to res.status(400).json({ error: 'Cannot access messages with yourself' })
-      return res.status(400).json({ error: 'Cannot access messages with yourself' });
+      return res.status(400).json(createErrorResponse(400, 'Cannot access messages with yourself'));
     }
 
     // Extract and validate pagination parameters from query string
@@ -475,7 +475,7 @@ export const getMessagesInbox = async (req, res) => {
       if (!userValidation.valid) {
         logError('Username validation failed', { error: userValidation.error });
         // TODO: Convert createErrorResponse(404, userValidation.error) to res.status(404).json({ error: userValidation.error })
-        return res.status(404).json({ error: userValidation.error });
+        return res.status(404).json(createErrorResponse(404, userValidation.error));
       }
 
       // Security check: Ensure username belongs to the user ID provided in URL
@@ -487,7 +487,7 @@ export const getMessagesInbox = async (req, res) => {
           username: username 
         });
         // TODO: Convert createErrorResponse(400, 'Username and user ID belong to different users') to res.status(400).json({ error: 'Username and user ID belong to different users' })
-        return res.status(400).json({ error: 'Username and user ID belong to different users' });
+        return res.status(400).json(createErrorResponse(400, 'Username and user ID belong to different users'));
       }
 
       // Username and user ID validation successful - proceed to retrieve messages
@@ -507,7 +507,7 @@ export const getMessagesInbox = async (req, res) => {
       if (result.error) {
         logError('Error fetching messages by username', { error: result.error });
         // TODO: Convert createErrorResponse(404, result.error) to res.status(404).json({ error: result.error })
-        return res.status(404).json({ error: result.error });
+        return res.status(404).json(createErrorResponse(404, result.error));
       }
 
       messages = result.messages;
@@ -522,7 +522,7 @@ export const getMessagesInbox = async (req, res) => {
       if (!accessValidation.hasAccess) {
         logError('User access denied', { error: accessValidation.error });
         // TODO: Convert createErrorResponse(403, accessValidation.error) to res.status(403).json({ error: accessValidation.error })
-        return res.status(403).json({ error: accessValidation.error });
+        return res.status(403).json(createErrorResponse(403, accessValidation.error));
       }
 
       logInfo('User access validated successfully', { 
@@ -556,7 +556,7 @@ export const getMessagesInbox = async (req, res) => {
           targetUserId: userId 
         });
         // TODO: Convert createErrorResponse(500, 'Failed to retrieve messages') to res.status(500).json({ error: 'Failed to retrieve messages' })
-        return res.status(500).json({ error: 'Failed to retrieve messages' });
+        return res.status(500).json(createErrorResponse(500, 'Failed to retrieve messages'));
       }
     }
 
@@ -606,7 +606,7 @@ export const getMessagesInbox = async (req, res) => {
     // Catch any unexpected errors and log them for debugging
     logError('messagesInboxHandler error:', error);
     // TODO: Convert createErrorResponse(500, 'Internal server error') to res.status(500).json({ error: 'Internal server error' })
-    return res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json(createErrorResponse(500, 'Internal server error'));
   }
 };
 
@@ -637,7 +637,7 @@ export const deleteMessage = async (req, res) => {
     if (!messageId) {
       logError('Message ID is required');
       // TODO: Convert createErrorResponse(400, 'Message ID is required') to res.status(400).json({ error: 'Message ID is required' })
-      return res.status(400).json({ error: 'Message ID is required' });
+      return res.status(400).json(createErrorResponse(400, 'Message ID is required'));
     }
 
     // Validate message ID is a valid number
@@ -645,7 +645,7 @@ export const deleteMessage = async (req, res) => {
     if (isNaN(messageIdNum) || messageIdNum <= 0) {
       logError('Invalid message ID format', { messageId });
       // TODO: Convert createErrorResponse(400, 'Invalid message ID format') to res.status(400).json({ error: 'Invalid message ID format' })
-      return res.status(400).json({ error: 'Invalid message ID format' });
+      return res.status(400).json(createErrorResponse(400, 'Invalid message ID format'));
     }
 
     // Get authenticated user ID using common utility function
@@ -669,14 +669,14 @@ export const deleteMessage = async (req, res) => {
       // Check if message exists and user has access
       const message = await getMessageById(messageIdNum);
       
-      if (!message) {
+    if (!message) {
         logError('Message not found', { 
           messageId: messageIdNum, 
           authenticatedUserId 
         });
         // TODO: Convert createErrorResponse(404, 'Message not found') to res.status(404).json({ error: 'Message not found' })
-        return res.status(404).json({ error: 'Message not found' });
-      }
+      return res.status(404).json(createErrorResponse(404, 'Message not found'));
+    }
 
       // Security check: Ensure the authenticated user is either the sender or recipient
       // This prevents users from deleting messages they're not part of
@@ -688,7 +688,7 @@ export const deleteMessage = async (req, res) => {
           messageToUserId: message.to_user_id
         });
         // TODO: Convert createErrorResponse(403, 'You are not authorized to delete this message') to res.status(403).json({ error: 'You are not authorized to delete this message' })
-        return res.status(403).json({ error: 'You are not authorized to delete this message' });
+        return res.status(403).json(createErrorResponse(403, 'You are not authorized to delete this message'));
       }
 
       // Check if message is already deleted
@@ -698,7 +698,7 @@ export const deleteMessage = async (req, res) => {
           authenticatedUserId 
         });
         // TODO: Convert createErrorResponse(400, 'Message already deleted') to res.status(400).json({ error: 'Message already deleted' })
-        return res.status(400).json({ error: 'Message already deleted' });
+        return res.status(400).json(createErrorResponse(400, 'Message already deleted'));
       }
 
       // Delete the message (soft delete by updating status)
@@ -711,7 +711,7 @@ export const deleteMessage = async (req, res) => {
           error: deleteResult.error 
         });
         // TODO: Convert createErrorResponse(500, 'Failed to delete message') to res.status(500).json({ error: 'Failed to delete message' })
-        return res.status(500).json({ error: 'Failed to delete message' });
+        return res.status(500).json(createErrorResponse(500, 'Failed to delete message'));
       }
 
       logInfo('Message deleted successfully', { 
@@ -731,14 +731,14 @@ export const deleteMessage = async (req, res) => {
         authenticatedUserId 
       });
       // TODO: Convert createErrorResponse(500, 'Failed to delete message') to res.status(500).json({ error: 'Failed to delete message' })
-      return res.status(500).json({ error: 'Failed to delete message' });
+      return res.status(500).json(createErrorResponse(500, 'Failed to delete message'));
     }
 
   } catch (error) {
     // Catch any unexpected errors and log them for debugging
     logError('deleteMessageHandler error:', error);
     // TODO: Convert createErrorResponse(500, 'Internal server error') to res.status(500).json({ error: 'Internal server error' })
-    return res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json(createErrorResponse(500, 'Internal server error'));
   }
 };
 
@@ -769,7 +769,7 @@ export const deleteConversation = async (req, res) => {
     if (!id) {
       logError('Conversation ID parameter is required');
       // TODO: Convert createErrorResponse(400, 'Conversation ID parameter is required') to res.status(400).json({ error: 'Conversation ID parameter is required' })
-      return res.status(400).json({ error: 'Conversation ID parameter is required' });
+      return res.status(400).json(createErrorResponse(400, 'Conversation ID parameter is required'));
     }
 
     // Validate conversation ID is a valid number
@@ -777,7 +777,7 @@ export const deleteConversation = async (req, res) => {
     if (isNaN(conversationId) || conversationId <= 0) {
       logError('Invalid conversation ID format', { conversationId: id });
       // TODO: Convert createErrorResponse(400, 'Invalid conversation ID format') to res.status(400).json({ error: 'Invalid conversation ID format' })
-      return res.status(400).json({ error: 'Invalid conversation ID format' });
+      return res.status(400).json(createErrorResponse(400, 'Invalid conversation ID format'));
     }
 
     // Get authenticated user ID using common utility function
@@ -807,7 +807,7 @@ export const deleteConversation = async (req, res) => {
           authenticatedUserId 
         });
         // TODO: Convert createErrorResponse(404, 'Conversation not found') to res.status(404).json({ error: 'Conversation not found' })
-        return res.status(404).json({ error: 'Conversation not found' });
+        return res.status(404).json(createErrorResponse(404, 'Conversation not found'));
       }
 
       // Security check: Ensure the authenticated user is part of this conversation
@@ -820,7 +820,7 @@ export const deleteConversation = async (req, res) => {
           conversationToUserId: conversation.to_user_id
         });
         // TODO: Convert createErrorResponse(403, 'You are not authorized to delete this conversation') to res.status(403).json({ error: 'You are not authorized to delete this conversation' })
-        return res.status(403).json({ error: 'You are not authorized to delete this conversation' });
+        return res.status(403).json(createErrorResponse(403, 'You are not authorized to delete this conversation'));
       }
 
       // Delete the conversation (soft delete by updating status)
@@ -833,7 +833,7 @@ export const deleteConversation = async (req, res) => {
           error: deleteResult.error 
         });
         // TODO: Convert createErrorResponse(500, 'Failed to delete conversation') to res.status(500).json({ error: 'Failed to delete conversation' })
-        return res.status(500).json({ error: 'Failed to delete conversation' });
+        return res.status(500).json(createErrorResponse(500, 'Failed to delete conversation'));
       }
 
       logInfo('Conversation deleted successfully', { 
@@ -855,14 +855,14 @@ export const deleteConversation = async (req, res) => {
         authenticatedUserId 
       });
       // TODO: Convert createErrorResponse(500, 'Failed to delete conversation') to res.status(500).json({ error: 'Failed to delete conversation' })
-      return res.status(500).json({ error: 'Failed to delete conversation' });
+      return res.status(500).json(createErrorResponse(500, 'Failed to delete conversation'));
     }
 
   } catch (error) {
     // Catch any unexpected errors and log them for debugging
     logError('deleteConversationHandler error:', error);
     // TODO: Convert createErrorResponse(500, 'Internal server error') to res.status(500).json({ error: 'Internal server error' })
-    return res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json(createErrorResponse(500, 'Internal server error'));
   }
 };
 
@@ -910,7 +910,7 @@ export const getMessageUploadUrl = async (req, res) => {
           authenticatedUserId 
         });
         // TODO: Convert createErrorResponse(500, 'Failed to generate upload URLs') to res.status(500).json({ error: 'Failed to generate upload URLs' })
-        return res.status(500).json({ error: 'Failed to generate upload URLs' });
+        return res.status(500).json(createErrorResponse(500, 'Failed to generate upload URLs'));
       }
 
       logInfo('Upload URLs generated successfully', { 
@@ -923,20 +923,20 @@ export const getMessageUploadUrl = async (req, res) => {
         uploadUrls
       }));
 
-    } catch (error) {
+  } catch (error) {
       logError('Error generating upload URLs', { 
         error: error.message, 
         authenticatedUserId 
       });
       // TODO: Convert createErrorResponse(500, 'Failed to generate upload URLs') to res.status(500).json({ error: 'Failed to generate upload URLs' })
-      return res.status(500).json({ error: 'Failed to generate upload URLs' });
+      return res.status(500).json(createErrorResponse(500, 'Failed to generate upload URLs'));
     }
 
   } catch (error) {
     // Catch any unexpected errors and log them for debugging
     logError('getMessageUploadUrlHandler error:', error);
     // TODO: Convert createErrorResponse(500, 'Internal server error') to res.status(500).json({ error: 'Internal server error' })
-    return res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json(createErrorResponse(500, 'Internal server error'));
   }
 };
 
@@ -987,13 +987,13 @@ export const sendMessage = async (req, res) => {
     if (!user_id) {
       logError('User ID is required');
       // TODO: Convert createErrorResponse(400, 'User ID is required') to res.status(400).json({ error: 'User ID is required' })
-      return res.status(400).json({ error: 'User ID is required' });
+      return res.status(400).json(createErrorResponse(400, 'User ID is required'));
     }
 
     if (!message) {
       logError('Message content is required');
       // TODO: Convert createErrorResponse(400, 'Message content is required') to res.status(400).json({ error: 'Message content is required' })
-      return res.status(400).json({ error: 'Message content is required' });
+      return res.status(400).json(createErrorResponse(400, 'Message content is required'));
     }
 
     // Validate user ID is a valid number
@@ -1001,7 +1001,7 @@ export const sendMessage = async (req, res) => {
     if (isNaN(targetUserId) || targetUserId <= 0) {
       logError('Invalid user ID format', { user_id });
       // TODO: Convert createErrorResponse(400, 'Invalid user ID format') to res.status(400).json({ error: 'Invalid user ID format' })
-      return res.status(400).json({ error: 'Invalid user ID format' });
+      return res.status(400).json(createErrorResponse(400, 'Invalid user ID format'));
     }
 
     // Prevent self-sending: authenticated user cannot send message to themselves
@@ -1011,9 +1011,9 @@ export const sendMessage = async (req, res) => {
         targetUserId 
       });
       // TODO: Convert createErrorResponse(400, 'Cannot send message to yourself') to res.status(400).json({ error: 'Cannot send message to yourself' })
-      return res.status(400).json({ error: 'Cannot send message to yourself' });
+      return res.status(400).json(createErrorResponse(400, 'Cannot send message to yourself'));
     }
-
+    
     // Clean up the data: convert empty price to null and filter out empty media
     const cleanPrice = (price === '' || price === null || price === undefined) ? null : price;
     const cleanMedia = media ? media.filter(item => typeof item === 'string' && item.trim() !== '') : [];
@@ -1033,7 +1033,7 @@ export const sendMessage = async (req, res) => {
     } catch (error) {
       logError('Conversation management failed:', { error: error.message });
       // TODO: Convert createErrorResponse(500, 'Failed to manage conversation') to res.status(500).json({ error: 'Failed to manage conversation' })
-      return res.status(500).json({ error: 'Failed to manage conversation' });
+      return res.status(500).json(createErrorResponse(500, 'Failed to manage conversation'));
     }
 
     // Create new message in database FIRST (before S3 processing)
@@ -1061,7 +1061,7 @@ export const sendMessage = async (req, res) => {
     } catch (error) {
       logError('Database message creation failed:', { error: error.message });
       // TODO: Convert createErrorResponse(500, 'Failed to create message in database') to res.status(500).json({ error: 'Failed to create message in database' })
-      return res.status(500).json({ error: 'Failed to create message in database' });
+      return res.status(500).json(createErrorResponse(500, 'Failed to create message in database'));
     }
 
     // Get S3 bucket configuration from environment
@@ -1069,7 +1069,7 @@ export const sendMessage = async (req, res) => {
     if (!bucketName) {
       logError('S3 bucket configuration missing from environment');
       // TODO: Convert createErrorResponse(500, 'Media storage not configured') to res.status(500).json({ error: 'Media storage not configured' })
-      return res.status(500).json({ error: 'Media storage not configured' });
+      return res.status(500).json(createErrorResponse(500, 'Media storage not configured'));
     }
 
     // Process media files (validate, convert images to WebP) only if message creation succeeded
@@ -1110,7 +1110,7 @@ export const sendMessage = async (req, res) => {
         }
         
         // TODO: Convert createErrorResponse(500, 'Media processing failed') to res.status(500).json({ error: 'Media processing failed' })
-        return res.status(500).json({ error: 'Media processing failed' });
+        return res.status(500).json(createErrorResponse(500, 'Media processing failed'));
       }
     }
 
@@ -1152,7 +1152,7 @@ export const sendMessage = async (req, res) => {
         }
         
         // TODO: Convert createErrorResponse(500, 'Failed to save media to database') to res.status(500).json({ error: 'Failed to save media to database' })
-        return res.status(500).json({ error: 'Failed to save media to database' });
+        return res.status(500).json(createErrorResponse(500, 'Failed to save media to database'));
       }
     } else if (!mediaProcessingFailed) {
       logInfo('No media to save to database');
@@ -1181,7 +1181,7 @@ export const sendMessage = async (req, res) => {
     // Catch any unexpected errors and log them for debugging
     logError('sendMessageHandler error:', error);
     // TODO: Convert createErrorResponse(500, 'Internal server error') to res.status(500).json({ error: 'Internal server error' })
-    return res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json(createErrorResponse(500, 'Internal server error'));
   }
 };
 
@@ -1357,7 +1357,7 @@ export const sendMassiveMessage = async (req, res) => {
     if (!message) {
       logError('Message content is required');
       // TODO: Convert createErrorResponse(400, 'Message content is required') to res.status(400).json({ error: 'Message content is required' })
-      return res.status(400).json({ error: 'Message content is required' });
+      return res.status(400).json(createErrorResponse(400, 'Message content is required'));
     }
 
     // Extract and clean request data (support both expired_at and expires_at for backward compatibility)
@@ -1380,12 +1380,12 @@ export const sendMassiveMessage = async (req, res) => {
       if (subscriberIds.length === 0) {
         logError('No active subscribers found', { creatorId: authenticatedUserId });
         // TODO: Convert createErrorResponse(400, 'No active subscribers found. Cannot send massive message.') to res.status(400).json({ error: 'No active subscribers found. Cannot send massive message.' })
-        return res.status(400).json({ error: 'No active subscribers found. Cannot send massive message.' });
+        return res.status(400).json(createErrorResponse(400, 'No active subscribers found. Cannot send massive message.'));
       }
     } catch (error) {
       logError('Failed to get subscribers:', { error: error.message, creatorId: authenticatedUserId });
       // TODO: Convert createErrorResponse(500, 'Failed to retrieve subscribers') to res.status(500).json({ error: 'Failed to retrieve subscribers' })
-      return res.status(500).json({ error: 'Failed to retrieve subscribers' });
+      return res.status(500).json(createErrorResponse(500, 'Failed to retrieve subscribers'));
     }
 
     // Get S3 bucket configuration from environment
@@ -1393,7 +1393,7 @@ export const sendMassiveMessage = async (req, res) => {
     if (!bucketName) {
       logError('S3 bucket configuration missing from environment');
       // TODO: Convert createErrorResponse(500, 'Media storage not configured') to res.status(500).json({ error: 'Media storage not configured' })
-      return res.status(500).json({ error: 'Media storage not configured' });
+      return res.status(500).json(createErrorResponse(500, 'Media storage not configured'));
     }
 
     // Process media files if present
@@ -1409,7 +1409,7 @@ export const sendMassiveMessage = async (req, res) => {
       } catch (error) {
         logError('Media processing failed for massive message', { error: error.message });
         // TODO: Convert createErrorResponse(500, 'Media processing failed') to res.status(500).json({ error: 'Media processing failed' })
-        return res.status(500).json({ error: 'Media processing failed' });
+        return res.status(500).json(createErrorResponse(500, 'Media processing failed'));
       }
     }
 
@@ -1431,27 +1431,27 @@ export const sendMassiveMessage = async (req, res) => {
     // Process each subscriber
     for (const subscriberId of subscriberIds) {
       try {
-        const subscriberResult = await processSubscriber(subscriberId, {
+      const subscriberResult = await processSubscriber(subscriberId, {
           creatorId: authenticatedUserId, 
           message, 
           price: cleanPrice, 
           media: cleanMedia, 
           processedMedia, 
           expiresAtTimestamp
-        });
-        
-        if (subscriberResult.success) {
-          results.successfulSends++;
-          results.messageIds.push(subscriberResult.messageId);
-          if (subscriberResult.mediaIds.length > 0) {
-            results.mediaIds.push(...subscriberResult.mediaIds);
-          }
-          if (subscriberResult.error) {
-            results.errors.push(`Subscriber ${subscriberId}: ${subscriberResult.error}`);
-          }
-        } else {
-          results.failedSends++;
+      });
+      
+      if (subscriberResult.success) {
+        results.successfulSends++;
+        results.messageIds.push(subscriberResult.messageId);
+        if (subscriberResult.mediaIds.length > 0) {
+          results.mediaIds.push(...subscriberResult.mediaIds);
+        }
+        if (subscriberResult.error) {
           results.errors.push(`Subscriber ${subscriberId}: ${subscriberResult.error}`);
+        }
+      } else {
+        results.failedSends++;
+        results.errors.push(`Subscriber ${subscriberId}: ${subscriberResult.error}`);
         }
       } catch (error) {
         logError('Error processing subscriber', { 
@@ -1485,7 +1485,7 @@ export const sendMassiveMessage = async (req, res) => {
     // Catch any unexpected errors and log them for debugging
     logError('sendMassiveMessageHandler error:', error);
     // TODO: Convert createErrorResponse(500, 'Internal server error') to res.status(500).json({ error: 'Internal server error' })
-    return res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json(createErrorResponse(500, 'Internal server error'));
   }
 };
 
@@ -1518,7 +1518,7 @@ export const getMessageById = async (req, res) => {
     if (!messageId) {
       logError('Message ID parameter is required');
       // TODO: Convert createErrorResponse(400, 'Message ID parameter is required') to res.status(400).json({ error: 'Message ID parameter is required' })
-      return res.status(400).json({ error: 'Message ID parameter is required' });
+      return res.status(400).json(createErrorResponse(400, 'Message ID parameter is required'));
     }
 
     // Validate message ID is a valid number
@@ -1526,7 +1526,7 @@ export const getMessageById = async (req, res) => {
     if (isNaN(messageIdNum) || messageIdNum <= 0) {
       logError('Invalid message ID format', { messageId });
       // TODO: Convert createErrorResponse(400, 'Invalid message ID format') to res.status(400).json({ error: 'Invalid message ID format' })
-      return res.status(400).json({ error: 'Invalid message ID format' });
+      return res.status(400).json(createErrorResponse(400, 'Invalid message ID format'));
     }
 
     // Get authenticated user ID using common utility function
@@ -1557,7 +1557,7 @@ export const getMessageById = async (req, res) => {
           searchCriteria: 'messageId=' + messageIdNum
         });
         // TODO: Convert createErrorResponse(404, 'Message not found') to res.status(404).json({ error: 'Message not found' })
-        return res.status(404).json({ error: 'Message not found' });
+        return res.status(404).json(createErrorResponse(404, 'Message not found'));
       }
 
       // Security check: Ensure the authenticated user is either the sender or recipient
@@ -1570,7 +1570,7 @@ export const getMessageById = async (req, res) => {
           messageToUserId: message.to_user_id
         });
         // TODO: Convert createErrorResponse(403, 'You are not authorized to access this message') to res.status(403).json({ error: 'You are not authorized to access this message' })
-        return res.status(403).json({ error: 'You are not authorized to access this message' });
+        return res.status(403).json(createErrorResponse(403, 'You are not authorized to access this message'));
       }
 
       // Check if message is deleted or inactive
@@ -1581,7 +1581,7 @@ export const getMessageById = async (req, res) => {
           mode: message.mode 
         });
         // TODO: Convert createErrorResponse(404, 'Message not found') to res.status(404).json({ error: 'Message not found' })
-        return res.status(404).json({ error: 'Message not found' });
+        return res.status(404).json(createErrorResponse(404, 'Message not found'));
       }
 
       logInfo('Message retrieved successfully', { 
@@ -1617,13 +1617,13 @@ export const getMessageById = async (req, res) => {
         authenticatedUserId 
       });
       // TODO: Convert createErrorResponse(500, 'Failed to retrieve message') to res.status(500).json({ error: 'Failed to retrieve message' })
-      return res.status(500).json({ error: 'Failed to retrieve message' });
+      return res.status(500).json(createErrorResponse(500, 'Failed to retrieve message'));
     }
 
   } catch (error) {
     // Catch any unexpected errors and log them for debugging
     logError('messageByIdHandler error:', error);
     // TODO: Convert createErrorResponse(500, 'Internal server error') to res.status(500).json({ error: 'Internal server error' })
-    return res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json(createErrorResponse(500, 'Internal server error'));
   }
 };

@@ -313,7 +313,7 @@ export const getVerificationAccount = async (req, res) => {
     if (!userSettings) {
       logError('Verification account: User not found', { userId });
       // TODO: Convert createErrorResponse(404, 'User not found') to res.status(404).json({ error: 'User not found' })
-      return res.status(404).json({ error: 'User not found' });
+      return res.status(404).json(createErrorResponse(404, 'User not found'));
     }
     
     // Step 3: Get verification-specific data
@@ -357,7 +357,7 @@ export const getVerificationAccount = async (req, res) => {
   } catch (error) {
     logError('Verification account handler error:', error);
     // TODO: Convert createErrorResponse(500, 'Internal server error', { error: error.message || 'Unknown error occurred' }) to res.status(500).json({ error: 'Internal server error', details: { error: error.message || 'Unknown error occurred' } })
-    return res.status(500).json({ error: 'Internal server error', details: { error: error.message || 'Unknown error occurred' } });
+    return res.status(500).json(createErrorResponse(500, 'Internal server error'));
   }
 };
 
@@ -388,7 +388,7 @@ export const verifyAccountSend = async (req, res) => {
     if (httpMethod !== 'POST') {
       logError('Invalid HTTP method for verification upload', { method: httpMethod });
       // TODO: Convert createErrorResponse(405, 'Method not allowed. Only POST requests are accepted.') to res.status(405).json({ error: 'Method not allowed. Only POST requests are accepted.' })
-      return res.status(405).json({ error: 'Method not allowed. Only POST requests are accepted.' });
+      return res.status(405).json(createErrorResponse(405, 'Method not allowed. Only POST requests are accepted.'));
     }
 
     // 3) Parse request body
@@ -399,7 +399,7 @@ export const verifyAccountSend = async (req, res) => {
     } catch (error) {
       logError('Invalid JSON in request body for verification upload', { error: error.message });
       // TODO: Convert createErrorResponse(400, 'Invalid JSON format in request body') to res.status(400).json({ error: 'Invalid JSON format in request body' })
-      return res.status(400).json({ error: 'Invalid JSON format in request body' });
+      return res.status(400).json(createErrorResponse(400, 'Invalid JSON format in request body'));
     }
 
     // 4) Check for existing pending verification request (Laravel logic)
@@ -407,7 +407,7 @@ export const verifyAccountSend = async (req, res) => {
     if (hasPendingRequest) {
       logError('User already has pending verification request', { userId });
       // TODO: Convert createErrorResponse(400, 'You have one application pending approval, you cannot send another one.') to res.status(400).json({ error: 'You have one application pending approval, you cannot send another one.' })
-      return res.status(400).json({ error: 'You have one application pending approval, you cannot send another one.' });
+      return res.status(400).json(createErrorResponse(400, 'You have one application pending approval, you cannot send another one.'));
     }
 
     // Rejection guard: block resubmission when user has a rejected request
@@ -415,7 +415,7 @@ export const verifyAccountSend = async (req, res) => {
     if (hasRejectedRequest) {
       logError('User has rejected verification request; blocking resubmission', { userId });
       // TODO: Convert createErrorResponse(400, 'Sorry! You cannot submit a request to verify your account because your previously submitted request was rejected.') to res.status(400).json({ error: 'Sorry! You cannot submit a request to verify your account because your previously submitted request was rejected.' })
-      return res.status(400).json({ error: 'Sorry! You cannot submit a request to verify your account because your previously submitted request was rejected.' });
+      return res.status(400).json(createErrorResponse(400, 'Sorry! You cannot submit a request to verify your account because your previously submitted request was rejected.'));
     }
 
     // 5) Get existing user data for validation
@@ -423,7 +423,7 @@ export const verifyAccountSend = async (req, res) => {
     if (!existingUser) {
       logError('User not found for verification', { userId });
       // TODO: Convert createErrorResponse(404, 'User not found') to res.status(404).json({ error: 'User not found' })
-      return res.status(404).json({ error: 'User not found' });
+      return res.status(404).json(createErrorResponse(404, 'User not found'));
     }
 
     // 6) Validate request body using Laravel validation rules
@@ -431,7 +431,7 @@ export const verifyAccountSend = async (req, res) => {
     if (!validation.success) {
       logError('Verification upload validation failed', { errors: validation.errors });
       // TODO: Convert createErrorResponse(400, 'Validation failed', validation.errors) to res.status(400).json({ error: 'Validation failed', details: validation.errors })
-      return res.status(400).json({ error: 'Validation failed', details: validation.errors });
+      return res.status(400).json(createErrorResponse(400, 'Validation failed'));
     }
 
     // 7) Validate files separately (kept for compatibility/future use)
@@ -439,7 +439,7 @@ export const verifyAccountSend = async (req, res) => {
     if (!fileValidation.success) {
       logError('File validation failed', { errors: fileValidation.errors });
       // TODO: Convert createErrorResponse(400, 'File validation failed', fileValidation.errors) to res.status(400).json({ error: 'File validation failed', details: fileValidation.errors })
-      return res.status(400).json({ error: 'File validation failed', details: fileValidation.errors });
+      return res.status(400).json(createErrorResponse(400, 'File validation failed'));
     }
 
     // 8) Process file uploads and generate filenames (Laravel-style)
@@ -465,7 +465,7 @@ export const verifyAccountSend = async (req, res) => {
       if (!bucketName) {
         logError('S3 bucket not configured for verification upload');
         // TODO: Convert createErrorResponse(500, 'S3 bucket not configured') to res.status(500).json({ error: 'S3 bucket not configured' })
-        return res.status(500).json({ error: 'S3 bucket not configured' });
+        return res.status(500).json(createErrorResponse(500, 'S3 bucket not configured'));
       }
 
       // Process and upload files to S3
@@ -485,7 +485,7 @@ export const verifyAccountSend = async (req, res) => {
     if (!profileUpdateSuccess) {
       logError('Failed to update user profile data', { userId });
       // TODO: Convert createErrorResponse(500, 'Failed to update user profile data') to res.status(500).json({ error: 'Failed to update user profile data' })
-      return res.status(500).json({ error: 'Failed to update user profile data' });
+      return res.status(500).json(createErrorResponse(500, 'Failed to update user profile data'));
     }
 
     // 11) Save verification document references to database (verification_requests table)
@@ -494,7 +494,7 @@ export const verifyAccountSend = async (req, res) => {
     if (!documentSaveSuccess) {
       logError('Failed to save verification documents', { userId });
       // TODO: Convert createErrorResponse(500, 'Failed to save verification documents') to res.status(500).json({ error: 'Failed to save verification documents' })
-      return res.status(500).json({ error: 'Failed to save verification documents' });
+      return res.status(500).json(createErrorResponse(500, 'Failed to save verification documents'));
     }
 
     // 12) Fetch authenticated user data to return
@@ -502,7 +502,7 @@ export const verifyAccountSend = async (req, res) => {
     if (!user) {
       logError('Verification upload: user not found after processing', { userId });
       // TODO: Convert createErrorResponse(404, 'User not found') to res.status(404).json({ error: 'User not found' })
-      return res.status(404).json({ error: 'User not found' });
+      return res.status(404).json(createErrorResponse(404, 'User not found'));
     }
 
     const { id, username } = user;
@@ -532,7 +532,7 @@ export const verifyAccountSend = async (req, res) => {
   } catch (error) {
     logError('Unexpected error in verification upload', { error: error.message, stack: error.stack });
     // TODO: Convert createErrorResponse(500, 'Internal server error', error.message) to res.status(500).json({ error: 'Internal server error', details: error.message })
-    return res.status(500).json({ error: 'Internal server error', details: error.message });
+    return res.status(500).json(createErrorResponse(500, 'Internal server error'));
   }
 };
 
@@ -566,7 +566,7 @@ export const getVerificationConversations = async (req, res) => {
   } catch (error) {
     logError('Error retrieving verification conversations:', error);
     // TODO: Convert createErrorResponse(500, 'Failed to retrieve verification conversations') to res.status(500).json({ error: 'Failed to retrieve verification conversations' })
-    return res.status(500).json({ error: 'Failed to retrieve verification conversations' });
+    return res.status(500).json(createErrorResponse(500, 'Failed to retrieve verification conversations'));
   }
 };
 
@@ -593,7 +593,7 @@ export const storeVerificationConversation = async (req, res) => {
     if (!message || !verification_request_id) {
       logError('Missing required fields for verification conversation', { message: !!message, verification_request_id: !!verification_request_id });
       // TODO: Convert createErrorResponse(400, 'Message and verification request ID are required') to res.status(400).json({ error: 'Message and verification request ID are required' })
-      return res.status(400).json({ error: 'Message and verification request ID are required' });
+      return res.status(400).json(createErrorResponse(400, 'Message and verification request ID are required'));
     }
 
     // TODO: Convert storeVerificationConversationData(userId, verification_request_id, message) to storeVerificationConversationData(userId, verification_request_id, message)
@@ -605,6 +605,6 @@ export const storeVerificationConversation = async (req, res) => {
   } catch (error) {
     logError('Error storing verification conversation:', error);
     // TODO: Convert createErrorResponse(500, 'Failed to store verification conversation') to res.status(500).json({ error: 'Failed to store verification conversation' })
-    return res.status(500).json({ error: 'Failed to store verification conversation' });
+    return res.status(500).json(createErrorResponse(500, 'Failed to store verification conversation'));
   }
 };

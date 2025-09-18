@@ -62,7 +62,7 @@ export const getDashboard = async (req, res) => {
     // Validate period parameter
     if (!['year', 'month', 'week'].includes(period)) {
       // TODO: Convert createErrorResponse(400, 'Invalid period parameter. Must be one of: year, month, week') to res.status(400).json({ error: 'Invalid period parameter. Must be one of: year, month, week' })
-      return res.status(400).json({ error: 'Invalid period parameter. Must be one of: year, month, week' });
+      return res.status(400).json(createErrorResponse(400, 'Invalid period parameter. Must be one of: year, month, week'));
     }
     
     logInfo('Processing dashboard request:', { userId, role, period, hasQueryParams });
@@ -127,7 +127,7 @@ export const getDashboard = async (req, res) => {
   } catch (error) {
     logError('Dashboard error:', error);
     // TODO: Convert createErrorResponse(500, 'Internal server error') to res.status(500).json({ error: 'Internal server error' })
-    return res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json(createErrorResponse(500, 'Internal server error'));
   }
 };
 
@@ -177,7 +177,7 @@ export const getPostsReport = async (req, res) => {
   } catch (error) {
     logError('Posts report error:', error);
     // TODO: Convert createErrorResponse(500, 'Internal server error') to res.status(500).json({ error: 'Internal server error' })
-    return res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json(createErrorResponse(500, 'Internal server error'));
   }
 };
 
@@ -243,6 +243,6 @@ export const getIncomeChart = async (req, res) => {
   } catch (error) {
     logError('Income chart error:', error);
     // TODO: Convert createErrorResponse(500, 'Internal server error') to res.status(500).json({ error: 'Internal server error' })
-    return res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json(createErrorResponse(500, 'Internal server error'));
   }
 };

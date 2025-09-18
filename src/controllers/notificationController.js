@@ -389,7 +389,7 @@ export const getNotifications = async (req, res) => {
     const validationError = validatePaginationParams(limit);
     if (validationError) {
       // TODO: Convert createErrorResponse(400, validationError) to res.status(400).json({ error: validationError })
-      return res.status(400).json({ error: validationError });
+      return res.status(400).json(createErrorResponse(400, validationError));
     }
 
     // Step 3: Determine active filters based on sort preference
@@ -442,13 +442,13 @@ export const getNotifications = async (req, res) => {
     } catch (dbError) {
       logError('Database error while fetching notifications:', dbError);
       // TODO: Convert createErrorResponse(500, 'Failed to fetch notifications') to res.status(500).json({ error: 'Failed to fetch notifications' })
-      return res.status(500).json({ error: 'Failed to fetch notifications' });
+      return res.status(500).json(createErrorResponse(500, 'Failed to fetch notifications'));
     }
 
   } catch (error) {
     logError('Notifications handler error:', error);
     // TODO: Convert createErrorResponse(500, 'Internal server error') to res.status(500).json({ error: 'Internal server error' })
-    return res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json(createErrorResponse(500, 'Internal server error'));
   }
 };
 
@@ -475,7 +475,7 @@ export const getNotificationSettings = async (req, res) => {
   } catch (error) {
     logError('Notification settings GET error:', error);
     // TODO: Convert createErrorResponse(500, 'Internal server error') to res.status(500).json({ error: 'Internal server error' })
-    return res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json(createErrorResponse(500, 'Internal server error'));
   }
 };
 
@@ -495,7 +495,7 @@ const getNotificationSettingsHelper = async (userId) => {
     if (rows.length === 0) {
       logError('User not found:', { userId });
       // TODO: Convert createErrorResponse(404, 'User not found') to res.status(404).json({ error: 'User not found' })
-      return res.status(404).json({ error: 'User not found' });
+      return res.status(404).json(createErrorResponse(404, 'User not found'));
     }
     // Extract the user's notification settings from the query result
     const userSettings = rows[0];
@@ -609,7 +609,7 @@ const getNotificationSettingsHelper = async (userId) => {
   } catch (dbError) {
     logError('Database error while fetching notification settings:', dbError);
     // TODO: Convert createErrorResponse(500, 'Failed to fetch notification settings') to res.status(500).json({ error: 'Failed to fetch notification settings' })
-    return res.status(500).json({ error: 'Failed to fetch notification settings' });
+    return res.status(500).json(createErrorResponse(500, 'Failed to fetch notification settings'));
   }
 };
 
@@ -636,7 +636,7 @@ export const updateNotificationSettings = async (req, res) => {
   } catch (error) {
     logError('Notification settings POST error:', error);
     // TODO: Convert createErrorResponse(500, 'Internal server error') to res.status(500).json({ error: 'Internal server error' })
-    return res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json(createErrorResponse(500, 'Internal server error'));
   }
 };
 
@@ -658,7 +658,7 @@ const updateNotificationSettingsHelper = async (userId, req) => {
     } catch (parseError) {
       logError('Invalid JSON in request body:', parseError);
       // TODO: Convert createErrorResponse(400, 'Invalid JSON in request body') to res.status(400).json({ error: 'Invalid JSON in request body' })
-      return res.status(400).json({ error: 'Invalid JSON in request body' });
+      return res.status(400).json(createErrorResponse(400, 'Invalid JSON in request body'));
     }
     
     // Prepare to build the update query using only allowed fields
@@ -674,7 +674,7 @@ const updateNotificationSettingsHelper = async (userId, req) => {
         if (value !== '1' && value !== '0') {
           logError('Invalid value for notification setting:', { field, value });
           // TODO: Convert createErrorResponse(400, `Invalid value for ${field}. Must be '1' or '0'`) to res.status(400).json({ error: `Invalid value for ${field}. Must be '1' or '0'` })
-          return res.status(400).json({ error: `Invalid value for ${field}. Must be '1' or '0'` });
+          return res.status(400).json(createErrorResponse(400, `Invalid value for ${field}. Must be '1' or '0'`));
         }
 
         // Convert '1'/'0' to 'yes'/'no' for database storage
@@ -705,7 +705,7 @@ const updateNotificationSettingsHelper = async (userId, req) => {
     if (result.affectedRows === 0) {
       logError('No rows affected during update:', { userId });
       // TODO: Convert createErrorResponse(404, 'User not found') to res.status(404).json({ error: 'User not found' })
-      return res.status(404).json({ error: 'User not found' });
+      return res.status(404).json(createErrorResponse(404, 'User not found'));
     }
     
     logInfo('Notification settings updated successfully:', { userId, updatedFields: Object.keys(updateFields), affectedRows: result.affectedRows });
@@ -716,7 +716,7 @@ const updateNotificationSettingsHelper = async (userId, req) => {
   } catch (dbError) {
     logError('Database error while updating notification settings:', dbError);
     // TODO: Convert createErrorResponse(500, 'Failed to update notification settings') to res.status(500).json({ error: 'Failed to update notification settings' })
-    return res.status(500).json({ error: 'Failed to update notification settings' });
+    return res.status(500).json(createErrorResponse(500, 'Failed to update notification settings'));
   }
 };
 
@@ -742,14 +742,14 @@ export const deleteNotificationById = async (req, res) => {
     const { id: notificationId } = req.params || {};
     if (!notificationId) {
       // TODO: Convert createErrorResponse(400, 'Notification ID is required in path') to res.status(400).json({ error: 'Notification ID is required in path' })
-      return res.status(400).json({ error: 'Notification ID is required in path' });
+      return res.status(400).json(createErrorResponse(400, 'Notification ID is required in path'));
     }
 
     // Validate HTTP method
     // TODO: Convert event.httpMethod to req.method
     if (req.method !== 'DELETE') {
       // TODO: Convert createErrorResponse(405, 'Method not allowed') to res.status(405).json({ error: 'Method not allowed' })
-      return res.status(405).json({ error: 'Method not allowed' });
+      return res.status(405).json(createErrorResponse(405, 'Method not allowed'));
     }
 
     // Decrypt notification ID using safeDecryptId
@@ -760,7 +760,7 @@ export const deleteNotificationById = async (req, res) => {
     } catch (error) {
       logError('Error decrypting notification ID:', { notificationId, error: error.message });
       // TODO: Convert createErrorResponse(400, 'Invalid notification ID format') to res.status(400).json({ error: 'Invalid notification ID format' })
-      return res.status(400).json({ error: 'Invalid notification ID format' });
+      return res.status(400).json(createErrorResponse(400, 'Invalid notification ID format'));
     }
 
     // Check if notification exists and belongs to the user
@@ -771,7 +771,7 @@ export const deleteNotificationById = async (req, res) => {
 
     if (notificationRows.length === 0) {
       // TODO: Convert createErrorResponse(404, 'Notification not found') to res.status(404).json({ error: 'Notification not found' })
-      return res.status(404).json({ error: 'Notification not found' });
+      return res.status(404).json(createErrorResponse(404, 'Notification not found'));
     }
 
     const notification = notificationRows[0];
@@ -784,7 +784,7 @@ export const deleteNotificationById = async (req, res) => {
 
     if (deleteResult.affectedRows === 0) {
       // TODO: Convert createErrorResponse(404, 'Notification not found or not deleted') to res.status(404).json({ error: 'Notification not found or not deleted' })
-      return res.status(404).json({ error: 'Notification not found or not deleted' });
+      return res.status(404).json(createErrorResponse(404, 'Notification not found or not deleted'));
     }
 
     // Log successful deletion
@@ -807,7 +807,7 @@ export const deleteNotificationById = async (req, res) => {
     // Error handling
     logError('Error in deleteNotificationById:', error);
     // TODO: Convert createErrorResponse(500, error.message || 'Internal server error') to res.status(500).json({ error: error.message || 'Internal server error' })
-    return res.status(500).json({ error: error.message || 'Internal server error' });
+    return res.status(500).json(createErrorResponse(500, error.message || 'Internal server error'));
   }
 };
 
@@ -832,7 +832,7 @@ export const deleteAllNotifications = async (req, res) => {
     // TODO: Convert event.httpMethod to req.method
     if (req.method !== 'DELETE') {
       // TODO: Convert createErrorResponse(405, 'Method not allowed') to res.status(405).json({ error: 'Method not allowed' })
-      return res.status(405).json({ error: 'Method not allowed' });
+      return res.status(405).json(createErrorResponse(405, 'Method not allowed'));
     }
 
     // Check if user has any notifications before deletion
@@ -864,6 +864,6 @@ export const deleteAllNotifications = async (req, res) => {
     // Error handling
     logError('Error in deleteAllNotifications:', error);
     // TODO: Convert createErrorResponse(500, error.message || 'Internal server error') to res.status(500).json({ error: error.message || 'Internal server error' })
-    return res.status(500).json({ error: error.message || 'Internal server error' });
+    return res.status(500).json(createErrorResponse(500, error.message || 'Internal server error'));
   }
 };

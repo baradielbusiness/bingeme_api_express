@@ -54,7 +54,7 @@ export const getProductCreateData = async (req, res) => {
     // TODO: Convert event.httpMethod to req.method
     if (req.method !== 'GET') {
       // TODO: Convert createErrorResponse(405, 'Method not allowed') to res.status(405).json({ error: 'Method not allowed' })
-      return res.status(405).json({ error: 'Method not allowed' });
+      return res.status(405).json(createErrorResponse(405, 'Method not allowed'));
     }
 
     // Get user country for currency determination
@@ -93,9 +93,9 @@ export const getProductCreateData = async (req, res) => {
     logError('Product create data handler error:', { error: error.message, duration: `${duration}ms` });
     
     // TODO: Convert error.message.includes('Failed to fetch') ? createErrorResponse(500, 'Internal server error. Unable to fetch required product data.') : createErrorResponse(500, 'Internal server error. Please try again later.') to res.status(500).json(error.message.includes('Failed to fetch') ? { error: 'Internal server error. Unable to fetch required product data.' } : { error: 'Internal server error. Please try again later.' })
-    return res.status(500).json(error.message.includes('Failed to fetch')
-      ? { error: 'Internal server error. Unable to fetch required product data.' }
-      : { error: 'Internal server error. Please try again later.' });
+    return res.status(500).json(createErrorResponse(500, error.message.includes('Failed to fetch')
+      ? 'Internal server error. Unable to fetch required product data.'
+      : 'Internal server error. Please try again later.'));
   }
 };
 
@@ -140,7 +140,7 @@ export const getProducts = async (req, res) => {
     // Error handling
     logError('Error in getProduct handler:', error);
     // TODO: Convert createErrorResponse(error.statusCode || 500, error.message || 'Internal Server Error') to res.status(error.statusCode || 500).json({ error: error.message || 'Internal Server Error' })
-    return res.status(error.statusCode || 500).json({ error: error.message || 'Internal Server Error' });
+    return res.status(error.statusCode || 500).json(createErrorResponse(error.statusCode || 500, error.message || 'Internal Server Error'));
   }
 };
 
@@ -169,13 +169,13 @@ export const createProduct = async (req, res) => {
       body = req.body;
     } catch (parseError) {
       // TODO: Convert createErrorResponse(400, 'Invalid JSON in request body') to res.status(400).json({ error: 'Invalid JSON in request body' })
-      return res.status(400).json({ error: 'Invalid JSON in request body' });
+      return res.status(400).json(createErrorResponse(400, 'Invalid JSON in request body'));
     }
 
     const validationErrors = validateProductInput(body, { isUpdate: false });
     if (validationErrors.length > 0) {
       // TODO: Convert createErrorResponse(400, 'Validation failed', { errors: validationErrors }) to res.status(400).json({ error: 'Validation failed', errors: validationErrors })
-      return res.status(400).json({ error: 'Validation failed', errors: validationErrors });
+      return res.status(400).json(createErrorResponse(400, 'Validation failed'));
     }
 
     // Extract and prepare product data
@@ -190,7 +190,7 @@ export const createProduct = async (req, res) => {
     if (!bucketName) {
       logError('S3 bucket configuration missing from environment');
       // TODO: Convert createErrorResponse(500, 'Media storage not configured') to res.status(500).json({ error: 'Media storage not configured' })
-      return res.status(500).json({ error: 'Media storage not configured' });
+      return res.status(500).json(createErrorResponse(500, 'Media storage not configured'));
     }
 
     // Process media files
@@ -212,7 +212,7 @@ export const createProduct = async (req, res) => {
       ]);
       
       // TODO: Convert createErrorResponse(500, 'Media processing failed', error.message) to res.status(500).json({ error: 'Media processing failed', details: error.message })
-      return res.status(500).json({ error: 'Media processing failed', details: error.message });
+      return res.status(500).json(createErrorResponse(500, 'Media processing failed'));
     }
 
     // Create product in database
@@ -238,7 +238,7 @@ export const createProduct = async (req, res) => {
       ]);
       
       // TODO: Convert createErrorResponse(500, 'Failed to save product to database', error.message) to res.status(500).json({ error: 'Failed to save product to database', details: error.message })
-      return res.status(500).json({ error: 'Failed to save product to database', details: error.message });
+      return res.status(500).json(createErrorResponse(500, 'Failed to save product to database'));
     }
 
     // Insert media files into database
@@ -256,7 +256,7 @@ export const createProduct = async (req, res) => {
       ]);
       
       // TODO: Convert createErrorResponse(500, 'Failed to save product media to database', error.message) to res.status(500).json({ error: 'Failed to save product media to database', details: error.message })
-      return res.status(500).json({ error: 'Failed to save product media to database', details: error.message });
+      return res.status(500).json(createErrorResponse(500, 'Failed to save product media to database'));
     }
 
     // Log successful creation with metrics
@@ -274,7 +274,7 @@ export const createProduct = async (req, res) => {
   } catch (error) {
     logError('Error in createProductHandler:', error);
     // TODO: Convert createErrorResponse(500, error.message || 'Internal Server Error') to res.status(500).json({ error: error.message || 'Internal Server Error' })
-    return res.status(500).json({ error: error.message || 'Internal Server Error' });
+    return res.status(500).json(createErrorResponse(500, error.message || 'Internal Server Error'));
   }
 };
 
@@ -300,7 +300,7 @@ export const getProductById = async (req, res) => {
     const { id: encryptedProductId } = req.params || {};
     if (!encryptedProductId) {
       // TODO: Convert createErrorResponse(400, 'Product ID is required') to res.status(400).json({ error: 'Product ID is required' })
-      return res.status(400).json({ error: 'Product ID is required' });
+      return res.status(400).json(createErrorResponse(400, 'Product ID is required'));
     }
 
     let productId;
@@ -309,14 +309,14 @@ export const getProductById = async (req, res) => {
       productId = decryptProductId(encryptedProductId);
     } catch (error) {
       // TODO: Convert createErrorResponse(400, 'Invalid product ID format') to res.status(400).json({ error: 'Invalid product ID format' })
-      return res.status(400).json({ error: 'Invalid product ID format' });
+      return res.status(400).json(createErrorResponse(400, 'Invalid product ID format'));
     }
 
     // Fetch product from database
     const product = await getProductByIdForUser(userId, productId);
     if (!product) {
       // TODO: Convert createErrorResponse(404, 'Product not found') to res.status(404).json({ error: 'Product not found' })
-      return res.status(404).json({ error: 'Product not found' });
+      return res.status(404).json(createErrorResponse(404, 'Product not found'));
     }
 
     // TODO: Convert createSuccessResponse('Product retrieved successfully', { product: [formatProductForEdit(product)] }) to res.status(200).json(createSuccessResponse('Product retrieved successfully', { product: [formatProductForEdit(product)] }))
@@ -326,7 +326,7 @@ export const getProductById = async (req, res) => {
   } catch (error) {
     logError('Error in editProductGetHandler:', error);
     // TODO: Convert createErrorResponse(500, error.message || 'Internal Server Error') to res.status(500).json({ error: error.message || 'Internal Server Error' })
-    return res.status(500).json({ error: error.message || 'Internal Server Error' });
+    return res.status(500).json(createErrorResponse(500, error.message || 'Internal Server Error'));
   }
 };
 
@@ -351,7 +351,7 @@ export const updateProduct = async (req, res) => {
     // TODO: Convert event.httpMethod to req.method
     if (req.method !== 'PUT') {
       // TODO: Convert createErrorResponse(405, 'Method not allowed') to res.status(405).json({ error: 'Method not allowed' })
-      return res.status(405).json({ error: 'Method not allowed' });
+      return res.status(405).json(createErrorResponse(405, 'Method not allowed'));
     }
 
     // Get and decrypt product ID from path parameters
@@ -359,7 +359,7 @@ export const updateProduct = async (req, res) => {
     const { id: encryptedProductId } = req.params || {};
     if (!encryptedProductId) {
       // TODO: Convert createErrorResponse(400, 'Product ID is required') to res.status(400).json({ error: 'Product ID is required' })
-      return res.status(400).json({ error: 'Product ID is required' });
+      return res.status(400).json(createErrorResponse(400, 'Product ID is required'));
     }
 
     let productId;
@@ -367,7 +367,7 @@ export const updateProduct = async (req, res) => {
       productId = decryptProductId(encryptedProductId);
     } catch (error) {
       // TODO: Convert createErrorResponse(400, 'Invalid product ID format') to res.status(400).json({ error: 'Invalid product ID format' })
-      return res.status(400).json({ error: 'Invalid product ID format' });
+      return res.status(400).json(createErrorResponse(400, 'Invalid product ID format'));
     }
 
     // Parse and validate request body
@@ -377,20 +377,20 @@ export const updateProduct = async (req, res) => {
       body = req.body;
     } catch (parseError) {
       // TODO: Convert createErrorResponse(400, 'Invalid JSON in request body') to res.status(400).json({ error: 'Invalid JSON in request body' })
-      return res.status(400).json({ error: 'Invalid JSON in request body' });
+      return res.status(400).json(createErrorResponse(400, 'Invalid JSON in request body'));
     }
 
     const validationErrors = validateProductInput(body, { isUpdate: true });
     if (validationErrors.length > 0) {
       // TODO: Convert createErrorResponse(400, 'Validation failed', { errors: validationErrors }) to res.status(400).json({ error: 'Validation failed', errors: validationErrors })
-      return res.status(400).json({ error: 'Validation failed', errors: validationErrors });
+      return res.status(400).json(createErrorResponse(400, 'Validation failed'));
     }
 
     // Check if product exists and user owns it
     const existingProduct = await getProductByIdForUser(userId, productId);
     if (!existingProduct) {
       // TODO: Convert createErrorResponse(404, 'Product not found') to res.status(404).json({ error: 'Product not found' })
-      return res.status(404).json({ error: 'Product not found' });
+      return res.status(404).json(createErrorResponse(404, 'Product not found'));
     }
 
     // Update product in database
@@ -398,7 +398,7 @@ export const updateProduct = async (req, res) => {
     const updateSuccess = await updateProduct({ id: productId, userId, name, price, tags, description, delivery_time });
     if (!updateSuccess) {
       // TODO: Convert createErrorResponse(404, 'Product not found or not updated') to res.status(404).json({ error: 'Product not found or not updated' })
-      return res.status(404).json({ error: 'Product not found or not updated' });
+      return res.status(404).json(createErrorResponse(404, 'Product not found or not updated'));
     }
     
     // Fetch and process updated product
@@ -412,7 +412,7 @@ export const updateProduct = async (req, res) => {
   } catch (error) {
     logError('Error in editProductPutHandler:', error);
     // TODO: Convert createErrorResponse(500, error.message || 'Internal Server Error') to res.status(500).json({ error: error.message || 'Internal Server Error' })
-    return res.status(500).json({ error: error.message || 'Internal Server Error' });
+    return res.status(500).json(createErrorResponse(500, error.message || 'Internal Server Error'));
   }
 };
 
@@ -437,7 +437,7 @@ export const deleteProduct = async (req, res) => {
     // TODO: Convert event.httpMethod to req.method
     if (req.method !== 'DELETE') {
       // TODO: Convert createErrorResponse(405, 'Method not allowed') to res.status(405).json({ error: 'Method not allowed' })
-      return res.status(405).json({ error: 'Method not allowed' });
+      return res.status(405).json(createErrorResponse(405, 'Method not allowed'));
     }
 
     // Get and decrypt product ID from path parameters
@@ -445,7 +445,7 @@ export const deleteProduct = async (req, res) => {
     const { id: encryptedProductId } = req.params || {};
     if (!encryptedProductId) {
       // TODO: Convert createErrorResponse(400, 'Product ID is required') to res.status(400).json({ error: 'Product ID is required' })
-      return res.status(400).json({ error: 'Product ID is required' });
+      return res.status(400).json(createErrorResponse(400, 'Product ID is required'));
     }
 
     let productId;
@@ -453,21 +453,21 @@ export const deleteProduct = async (req, res) => {
       productId = decryptProductId(encryptedProductId);
     } catch (error) {
       // TODO: Convert createErrorResponse(400, 'Invalid product ID format') to res.status(400).json({ error: 'Invalid product ID format' })
-      return res.status(400).json({ error: 'Invalid product ID format' });
+      return res.status(400).json(createErrorResponse(400, 'Invalid product ID format'));
     }
 
     // Check if product exists and user owns it
     const product = await getProductByIdForUser(userId, productId);
     if (!product) {
       // TODO: Convert createErrorResponse(404, 'Product not found') to res.status(404).json({ error: 'Product not found' })
-      return res.status(404).json({ error: 'Product not found' });
+      return res.status(404).json(createErrorResponse(404, 'Product not found'));
     }
 
     // Perform soft delete
     const deleteSuccess = await softDeleteProduct(userId, productId);
     if (!deleteSuccess) {
       // TODO: Convert createErrorResponse(404, 'Product not found or not deleted') to res.status(404).json({ error: 'Product not found or not deleted' })
-      return res.status(404).json({ error: 'Product not found or not deleted' });
+      return res.status(404).json(createErrorResponse(404, 'Product not found or not deleted'));
     }
 
     // TODO: Convert createSuccessResponse('Product deleted successfully', {}) to res.status(200).json(createSuccessResponse('Product deleted successfully', {}))
@@ -475,7 +475,7 @@ export const deleteProduct = async (req, res) => {
   } catch (error) {
     logError('Error in deleteProduct handler:', error);
     // TODO: Convert createErrorResponse(500, error.message || 'Internal Server Error') to res.status(500).json({ error: error.message || 'Internal Server Error' })
-    return res.status(500).json({ error: error.message || 'Internal Server Error' });
+    return res.status(500).json(createErrorResponse(500, error.message || 'Internal Server Error'));
   }
 };
 
@@ -510,6 +510,6 @@ export const getProductUploadUrl = async (req, res) => {
   } catch (error) {
     logError('Error in getProductUploadUrl:', error);
     // TODO: Convert createErrorResponse(500, 'Failed to generate upload URLs') to res.status(500).json({ error: 'Failed to generate upload URLs' })
-    return res.status(500).json({ error: 'Failed to generate upload URLs' });
+    return res.status(500).json(createErrorResponse(500, 'Failed to generate upload URLs'));
   }
 };

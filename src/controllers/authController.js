@@ -605,26 +605,23 @@ export const login = async (req, res) => {
 
     // Suspended users: success with actionRequired and redirect
     if (user.status === 'suspended') {
-    return res.json({
-      success: true,
-        message: 'Login successful but account is suspended',
-        status: 200,
+      return res.json(createExpressSuccessResponse('Login successful but account is suspended', {
         actionRequired: 'suspended',
         redirectTo: '/auth/suspended',
-      accessToken,
-      refreshToken,
-      user: {
-        id: String(user.id),
-        username: user.username,
-        name: user.name,
-        avatar: user.avatar ? getFile('avatar/' + user.avatar) : null,
+        accessToken,
+        refreshToken,
+        user: {
+          id: String(user.id),
+          username: user.username,
+          name: user.name,
+          avatar: user.avatar ? getFile('avatar/' + user.avatar) : null,
           countries_id: user.countries_id,
-        status: user.status,
+          status: user.status,
           role: effectiveRole
         },
         currency,
         timestamp: new Date().toISOString()
-      });
+      }));
     }
 
     return res.json(createExpressSuccessResponse('Login successful', {
@@ -711,25 +708,22 @@ export const loginVerify = async (req, res) => {
     const { currency } = processCurrencySettings(adminSettings, userCountry);
 
     if (user.status === 'suspended') {
-    return res.json({
-      success: true,
-        message: 'Login verification successful but account is suspended',
-        status: 200,
+      return res.json(createExpressSuccessResponse('Login verification successful but account is suspended', {
         actionRequired: 'suspended',
         redirectTo: '/auth/suspended',
-      accessToken,
-      refreshToken,
-      user: {
-        id: String(user.id),
-        username: user.username,
-        name: user.name,
-        avatar: user.avatar ? getFile('avatar/' + user.avatar) : null,
+        accessToken,
+        refreshToken,
+        user: {
+          id: String(user.id),
+          username: user.username,
+          name: user.name,
+          avatar: user.avatar ? getFile('avatar/' + user.avatar) : null,
           countries_id: user.countries_id,
-        status: user.status,
+          status: user.status,
           role: effectiveRole
         },
         timestamp: new Date().toISOString()
-      });
+      }));
     }
 
     return res.json(createExpressSuccessResponse('Login verification successful', {
@@ -1276,9 +1270,7 @@ export const appleSignin = async (req, res) => {
 
     // If suspended, respond accordingly but still provide tokens
     if (user.status === 'suspended') {
-      return res.json({
-        // success: true, // Replaced with createExpressSuccessResponse
-        message: 'Login successful but account is suspended',
+      return res.json(createExpressSuccessResponse('Login successful but account is suspended', {
         actionRequired: 'suspended',
         redirectTo: '/auth/suspended',
         accessToken,
@@ -1291,7 +1283,7 @@ export const appleSignin = async (req, res) => {
           status: user.status,
           role: user.role || 'normal'
         }
-      });
+      }));
     }
 
     return res.json(createExpressSuccessResponse('Apple sign in successful', {

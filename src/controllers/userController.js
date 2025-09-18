@@ -551,7 +551,7 @@ export const getUserInfo = async (req, res) => {
     if (!token) {
       logError('Missing or invalid Authorization header');
       // TODO: Convert createErrorResponse(401, 'Unauthorized: Missing or invalid Authorization header') to res.status(401).json({ error: 'Unauthorized: Missing or invalid Authorization header' })
-      return res.status(401).json({ error: 'Unauthorized: Missing or invalid Authorization header' });
+      return res.status(401).json(createErrorResponse(401, 'Unauthorized: Missing or invalid Authorization header'));
     }
 
     // Process JWT token and extract user ID
@@ -559,7 +559,7 @@ export const getUserInfo = async (req, res) => {
     if (tokenError) {
       logError('JWT token error:', tokenError);
       // TODO: Convert createErrorResponse(401, `Unauthorized: ${tokenError}`) to res.status(401).json({ error: `Unauthorized: ${tokenError}` })
-      return res.status(401).json({ error: `Unauthorized: ${tokenError}` });
+      return res.status(401).json(createErrorResponse(401, `Unauthorized: ${tokenError}`));
     }
 
     // Retrieve user information from database
@@ -567,7 +567,7 @@ export const getUserInfo = async (req, res) => {
     if (!userData) {
       logError('User not found in database', { userId });
       // TODO: Convert createErrorResponse(404, 'User not found') to res.status(404).json({ error: 'User not found' })
-      return res.status(404).json({ error: 'User not found' });
+      return res.status(404).json(createErrorResponse(404, 'User not found'));
     }
 
     // Format user data for response
@@ -594,7 +594,7 @@ export const getUserInfo = async (req, res) => {
       : 'Internal server error';
     
     // TODO: Convert createErrorResponse(500, errorMessage) to res.status(500).json({ error: errorMessage })
-    return res.status(500).json({ error: errorMessage });
+    return res.status(500).json(createErrorResponse(500, errorMessage));
   }
 };
 
@@ -638,7 +638,7 @@ export const changePassword = async (req, res) => {
     }
     if (!userId) {
       // TODO: Convert createErrorResponse(401, 'Access token required or invalid') to res.status(401).json({ error: 'Access token required or invalid' })
-      return res.status(401).json({ error: 'Access token required or invalid' });
+      return res.status(401).json(createErrorResponse(401, 'Access token required or invalid'));
     }
 
     // 2. Parse and validate request body
@@ -648,35 +648,35 @@ export const changePassword = async (req, res) => {
       body = req.body;
     } catch (err) {
       // TODO: Convert createErrorResponse(400, 'Invalid JSON in request body') to res.status(400).json({ error: 'Invalid JSON in request body' })
-      return res.status(400).json({ error: 'Invalid JSON in request body' });
+      return res.status(400).json(createErrorResponse(400, 'Invalid JSON in request body'));
     }
     const { old_password, new_password, confirm_password } = body || {};
     if (!old_password || !new_password || !confirm_password) {
       // TODO: Convert createErrorResponse(400, 'old_password, new_password, and confirm_password are required') to res.status(400).json({ error: 'old_password, new_password, and confirm_password are required' })
-      return res.status(400).json({ error: 'old_password, new_password, and confirm_password are required' });
+      return res.status(400).json(createErrorResponse(400, 'old_password, new_password, and confirm_password are required'));
     }
     if (old_password === new_password) {
       // TODO: Convert createErrorResponse(400, 'New password must be different from old password') to res.status(400).json({ error: 'New password must be different from old password' })
-      return res.status(400).json({ error: 'New password must be different from old password' });
+      return res.status(400).json(createErrorResponse(400, 'New password must be different from old password'));
     }
     if (new_password !== confirm_password) {
       // TODO: Convert createErrorResponse(400, 'New password and confirm password do not match') to res.status(400).json({ error: 'New password and confirm password do not match' })
-      return res.status(400).json({ error: 'New password and confirm password do not match' });
+      return res.status(400).json(createErrorResponse(400, 'New password and confirm password do not match'));
     }
     if (new_password.length < 6) {
       // TODO: Convert createErrorResponse(400, 'New password must be at least 6 characters long') to res.status(400).json({ error: 'New password must be at least 6 characters long' })
-      return res.status(400).json({ error: 'New password must be at least 6 characters long' });
+      return res.status(400).json(createErrorResponse(400, 'New password must be at least 6 characters long'));
     }
 
     // 3. Fetch user and check old password
     const user = await getUserById(userId);
     if (!user) {
       // TODO: Convert createErrorResponse(404, 'User not found') to res.status(404).json({ error: 'User not found' })
-      return res.status(404).json({ error: 'User not found' });
+      return res.status(404).json(createErrorResponse(404, 'User not found'));
     }
     if (!user.password) {
       // TODO: Convert createErrorResponse(400, 'No password set for this account. Please create a password first.') to res.status(400).json({ error: 'No password set for this account. Please create a password first.' })
-      return res.status(400).json({ error: 'No password set for this account. Please create a password first.' });
+      return res.status(400).json(createErrorResponse(400, 'No password set for this account. Please create a password first.'));
     }
     const { password: hashedPassword } = user;
     // Compare old password with hash
@@ -684,13 +684,13 @@ export const changePassword = async (req, res) => {
     const isMatch = await bcrypt.default.compare(old_password, hashedPassword);
     if (!isMatch) {
       // TODO: Convert createErrorResponse(400, 'Old password is incorrect') to res.status(400).json({ error: 'Old password is incorrect' })
-      return res.status(400).json({ error: 'Old password is incorrect' });
+      return res.status(400).json(createErrorResponse(400, 'Old password is incorrect'));
     }
     // Prevent setting the same password (even if hash matches, check plaintext)
     const isSame = await bcrypt.default.compare(new_password, hashedPassword);
     if (isSame) {
       // TODO: Convert createErrorResponse(400, 'New password must be different from old password') to res.status(400).json({ error: 'New password must be different from old password' })
-      return res.status(400).json({ error: 'New password must be different from old password' });
+      return res.status(400).json(createErrorResponse(400, 'New password must be different from old password'));
     }
 
     // 4. Hash new password securely
@@ -711,7 +711,7 @@ export const changePassword = async (req, res) => {
     // Log error (never log plain passwords)
     logError('Change password error:', error);
     // TODO: Convert createErrorResponse(500, 'Internal server error') to res.status(500).json({ error: 'Internal server error' })
-    return res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json(createErrorResponse(500, 'Internal server error'));
   }
 };
 
@@ -791,20 +791,20 @@ export const createPasswordOtp = async (req, res) => {
     const { valid, message: validationMessage } = validateCreatePassword({ password: new_password, confirm_password });
     if (!valid) {
       // TODO: Convert createErrorResponse(400, validationMessage) to res.status(400).json({ error: validationMessage })
-      return res.status(400).json({ error: validationMessage });
+      return res.status(400).json(createErrorResponse(400, validationMessage));
     }
 
     // Fetch user and verification flags
     const contact = await getUserById(userId);
     if (!contact) {
       // TODO: Convert createErrorResponse(400, 'No verified contact found') to res.status(400).json({ error: 'No verified contact found' })
-      return res.status(400).json({ error: 'No verified contact found' });
+      return res.status(400).json(createErrorResponse(400, 'No verified contact found'));
     }
 
     // If user already has a password, do not send OTP
     if (contact.password) {
       // TODO: Convert createErrorResponse(400, 'You already have a password set. OTP not sent.') to res.status(400).json({ error: 'You already have a password set. OTP not sent.' })
-      return res.status(400).json({ error: 'You already have a password set. OTP not sent.' });
+      return res.status(400).json(createErrorResponse(400, 'You already have a password set. OTP not sent.'));
     }
 
     const destinations = [];
@@ -819,7 +819,7 @@ export const createPasswordOtp = async (req, res) => {
       const updated = await updateUserPasswordById(userId, new_password);
       if (!updated) {
         // TODO: Convert createErrorResponse(500, 'Failed to update password') to res.status(500).json({ error: 'Failed to update password' })
-        return res.status(500).json({ error: 'Failed to update password' });
+        return res.status(500).json(createErrorResponse(500, 'Failed to update password'));
       }
       
       logInfo('Password updated directly without OTP', { userId });
@@ -855,7 +855,7 @@ export const createPasswordOtp = async (req, res) => {
 
     if (!destinations.length) {
       // TODO: Convert createErrorResponse(400, 'Validation errors or no verified contact found') to res.status(400).json({ error: 'Validation errors or no verified contact found' })
-      return res.status(400).json({ error: 'Validation errors or no verified contact found' });
+      return res.status(400).json(createErrorResponse(400, 'Validation errors or no verified contact found'));
     }
 
     // Build masked contact message
@@ -901,7 +901,7 @@ export const createPasswordOtp = async (req, res) => {
   } catch (error) {
     logError('createPasswordOtp error', error);
     // TODO: Convert createErrorResponse(500, 'Internal server error') to res.status(500).json({ error: 'Internal server error' })
-    return res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json(createErrorResponse(500, 'Internal server error'));
   }
 };
 
@@ -930,21 +930,21 @@ export const verifyPasswordOtp = async (req, res) => {
     const { otp, password } = req.body || {};
     if (!otp || typeof otp !== 'string') {
       // TODO: Convert createErrorResponse(400, 'OTP is required') to res.status(400).json({ error: 'OTP is required' })
-      return res.status(400).json({ error: 'OTP is required' });
+      return res.status(400).json(createErrorResponse(400, 'OTP is required'));
     }
 
     // Validate password rules (reuse validator by mirroring confirm to password)
     const { valid, message: validationMessage2 } = validateCreatePassword({ password, confirm_password: password });
     if (!valid) {
       // TODO: Convert createErrorResponse(400, validationMessage2) to res.status(400).json({ error: validationMessage2 })
-      return res.status(400).json({ error: validationMessage2 });
+      return res.status(400).json(createErrorResponse(400, validationMessage2));
     }
 
     // Get user verified contacts to decide identifiers to check
     const contact = await getUserById(userId);
     if (!contact) {
       // TODO: Convert createErrorResponse(400, 'Invalid or expired OTP') to res.status(400).json({ error: 'Invalid or expired OTP' })
-      return res.status(400).json({ error: 'Invalid or expired OTP' });
+      return res.status(400).json(createErrorResponse(400, 'Invalid or expired OTP'));
     }
     const { email, mobile, email_verified, mobile_verified } = contact;
     const isEmailVerified = email && (email_verified === '1' || email_verified === 1 || email_verified === 'yes');
@@ -956,7 +956,7 @@ export const verifyPasswordOtp = async (req, res) => {
       const updated = await updateUserPasswordById(userId, password);
       if (!updated) {
         // TODO: Convert createErrorResponse(500, 'Failed to update password') to res.status(500).json({ error: 'Failed to update password' })
-        return res.status(500).json({ error: 'Failed to update password' });
+        return res.status(500).json(createErrorResponse(500, 'Failed to update password'));
       }
       
       logInfo('Password updated directly without OTP verification', { userId });
@@ -988,7 +988,7 @@ export const verifyPasswordOtp = async (req, res) => {
     const updated = await updateUserPasswordById(userId, password);
     if (!updated) {
       // TODO: Convert createErrorResponse(500, 'Internal server error') to res.status(500).json({ error: 'Internal server error' })
-      return res.status(500).json({ error: 'Internal server error' });
+      return res.status(500).json(createErrorResponse(500, 'Internal server error'));
     }
 
     // TODO: Convert Lambda response format to Express response format
@@ -996,7 +996,7 @@ export const verifyPasswordOtp = async (req, res) => {
   } catch (error) {
     logError('verifyPasswordOtp error', error);
     // TODO: Convert createErrorResponse(500, 'Internal server error') to res.status(500).json({ error: 'Internal server error' })
-    return res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json(createErrorResponse(500, 'Internal server error'));
   }
 };
 
@@ -1114,7 +1114,7 @@ export const blockUser = async (req, res) => {
     const { id: userToBlockId } = req.params || {};
     if (!userToBlockId) {
       // TODO: Convert createErrorResponse(400, 'User ID is required') to res.status(400).json({ error: 'User ID is required' })
-      return res.status(400).json({ error: 'User ID is required' });
+      return res.status(400).json(createErrorResponse(400, 'User ID is required'));
     }
 
     // Decrypt user ID using safeDecryptId
@@ -1125,7 +1125,7 @@ export const blockUser = async (req, res) => {
     } catch (error) {
       logError('Error decrypting user ID:', { userToBlockId, error: error.message });
       // TODO: Convert createErrorResponse(400, 'Invalid user ID format') to res.status(400).json({ error: 'Invalid user ID format' })
-      return res.status(400).json({ error: 'Invalid user ID format' });
+      return res.status(400).json(createErrorResponse(400, 'Invalid user ID format'));
     }
 
     // Parse request body for user inputs
@@ -1136,7 +1136,7 @@ export const blockUser = async (req, res) => {
         requestBody = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
       } catch (parseError) {
         // TODO: Convert createErrorResponse(400, 'Invalid JSON in request body') to res.status(400).json({ error: 'Invalid JSON in request body' })
-        return res.status(400).json({ error: 'Invalid JSON in request body' });
+        return res.status(400).json(createErrorResponse(400, 'Invalid JSON in request body'));
       }
     }
 
@@ -1147,13 +1147,13 @@ export const blockUser = async (req, res) => {
     const targetUser = await getUserById(parsedUserToBlockId);
     if (!targetUser) {
       // TODO: Convert createErrorResponse(404, 'User not found') to res.status(404).json({ error: 'User not found' })
-      return res.status(404).json({ error: 'User not found' });
+      return res.status(404).json(createErrorResponse(404, 'User not found'));
     }
 
     // Prevent users from blocking themselves
     if (targetUser.id == userId) {
       // TODO: Convert createErrorResponse(400, 'Cannot block yourself') to res.status(400).json({ error: 'Cannot block yourself' })
-      return res.status(400).json({ error: 'Cannot block yourself' });
+      return res.status(400).json(createErrorResponse(400, 'Cannot block yourself'));
     }
 
     // Do not allow blocking super admin (role = 'admin' and id = 1)
@@ -1173,7 +1173,7 @@ export const blockUser = async (req, res) => {
     if (reportData.exists) {
       // Report already exists, return error (like reportCreator function)
       // TODO: Convert createErrorResponse(400, 'Report already exists for this user') to res.status(400).json({ error: 'Report already exists for this user' })
-      return res.status(400).json({ error: 'Report already exists for this user' });
+      return res.status(400).json(createErrorResponse(400, 'Report already exists for this user'));
     }
 
     // Report doesn't exist, validate inputs before adding
@@ -1197,7 +1197,7 @@ export const blockUser = async (req, res) => {
   } catch (error) {
     logError('Report user error:', error);
     // TODO: Convert createErrorResponse(500, 'Internal server error') to res.status(500).json({ error: 'Internal server error' })
-    return res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json(createErrorResponse(500, 'Internal server error'));
   }
 };
 
@@ -1378,7 +1378,7 @@ export const getProfile = async (req, res) => {
     if (!validationResult.isValid) {
       logError('Profile access: Validation failed', { error: validationResult.error });
       // TODO: Convert createErrorResponse(400, validationResult.error) to res.status(400).json({ error: validationResult.error })
-      return res.status(400).json({ error: validationResult.error });
+      return res.status(400).json(createErrorResponse(400, validationResult.error));
     }
     
     const { slug } = validationResult;
@@ -1398,7 +1398,7 @@ export const getProfile = async (req, res) => {
     if (!authUser) {
       logError('Profile access: Invalid authenticated user', { userId });
       // TODO: Convert createErrorResponse(400, 'Invalid User') to res.status(400).json({ error: 'Invalid User' })
-      return res.status(400).json({ error: 'Invalid User' });
+      return res.status(400).json(createErrorResponse(400, 'Invalid User'));
     }
 
     // Step 3: Determine if this is own profile or other user's profile
@@ -1414,7 +1414,7 @@ export const getProfile = async (req, res) => {
       if (!user) {
         logError('Profile access: User not found', { slug, authUserId: userId });
         // TODO: Convert createErrorResponse(404, 'User not found') to res.status(404).json({ error: 'User not found' })
-        return res.status(404).json({ error: 'User not found' });
+        return res.status(404).json(createErrorResponse(404, 'User not found'));
       }
     }
 
@@ -1462,7 +1462,7 @@ export const getProfile = async (req, res) => {
   } catch (err) {
     logError('Profile error:', err);
     // TODO: Convert createErrorResponse(500, err.message) to res.status(500).json({ error: err.message })
-    return res.status(500).json({ error: err.message });
+    return res.status(500).json(createErrorResponse(500, err.message));
   }
 };
 
@@ -1514,7 +1514,7 @@ export const darkMode = async (req, res) => {
     // TODO: Convert event.httpMethod to req.method
     if (req.method !== 'POST') {
       // TODO: Convert createErrorResponse(405, 'Method not allowed. Use POST.') to res.status(405).json({ error: 'Method not allowed. Use POST.' })
-      return res.status(405).json({ error: 'Method not allowed. Use POST.' });
+      return res.status(405).json(createErrorResponse(405, 'Method not allowed. Use POST.'));
     }
 
     // Get mode from path parameters
@@ -1522,7 +1522,7 @@ export const darkMode = async (req, res) => {
     const { mode } = req.params || {};
     if (!mode || !['dark', 'light'].includes(mode)) {
       // TODO: Convert createErrorResponse(400, 'Invalid mode parameter. Must be "dark" or "light"') to res.status(400).json({ error: 'Invalid mode parameter. Must be "dark" or "light"' })
-      return res.status(400).json({ error: 'Invalid mode parameter. Must be "dark" or "light"' });
+      return res.status(400).json(createErrorResponse(400, 'Invalid mode parameter. Must be "dark" or "light"'));
     }
 
     // Parse body and extract previous_url if present
@@ -1533,7 +1533,7 @@ export const darkMode = async (req, res) => {
         body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
       } catch (parseError) {
         // TODO: Convert createErrorResponse(400, 'Invalid JSON body') to res.status(400).json({ error: 'Invalid JSON body' })
-        return res.status(400).json({ error: 'Invalid JSON body' });
+        return res.status(400).json(createErrorResponse(400, 'Invalid JSON body'));
       }
     }
     const { previous_url } = body;
@@ -1552,7 +1552,7 @@ export const darkMode = async (req, res) => {
       const updateSuccess = await setUserDarkMode(userId, darkModeValue);
       if (!updateSuccess) {
         // TODO: Convert createErrorResponse(404, 'User not found or account deleted') to res.status(404).json({ error: 'User not found or account deleted' })
-        return res.status(404).json({ error: 'User not found or account deleted' });
+        return res.status(404).json(createErrorResponse(404, 'User not found or account deleted'));
       }
       logInfo('Dark mode updated successfully:', { userId, mode, darkModeValue });
 
@@ -1566,12 +1566,12 @@ export const darkMode = async (req, res) => {
     } catch (dbError) {
       logInfo('Database error while updating dark mode:', dbError);
       // TODO: Convert createErrorResponse(500, 'Failed to update dark mode setting') to res.status(500).json({ error: 'Failed to update dark mode setting' })
-      return res.status(500).json({ error: 'Failed to update dark mode setting' });
+      return res.status(500).json(createErrorResponse(500, 'Failed to update dark mode setting'));
     }
   } catch (error) {
     logInfo('Dark mode error:', error);
     // TODO: Convert createErrorResponse(500, 'Internal server error') to res.status(500).json({ error: 'Internal server error' })
-    return res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json(createErrorResponse(500, 'Internal server error'));
   }
 };
 
@@ -1768,7 +1768,7 @@ export const restrictUser = async (req, res) => {
     const encryptedUserToRestrictId = req.params?.id;
     if (!encryptedUserToRestrictId) {
       // TODO: Convert createErrorResponse(400, 'User ID is required') to res.status(400).json({ error: 'User ID is required' })
-      return res.status(400).json({ error: 'User ID is required' });
+      return res.status(400).json(createErrorResponse(400, 'User ID is required'));
     }
 
     // Decrypt the encrypted user ID using safeDecryptId
@@ -1779,7 +1779,7 @@ export const restrictUser = async (req, res) => {
     } catch (error) {
       logError('Error decrypting user ID:', { encryptedUserToRestrictId, error: error.message });
       // TODO: Convert createErrorResponse(400, 'Invalid user ID format') to res.status(400).json({ error: 'Invalid user ID format' })
-      return res.status(400).json({ error: 'Invalid user ID format' });
+      return res.status(400).json(createErrorResponse(400, 'Invalid user ID format'));
     }
 
     logInfo('Restrict user request:', { userId, userToRestrictId });
@@ -1788,13 +1788,13 @@ export const restrictUser = async (req, res) => {
     const targetUser = await getUserById(userToRestrictId);
     if (!targetUser) {
       // TODO: Convert createErrorResponse(404, 'User not found') to res.status(404).json({ error: 'User not found' })
-      return res.status(404).json({ error: 'User not found' });
+      return res.status(404).json(createErrorResponse(404, 'User not found'));
     }
 
     // Prevent users from restricting themselves
     if (targetUser.id == userId) {
       // TODO: Convert createErrorResponse(400, 'Cannot restrict yourself') to res.status(400).json({ error: 'Cannot restrict yourself' })
-      return res.status(400).json({ error: 'Cannot restrict yourself' });
+      return res.status(400).json(createErrorResponse(400, 'Cannot restrict yourself'));
     }
 
     // Do not restrict super admin (role = 'admin' and id = 1)
@@ -1857,7 +1857,7 @@ export const restrictUser = async (req, res) => {
   } catch (error) {
     logError('Restrict user error:', error);
     // TODO: Convert createErrorResponse(500, 'Internal server error') to res.status(500).json({ error: 'Internal server error' })
-    return res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json(createErrorResponse(500, 'Internal server error'));
   }
 };
 
@@ -1887,7 +1887,7 @@ export const getRestrictions = async (req, res) => {
     // Validate pagination parameters
     if (skip < 0 || limit < 1 || limit > 100) {
       // TODO: Convert createErrorResponse(400, 'Invalid pagination parameters. Skip must be >= 0, limit must be between 1-100.') to res.status(400).json({ error: 'Invalid pagination parameters. Skip must be >= 0, limit must be between 1-100.' })
-      return res.status(400).json({ error: 'Invalid pagination parameters. Skip must be >= 0, limit must be between 1-100.' });
+      return res.status(400).json(createErrorResponse(400, 'Invalid pagination parameters. Skip must be >= 0, limit must be between 1-100.'));
     }
     logInfo('Get restrictions request:', { userId, skip, limit });
 
@@ -1895,7 +1895,7 @@ export const getRestrictions = async (req, res) => {
     const totalRestrictions = await dbGetRestrictedUsersCount(userId);
     if (totalRestrictions === null) {
       // TODO: Convert createErrorResponse(500, 'Failed to fetch restrictions count') to res.status(500).json({ error: 'Failed to fetch restrictions count' })
-      return res.status(500).json({ error: 'Failed to fetch restrictions count' });
+      return res.status(500).json(createErrorResponse(500, 'Failed to fetch restrictions count'));
     }
 
     // Get restricted users with pagination
@@ -1924,7 +1924,7 @@ export const getRestrictions = async (req, res) => {
   } catch (error) {
     logError('Get restrictions error:', error);
     // TODO: Convert createErrorResponse(500, 'Internal server error') to res.status(500).json({ error: 'Internal server error' })
-    return res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json(createErrorResponse(500, 'Internal server error'));
   }
 };
 
@@ -1943,14 +1943,14 @@ export const getCreatorSubscribers = async (req, res) => {
     const pageNum = parseInt(page, 10);
     const limitNum = parseInt(limit, 10);
     if (isNaN(pageNum) || pageNum < 1) {
-      return res.status(400).json({ error: 'Invalid page parameter' });
+      return res.status(400).json(createErrorResponse(400, 'Invalid page parameter'));
     }
     if (isNaN(limitNum) || limitNum < 1 || limitNum > 100) {
-      return res.status(400).json({ error: 'Invalid limit parameter. Must be between 1 and 100' });
+      return res.status(400).json(createErrorResponse(400, 'Invalid limit parameter. Must be between 1 and 100'));
     }
     const validSortOptions = ['newest', 'oldest', 'name_asc', 'name_desc'];
     if (!validSortOptions.includes(sort)) {
-      return res.status(400).json({ error: 'Invalid sort parameter. Must be one of: newest, oldest, name_asc, name_desc' });
+      return res.status(400).json(createErrorResponse(400, 'Invalid sort parameter. Must be one of: newest, oldest, name_asc, name_desc'));
     }
     const offset = (pageNum - 1) * limitNum;
     let orderBy = 's.created_at DESC';
@@ -2019,7 +2019,7 @@ export const getCreatorSubscribers = async (req, res) => {
     }));
   } catch (error) {
     logError('Creator subscribers error:', error);
-    return res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json(createErrorResponse(500, 'Internal server error'));
   }
 };
 
@@ -2038,14 +2038,14 @@ export const getPosts = async (req, res) => {
     const pageNum = parseInt(page, 10);
     const limitNum = parseInt(limit, 10);
     if (isNaN(pageNum) || pageNum < 1) {
-      return res.status(400).json({ error: 'Invalid page parameter' });
+      return res.status(400).json(createErrorResponse(400, 'Invalid page parameter'));
     }
     if (isNaN(limitNum) || limitNum < 1 || limitNum > 100) {
-      return res.status(400).json({ error: 'Invalid limit parameter. Must be between 1 and 100' });
+      return res.status(400).json(createErrorResponse(400, 'Invalid limit parameter. Must be between 1 and 100'));
     }
     const validTypes = ['all', 'free', 'paid'];
     if (!validTypes.includes(type)) {
-      return res.status(400).json({ error: 'Invalid type parameter. Must be one of: all, free, paid' });
+      return res.status(400).json(createErrorResponse(400, 'Invalid type parameter. Must be one of: all, free, paid'));
     }
     const offset = (pageNum - 1) * limitNum;
     let whereClause = 'WHERE p.user_id = ?';
@@ -2122,7 +2122,7 @@ export const getPosts = async (req, res) => {
     }));
   } catch (error) {
     logError('Posts error:', error);
-    return res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json(createErrorResponse(500, 'Internal server error'));
   }
 };
 
@@ -2141,18 +2141,18 @@ export const getUpdates = async (req, res) => {
     const pageNum = parseInt(page, 10);
     const limitNum = parseInt(limit, 10);
     if (isNaN(pageNum) || pageNum < 1) {
-      return res.status(400).json({ error: 'Invalid page parameter' });
+      return res.status(400).json(createErrorResponse(400, 'Invalid page parameter'));
     }
     if (isNaN(limitNum) || limitNum < 1 || limitNum > 100) {
-      return res.status(400).json({ error: 'Invalid limit parameter. Must be between 1 and 100' });
+      return res.status(400).json(createErrorResponse(400, 'Invalid limit parameter. Must be between 1 and 100'));
     }
     const validTypes = ['all', 'free', 'paid'];
     if (!validTypes.includes(type)) {
-      return res.status(400).json({ error: 'Invalid type parameter. Must be one of: all, free, paid' });
+      return res.status(400).json(createErrorResponse(400, 'Invalid type parameter. Must be one of: all, free, paid'));
     }
     const validMediaTypes = ['all', 'image', 'video'];
     if (!validMediaTypes.includes(media_type)) {
-      return res.status(400).json({ error: 'Invalid media_type parameter. Must be one of: all, image, video' });
+      return res.status(400).json(createErrorResponse(400, 'Invalid media_type parameter. Must be one of: all, image, video'));
     }
     const offset = (pageNum - 1) * limitNum;
     let whereClause = 'WHERE p.user_id = ?';
@@ -2235,7 +2235,7 @@ export const getUpdates = async (req, res) => {
     }));
   } catch (error) {
     logError('Updates error:', error);
-    return res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json(createErrorResponse(500, 'Internal server error'));
   }
 };
 
@@ -2252,17 +2252,17 @@ export const editPost = async (req, res) => {
     }
     const { post_id, title, description, price, tags } = req.body || {};
     if (!post_id) {
-      return res.status(400).json({ error: 'Post ID is required' });
+      return res.status(400).json(createErrorResponse(400, 'Post ID is required'));
     }
     if (!title || !description) {
-      return res.status(400).json({ error: 'Title and description are required' });
+      return res.status(400).json(createErrorResponse(400, 'Title and description are required'));
     }
     if (price !== undefined && (isNaN(price) || price < 0)) {
-      return res.status(400).json({ error: 'Price must be a non-negative number' });
+      return res.status(400).json(createErrorResponse(400, 'Price must be a non-negative number'));
     }
     const postId = parseInt(post_id, 10);
     if (isNaN(postId)) {
-      return res.status(400).json({ error: 'Invalid post ID' });
+      return res.status(400).json(createErrorResponse(400, 'Invalid post ID'));
     }
     const query = `
       UPDATE posts 
@@ -2271,7 +2271,7 @@ export const editPost = async (req, res) => {
     `;
     const [result] = await getDB().query(query, [title, description, price || 0, postId, userId]);
     if (result.affectedRows === 0) {
-      return res.status(404).json({ error: 'Post not found or you do not have permission to edit it' });
+      return res.status(404).json(createErrorResponse(404, 'Post not found or you do not have permission to edit it'));
     }
     if (tags && Array.isArray(tags)) {
       await getDB().query('DELETE FROM post_tags WHERE post_id = ?', [postId]);
@@ -2290,7 +2290,7 @@ export const editPost = async (req, res) => {
     }));
   } catch (error) {
     logError('Edit post error:', error);
-    return res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json(createErrorResponse(500, 'Internal server error'));
   }
 };
 
@@ -2307,16 +2307,16 @@ export const deletePost = async (req, res) => {
     }
     const { id } = req.params || {};
     if (!id) {
-      return res.status(400).json({ error: 'Post ID is required' });
+      return res.status(400).json(createErrorResponse(400, 'Post ID is required'));
     }
     const postId = parseInt(id, 10);
     if (isNaN(postId)) {
-      return res.status(400).json({ error: 'Invalid post ID' });
+      return res.status(400).json(createErrorResponse(400, 'Invalid post ID'));
     }
     const query = 'DELETE FROM posts WHERE id = ? AND user_id = ?';
     const [result] = await getDB().query(query, [postId, userId]);
     if (result.affectedRows === 0) {
-      return res.status(404).json({ error: 'Post not found or you do not have permission to delete it' });
+      return res.status(404).json(createErrorResponse(404, 'Post not found or you do not have permission to delete it'));
     }
     await getDB().query('DELETE FROM post_tags WHERE post_id = ?', [postId]);
     await getDB().query('DELETE FROM post_likes WHERE post_id = ?', [postId]);
@@ -2327,7 +2327,7 @@ export const deletePost = async (req, res) => {
     }));
   } catch (error) {
     logError('Delete post error:', error);
-    return res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json(createErrorResponse(500, 'Internal server error'));
   }
 };
 
@@ -2344,20 +2344,20 @@ export const getComments = async (req, res) => {
     }
     const { id } = req.params || {};
     if (!id) {
-      return res.status(400).json({ error: 'Post ID is required' });
+      return res.status(400).json(createErrorResponse(400, 'Post ID is required'));
     }
     const postId = parseInt(id, 10);
     if (isNaN(postId)) {
-      return res.status(400).json({ error: 'Invalid post ID' });
+      return res.status(400).json(createErrorResponse(400, 'Invalid post ID'));
     }
     const { page = 1, limit = 20 } = req.query || {};
     const pageNum = parseInt(page, 10);
     const limitNum = parseInt(limit, 10);
     if (isNaN(pageNum) || pageNum < 1) {
-      return res.status(400).json({ error: 'Invalid page parameter' });
+      return res.status(400).json(createErrorResponse(400, 'Invalid page parameter'));
     }
     if (isNaN(limitNum) || limitNum < 1 || limitNum > 100) {
-      return res.status(400).json({ error: 'Invalid limit parameter. Must be between 1 and 100' });
+      return res.status(400).json(createErrorResponse(400, 'Invalid limit parameter. Must be between 1 and 100'));
     }
     const offset = (pageNum - 1) * limitNum;
     const query = `
@@ -2422,7 +2422,7 @@ export const getComments = async (req, res) => {
     }));
   } catch (error) {
     logError('Get comments error:', error);
-    return res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json(createErrorResponse(500, 'Internal server error'));
   }
 };
 
@@ -2438,25 +2438,25 @@ export const sendOtp = async (req, res) => {
       return res.status(errorResponse.statusCode).json(errorResponse.body);
     }
     if (!userId) {
-      return res.status(401).json({ error: 'Access token required or invalid' });
+      return res.status(401).json(createErrorResponse(401, 'Access token required or invalid'));
     }
     const { email, country_code, mobile } = req.body || {};
     if (!email && !mobile) {
-      return res.status(400).json({ error: 'At least one of email or mobile must be provided' });
+      return res.status(400).json(createErrorResponse(400, 'At least one of email or mobile must be provided'));
     }
     if (mobile && !country_code) {
-      return res.status(400).json({ error: 'Country code is required when mobile is provided' });
+      return res.status(400).json(createErrorResponse(400, 'Country code is required when mobile is provided'));
     }
     if (email) {
       const emailTaken = await checkUserFieldExists(userId, 'email', email);
       if (emailTaken) {
-        return res.status(409).json({ error: 'Email already taken' });
+        return res.status(409).json(createErrorResponse(409, 'Email already taken'));
       }
     }
     if (mobile) {
       const mobileTaken = await checkMobileExists(userId, mobile, country_code);
       if (mobileTaken) {
-        return res.status(409).json({ error: 'Mobile number already taken' });
+        return res.status(409).json(createErrorResponse(409, 'Mobile number already taken'));
       }
     }
     const comparison = await compareUserFields(userId, email, mobile, country_code);
@@ -2467,7 +2467,7 @@ export const sendOtp = async (req, res) => {
         const emailOtp = await generateOTP(email);
         await sendEmailOTP(email, emailOtp, 'settings_update');
       } catch (error) {
-        return res.status(500).json({ error: 'Failed to send email OTP', details: error.message });
+        return res.status(500).json(createErrorResponse(500, 'Failed to send email OTP'));
       }
     }
     if (mobileSendOtp) {
@@ -2476,7 +2476,7 @@ export const sendOtp = async (req, res) => {
         const mobileOtp = await generateOTP(mobileIdentifier);
         await sendWhatsAppOTP(mobile, country_code, mobileOtp);
       } catch (error) {
-        return res.status(500).json({ error: 'Failed to send mobile OTP', details: error.message });
+        return res.status(500).json(createErrorResponse(500, 'Failed to send mobile OTP'));
       }
     }
     logInfo('OTP sent successfully', { userId, emailSendOtp, mobileSendOtp });
@@ -2487,7 +2487,7 @@ export const sendOtp = async (req, res) => {
     }));
   } catch (error) {
     logError('Send OTP error:', error);
-    return res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json(createErrorResponse(500, 'Internal server error'));
   }
 };
 
@@ -2503,7 +2503,7 @@ export const verifyOtp = async (req, res) => {
       return res.status(errorResponse.statusCode).json(errorResponse.body);
     }
     if (!userId) {
-      return res.status(401).json({ error: 'Access token required or invalid' });
+      return res.status(401).json(createErrorResponse(401, 'Access token required or invalid'));
     }
     const { email, emailOtp, mobile, mobileOtp, country_code, email_otp, mobile_otp } = req.body || {};
     if (!email_otp && !mobile_otp) {
@@ -2549,7 +2549,7 @@ export const verifyOtp = async (req, res) => {
     }
   } catch (error) {
     logError('Verify OTP error:', error);
-    return res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json(createErrorResponse(500, 'Internal server error'));
   }
 };
 
@@ -2565,11 +2565,11 @@ export const getUserProfile = async (req, res) => {
       return res.status(errorResponse.statusCode).json(errorResponse.body);
     }
     if (!userId) {
-      return res.status(401).json({ error: 'Access token required or invalid' });
+      return res.status(401).json(createErrorResponse(401, 'Access token required or invalid'));
     }
     const userSettings = await getUserSettings(userId);
     if (!userSettings) {
-      return res.status(404).json({ error: 'User not found' });
+      return res.status(404).json(createErrorResponse(404, 'User not found'));
     }
     const [languagesForUser, statesForUser, userCountry] = await Promise.all([
       getAllLanguages(),
@@ -2623,7 +2623,7 @@ export const getUserProfile = async (req, res) => {
     }));
   } catch (error) {
     logError('Get user profile error:', error);
-    return res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json(createErrorResponse(500, 'Internal server error'));
   }
 };
 
@@ -2635,7 +2635,7 @@ export const updateUserProfile = async (req, res) => {
       return res.status(errorResponse.statusCode).json(errorResponse.body);
     }
     if (!userId) {
-      return res.status(401).json({ error: 'Access token required or invalid' });
+      return res.status(401).json(createErrorResponse(401, 'Access token required or invalid'));
     }
     const validation = validateUserSettings(req.body);
     if (!validation.valid) {
@@ -2731,7 +2731,7 @@ export const updateUserProfile = async (req, res) => {
     }
   } catch (error) {
     logError('Update user profile error:', error);
-    return res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json(createErrorResponse(500, 'Internal server error'));
   }
 };
 
@@ -2814,6 +2814,6 @@ export const searchUsers = async (req, res) => {
     return res.status(200).json(createSuccessResponse('Search completed', { users: formattedUsers }));
   } catch (error) {
     logError('Search users error:', error);
-    return res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json(createErrorResponse(500, 'Internal server error'));
   }
 };

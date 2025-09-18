@@ -117,11 +117,11 @@ export const getLiveCreate = async (req, res) => {
   const user = await getUserById(userId);
   if (!user) {
     // TODO: Convert createErrorResponse(404, 'User not found') to res.status(404).json({ error: 'User not found' })
-    return res.status(404).json({ error: 'User not found' });
+    return res.status(404).json(createErrorResponse(404, 'User not found'));
   }
   if (user.verified_id !== 'yes') {
     // TODO: Convert createErrorResponse(403, 'User must be verified to access creator settings') to res.status(403).json({ error: 'User must be verified to access creator settings' })
-    return res.status(403).json({ error: 'User must be verified to access creator settings' });
+    return res.status(403).json(createErrorResponse(403, 'User must be verified to access creator settings'));
   }
 
   try {
@@ -151,7 +151,7 @@ export const getLiveCreate = async (req, res) => {
     });
   } catch (error) {
     // TODO: Convert createErrorResponse(500, 'Failed to fetch latest live/tipping menu', error.message) to res.status(500).json({ error: 'Failed to fetch latest live/tipping menu', details: error.message })
-    return res.status(500).json({ error: 'Failed to fetch latest live/tipping menu', details: error.message });
+    return res.status(500).json(createErrorResponse(500, 'Failed to fetch latest live/tipping menu'));
   }
 };
 
@@ -177,11 +177,11 @@ export const postLiveCreate = async (req, res) => {
   const user = await getUserById(userId);
   if (!user) {
     // TODO: Convert createErrorResponse(404, 'User not found') to res.status(404).json({ error: 'User not found' })
-    return res.status(404).json({ error: 'User not found' });
+    return res.status(404).json(createErrorResponse(404, 'User not found'));
   }
   if (user.verified_id !== 'yes') {
     // TODO: Convert createErrorResponse(403, 'User must be verified to access creator settings') to res.status(403).json({ error: 'User must be verified to access creator settings' })
-    return res.status(403).json({ error: 'User must be verified to access creator settings' });
+    return res.status(403).json(createErrorResponse(403, 'User must be verified to access creator settings'));
   }
 
   let data;
@@ -190,7 +190,7 @@ export const postLiveCreate = async (req, res) => {
     data = JSON.parse(req.body || '{}');
   } catch (e) {
     // TODO: Convert createErrorResponse(400, 'Invalid JSON body') to res.status(400).json({ error: 'Invalid JSON body' })
-    return res.status(400).json({ error: 'Invalid JSON body' });
+    return res.status(400).json(createErrorResponse(400, 'Invalid JSON body'));
   }
 
   // Get admin settings for price validation
@@ -200,7 +200,7 @@ export const postLiveCreate = async (req, res) => {
   const validationResult = validateLiveStreamData(data, adminSettings);
   if (!validationResult.valid) {
     // TODO: Convert createErrorResponse(422, 'Validation failed', validationResult.errors) to res.status(422).json({ error: 'Validation failed', details: validationResult.errors })
-    return res.status(422).json({ error: 'Validation failed', details: validationResult.errors });
+    return res.status(422).json(createErrorResponse(422, 'Validation failed'));
   }
   
   // Use validated data for further processing
@@ -215,7 +215,7 @@ export const postLiveCreate = async (req, res) => {
     // Validate timezone is provided for scheduled lives
     if (!data.timezone) {
       // TODO: Convert createErrorResponse(422, 'Validation failed', { timezone: 'Timezone is required for scheduled live streams' }) to res.status(422).json({ error: 'Validation failed', details: { timezone: 'Timezone is required for scheduled live streams' } })
-      return res.status(422).json({ error: 'Validation failed', details: { timezone: 'Timezone is required for scheduled live streams' } });
+      return res.status(422).json(createErrorResponse(422, 'Timezone is required for scheduled live streams'));
     } else {
       try {
         // Convert user's local timezone to UTC using the utility function
@@ -224,13 +224,13 @@ export const postLiveCreate = async (req, res) => {
         // Validate that the converted datetime is in the future
         if (datetime <= nowUTC) {
           // TODO: Convert createErrorResponse(422, 'Validation failed', { scheduled_time: 'Scheduled Time Should Be Greater Than Current Time' }) to res.status(422).json({ error: 'Validation failed', details: { scheduled_time: 'Scheduled Time Should Be Greater Than Current Time' } })
-          return res.status(422).json({ error: 'Validation failed', details: { scheduled_time: 'Scheduled Time Should Be Greater Than Current Time' } });
+          return res.status(422).json(createErrorResponse(422, 'Scheduled Time Should Be Greater Than Current Time'));
         }
 
       } catch (timezoneError) {
         logError('[liveCreatePostHandler] Timezone conversion failed:', timezoneError);
         // TODO: Convert createErrorResponse(422, 'Validation failed', { timezone: timezoneError.message }) to res.status(422).json({ error: 'Validation failed', details: { timezone: timezoneError.message } })
-        return res.status(422).json({ error: 'Validation failed', details: { timezone: timezoneError.message } });
+        return res.status(422).json(createErrorResponse(422, timezoneError.message));
       }
     }
   } else {
@@ -259,7 +259,7 @@ export const postLiveCreate = async (req, res) => {
         await conn.rollback();
         conn.release();
         // TODO: Convert createErrorResponse(400, 'Invalid encrypted live_id') to res.status(400).json({ error: 'Invalid encrypted live_id' })
-        return res.status(400).json({ error: 'Invalid encrypted live_id' });
+        return res.status(400).json(createErrorResponse(400, 'Invalid encrypted live_id'));
       }
       // Fetch live record
       const [lives] = await conn.query('SELECT * FROM live_streamings WHERE id = ?', [liveId]);
@@ -268,14 +268,14 @@ export const postLiveCreate = async (req, res) => {
         await conn.rollback();
         conn.release();
         // TODO: Convert createErrorResponse(404, 'Live not found') to res.status(404).json({ error: 'Live not found' })
-        return res.status(404).json({ error: 'Live not found' });
+        return res.status(404).json(createErrorResponse(404, 'Live not found'));
       }
       isEdit = true;
       if (live.type !== 'scheduled' && liveType === 'scheduled') {
         await conn.rollback();
         conn.release();
         // TODO: Convert createErrorResponse(400, 'Live type cannot be modified') to res.status(400).json({ error: 'Live type cannot be modified' })
-        return res.status(400).json({ error: 'Live type cannot be modified' });
+        return res.status(400).json(createErrorResponse(400, 'Live type cannot be modified'));
       }
       // Reschedule logic: only allow if under max, and at least 12 hours in advance
       let newLiveDatetime = datetime;
@@ -290,7 +290,7 @@ export const postLiveCreate = async (req, res) => {
             await conn.rollback();
             conn.release();
             // TODO: Convert createErrorResponse(400, 'New Livetime should be greater than 12hrs from the Current time') to res.status(400).json({ error: 'New Livetime should be greater than 12hrs from the Current time' })
-            return res.status(400).json({ error: 'New Livetime should be greater than 12hrs from the Current time' });
+            return res.status(400).json(createErrorResponse(400, 'New Livetime should be greater than 12hrs from the Current time'));
           }
           // Increment number_of_reschedules using utility
           await incrementLiveReschedules(conn, liveId);
@@ -300,7 +300,7 @@ export const postLiveCreate = async (req, res) => {
         await conn.rollback();
         conn.release();
         // TODO: Convert createErrorResponse(400, 'Max number of reschedules reached. Please delete and create new.') to res.status(400).json({ error: 'Max number of reschedules reached. Please delete and create new.' })
-        return res.status(400).json({ error: 'Max number of reschedules reached. Please delete and create new.' });
+        return res.status(400).json(createErrorResponse(400, 'Max number of reschedules reached. Please delete and create new.'));
       }
       // Update live fields using utility - merge validated data with original data for fields not validated
       const updateData = { ...data, ...validatedData };
@@ -313,7 +313,7 @@ export const postLiveCreate = async (req, res) => {
         await conn.rollback();
         conn.release();
         // TODO: Convert createErrorResponse(400, 'Live already created') to res.status(400).json({ error: 'Live already created' })
-        return res.status(400).json({ error: 'Live already created' });
+        return res.status(400).json(createErrorResponse(400, 'Live already created'));
       }
       channel = `live_${Math.random().toString(36).substring(2, 7)}_${userId}`;
       // Create new live using utility - merge validated data with original data for fields not validated
@@ -420,7 +420,7 @@ export const postLiveCreate = async (req, res) => {
     await conn.rollback();
     conn.release();
     // TODO: Convert createErrorResponse(500, 'Failed to create/edit live stream', error.message) to res.status(500).json({ error: 'Failed to create/edit live stream', details: error.message })
-    return res.status(500).json({ error: 'Failed to create/edit live stream', details: error.message });
+    return res.status(500).json(createErrorResponse(500, 'Failed to create/edit live stream'));
   }
 };
 
@@ -667,46 +667,7 @@ export const deleteLive = async (req, res) => {
   }
 };
 
-/**
- * List of all available video filters for live streaming.
- */
-const FILTERS = {
-  normal: 'Normal',
-  'icy-water': 'Icy Water',
-  'summer-heat': 'Summer Heat',
-  fever: 'Fever',
-  strawberry: 'Strawberry',
-  ibiza: 'Ibiza',
-  'sweet-sunset': 'Sweet Sunset',
-  'blue-rock': 'Blue Rock',
-  'ocean-wave': 'Ocean Wave',
-  'little-red': 'Little Red',
-  'vintage-may': 'Vintage May',
-  'desert-morning': 'Desert Morning',
-  'blue-lagoon': 'Blue Lagoon',
-  'warm-ice': 'Warm Ice',
-  'burnt-coffee': 'Burnt Coffee',
-  waterness: 'Waterness',
-  'old-wood': 'Old Wood',
-  'distant-mountain': 'Distant Mountain',
-  'coal-paper': 'Coal Paper',
-  'simple-gray': 'Simple Gray',
-  'rose-quartz': 'Rose Quartz',
-  amazon: 'Amazon',
-  'baseline-special': 'Baseline Special',
-  'baby-glass': 'Baby Glass',
-  'rose-glass': 'Rose Glass',
-  'yellow-haze': 'Yellow Haze',
-  'blue-haze': 'Blue Haze',
-  'studio-54': 'Studio 54',
-  'burnt-peach': 'Burnt Peach',
-  'mono-sky': 'Mono Sky',
-  'mustard-grass': 'Mustard Grass',
-  leaf: 'Leaf',
-  ryellow: 'Ryellow',
-  'baseline-darken': 'Baseline Darken',
-  'red-sky': 'Red Sky',
-};
+
 
 /**
  * Handler to get live filters (GET /live/filter)
@@ -743,7 +704,7 @@ export const getLiveFilter = async (req, res) => {
     if (!encryptedLiveId) {
       // Client did not provide the required parameter
       // TODO: Convert createErrorResponse(400, 'Missing live id parameter') to res.status(400).json({ error: 'Missing live id parameter' })
-      return res.status(400).json({ error: 'Missing live id parameter' });
+      return res.status(400).json(createErrorResponse(400, 'Missing live id parameter'));
     }
     
     // Decrypt the live ID for security
@@ -753,7 +714,7 @@ export const getLiveFilter = async (req, res) => {
     } catch (error) {
       logError('[getLiveFilterHandler] Failed to decrypt live ID:', { encryptedLiveId, error: error.message });
       // TODO: Convert createErrorResponse(400, 'Invalid live id format') to res.status(400).json({ error: 'Invalid live id format' })
-      return res.status(400).json({ error: 'Invalid live id format' });
+      return res.status(400).json(createErrorResponse(400, 'Invalid live id format'));
     }
 
     // Step 3: Fetch the live stream from the database
@@ -763,7 +724,7 @@ export const getLiveFilter = async (req, res) => {
     if (!live) {
       // No live stream found for this ID
       // TODO: Convert createErrorResponse(404, 'Live stream not found') to res.status(404).json({ error: 'Live stream not found' })
-      return res.status(404).json({ error: 'Live stream not found' });
+      return res.status(404).json(createErrorResponse(404, 'Live stream not found'));
     }
 
     // Step 4: (Optional) Restrict filter info to creator only
@@ -785,7 +746,7 @@ export const getLiveFilter = async (req, res) => {
     // Log and return a generic error response
     logError('getLiveFilterHandler error:', error);
     // TODO: Convert createErrorResponse(500, 'Failed to fetch live filters', error.message) to res.status(500).json({ error: 'Failed to fetch live filters', details: error.message })
-    return res.status(500).json({ error: 'Failed to fetch live filters', details: error.message });
+    return res.status(500).json(createErrorResponse(500, 'Failed to fetch live filters'));
   }
 };
 
@@ -829,13 +790,13 @@ export const postLiveFilter = async (req, res) => {
     } catch {
       // Malformed JSON
       // TODO: Convert createErrorResponse(400, 'Invalid JSON body') to res.status(400).json({ error: 'Invalid JSON body' })
-      return res.status(400).json({ error: 'Invalid JSON body' });
+      return res.status(400).json(createErrorResponse(400, 'Invalid JSON body'));
     }
     const { c: encryptedLiveId, filter } = data;
     if (!encryptedLiveId) {
       // Client did not provide the required parameter
       // TODO: Convert createErrorResponse(400, 'Missing live id parameter') to res.status(400).json({ error: 'Missing live id parameter' })
-      return res.status(400).json({ error: 'Missing live id parameter' });
+      return res.status(400).json(createErrorResponse(400, 'Missing live id parameter'));
     }
     
     // Decrypt the live ID for security
@@ -845,7 +806,7 @@ export const postLiveFilter = async (req, res) => {
     } catch (error) {
       logError('[postLiveFilterHandler] Failed to decrypt live ID:', { encryptedLiveId, error: error.message });
       // TODO: Convert createErrorResponse(400, 'Invalid live id format') to res.status(400).json({ error: 'Invalid live id format' })
-      return res.status(400).json({ error: 'Invalid live id format' });
+      return res.status(400).json(createErrorResponse(400, 'Invalid live id format'));
     }
     
     // Sanitize filter: must be a valid key, else set to 'none'
@@ -863,7 +824,7 @@ export const postLiveFilter = async (req, res) => {
       await conn.rollback();
       conn.release();
       // TODO: Convert createErrorResponse(403, 'Not authorized to apply filter to this live') to res.status(403).json({ error: 'Not authorized to apply filter to this live' })
-      return res.status(403).json({ error: 'Not authorized to apply filter to this live' });
+      return res.status(403).json(createErrorResponse(403, 'Not authorized to apply filter to this live'));
     }
 
     // Step 5: Update the filter_applied field
@@ -884,7 +845,7 @@ export const postLiveFilter = async (req, res) => {
     }
     logError('postLiveFilterHandler error:', error);
     // TODO: Convert createErrorResponse(500, 'Failed to apply live filter', error.message) to res.status(500).json({ error: 'Failed to apply live filter', details: error.message })
-    return res.status(500).json({ error: 'Failed to apply live filter', details: error.message });
+    return res.status(500).json(createErrorResponse(500, 'Failed to apply live filter'));
   }
 };
 
@@ -1254,7 +1215,7 @@ export const getLiveGo = async (req, res) => {
   const encryptedLiveId = req.params && req.params.liveId;
   if (!encryptedLiveId) {
     // TODO: Convert createErrorResponse(400, 'Live id is required in path') to res.status(400).json({ error: 'Live id is required in path' })
-    return res.status(400).json({ error: 'Live id is required in path' });
+    return res.status(400).json(createErrorResponse(400, 'Live id is required in path'));
   }
 
   // Decrypt the live ID from path parameter for security
@@ -1264,18 +1225,18 @@ export const getLiveGo = async (req, res) => {
   } catch (error) {
     logError('[liveGoDetailsHandler] Failed to decrypt live ID:', { encryptedLiveId, error: error.message });
     // TODO: Convert createErrorResponse(400, 'Invalid live id format') to res.status(400).json({ error: 'Invalid live id format' })
-    return res.status(400).json({ error: 'Invalid live id format' });
+    return res.status(400).json(createErrorResponse(400, 'Invalid live id format'));
   }
 
   // Fetch user and verify
   const user = await getUserById(userId);
   if (!user) {
     // TODO: Convert createErrorResponse(404, 'User not found') to res.status(404).json({ error: 'User not found' })
-    return res.status(404).json({ error: 'User not found' });
+    return res.status(404).json(createErrorResponse(404, 'User not found'));
   }
   if (user.verified_id !== 'yes') {
     // TODO: Convert createErrorResponse(403, 'User must be verified to access creator settings') to res.status(403).json({ error: 'User must be verified to access creator settings' })
-    return res.status(403).json({ error: 'User must be verified to access creator settings' });
+    return res.status(403).json(createErrorResponse(403, 'User must be verified to access creator settings'));
   }
 
   // Fetch live details and verify
@@ -1286,11 +1247,11 @@ export const getLiveGo = async (req, res) => {
   }
   if (live.status !== '0') {
     // TODO: Convert createErrorResponse(400, 'Live already closed') to res.status(400).json({ error: 'Live already closed' })
-    return res.status(400).json({ error: 'Live already closed' });
+    return res.status(400).json(createErrorResponse(400, 'Live already closed'));
   }
   if (live.user_id !== user.id) {
     // TODO: Convert createErrorResponse(403, 'You are not authorized to access this live') to res.status(403).json({ error: 'You are not authorized to access this live' })
-    return res.status(403).json({ error: 'You are not authorized to access this live' });
+    return res.status(403).json(createErrorResponse(403, 'You are not authorized to access this live'));
   }
 
   // Update creator_joined to 1 if creator is joining their own live and hasn't joined yet
@@ -1410,6 +1371,6 @@ export const getLiveGo = async (req, res) => {
   } catch (error) {
     logError('[liveGoDetailsHandler] Error:', error);
     // TODO: Convert createErrorResponse(500, 'Failed to fetch live details', error.message) to res.status(500).json({ error: 'Failed to fetch live details', details: error.message })
-    return res.status(500).json({ error: 'Failed to fetch live details', details: error.message });
+    return res.status(500).json(createErrorResponse(500, 'Failed to fetch live details'));
   }
 };
