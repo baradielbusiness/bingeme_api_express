@@ -30,7 +30,7 @@ const REFERRAL_SYSTEM_DISABLED_MESSAGE = 'Referral system is currently disabled'
  * @param {object} req - Express request object
  * @param {object} res - Express response object
  */
-export const getReferrals = async (req, res) => {
+const getReferrals = async (req, res) => {
   // Authenticate and validate user
   // TODO: Convert getAuthenticatedUserId(event, { allowAnonymous: false, action: 'my_referrals getHandler' }) to getAuthenticatedUserId(req, { allowAnonymous: false, action: 'my_referrals getHandler' })
   const { userId, errorResponse } = getAuthenticatedUserId(req, { 
@@ -325,4 +325,12 @@ const getUserReferralsList = async (userId, skip = DEFAULT_SKIP, limit = DEFAULT
     logError('Database error while fetching user referrals:', error);
     throw error;
   }
+};
+
+// Export all functions at the end
+export {
+  getReferrals,
+  getReferralStats,
+  getTotalReferralsCount,
+  getUserReferralsList
 };

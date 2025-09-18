@@ -4,7 +4,7 @@ import { logInfo, logError } from './common.js';
 /**
  * Standard API response payload builder (used by controllers)
  */
-export const createApiResponse = (status, message, data = null, error = null) => {
+const createApiResponse = (status, message, data = null, error = null) => {
   return {
     status,
     message,
@@ -17,7 +17,7 @@ export const createApiResponse = (status, message, data = null, error = null) =>
 /**
  * Get support users by their IDs
  */
-export const getSupportUsersByIds = async (supportIds = []) => {
+const getSupportUsersByIds = async (supportIds = []) => {
   try {
     if (!Array.isArray(supportIds) || supportIds.length === 0) {
       return [];
@@ -39,7 +39,7 @@ export const getSupportUsersByIds = async (supportIds = []) => {
 /**
  * Find users by search query with optional exclusions and support-only filter
  */
-export const getUsersBySearch = async ({ excludedUserIds = [], searchTerm = '', supportIds = [], type = null }) => {
+const getUsersBySearch = async ({ excludedUserIds = [], searchTerm = '', supportIds = [], type = null }) => {
   try {
     const params = [];
     let whereClauses = ['status != "deleted"'];
@@ -85,7 +85,7 @@ export const getUsersBySearch = async ({ excludedUserIds = [], searchTerm = '', 
 /**
  * Get user inbox with media attachments
  */
-export const getUserInboxWithMedia = async (userId, skip = 0, limit = 10) => {
+const getUserInboxWithMedia = async (userId, skip = 0, limit = 10) => {
   try {
     const skipNum = parseInt(skip) || 0;
     const limitNum = parseInt(limit) || 10;
@@ -150,7 +150,7 @@ export const getUserInboxWithMedia = async (userId, skip = 0, limit = 10) => {
 /**
  * Get users map for message formatting
  */
-export const fetchUsersMap = async (userIds) => {
+const fetchUsersMap = async (userIds) => {
   try {
     if (!userIds || userIds.length === 0) return {};
 
@@ -184,7 +184,7 @@ export const fetchUsersMap = async (userIds) => {
 /**
  * Get message and conversation IDs for deletion
  */
-export const getMessageAndConversationIds = async (userId, otherUserId) => {
+const getMessageAndConversationIds = async (userId, otherUserId) => {
   try {
     const query = `
       SELECT DISTINCT m.id as message_id, m.conversations_id
@@ -209,7 +209,7 @@ export const getMessageAndConversationIds = async (userId, otherUserId) => {
 /**
  * Mark media messages as deleted
  */
-export const markMediaMessagesDeleted = async (messageIds) => {
+const markMediaMessagesDeleted = async (messageIds) => {
   try {
     if (!messageIds || messageIds.length === 0) return;
 
@@ -231,7 +231,7 @@ export const markMediaMessagesDeleted = async (messageIds) => {
 /**
  * Mark messages as deleted
  */
-export const markMessagesDeleted = async (messageIds) => {
+const markMessagesDeleted = async (messageIds) => {
   try {
     if (!messageIds || messageIds.length === 0) return;
 
@@ -253,7 +253,7 @@ export const markMessagesDeleted = async (messageIds) => {
 /**
  * Mark conversations as inactive
  */
-export const markConversationsInactive = async (conversationIds) => {
+const markConversationsInactive = async (conversationIds) => {
   try {
     if (!conversationIds || conversationIds.length === 0) return;
 
@@ -275,7 +275,7 @@ export const markConversationsInactive = async (conversationIds) => {
 /**
  * Remove user notifications
  */
-export const removeUserNotifications = async (userId, messageIds) => {
+const removeUserNotifications = async (userId, messageIds) => {
   try {
     if (!messageIds || messageIds.length === 0) return;
 
@@ -296,7 +296,7 @@ export const removeUserNotifications = async (userId, messageIds) => {
 /**
  * Search conversations by username or name
  */
-export const searchConversations = async (userId, searchTerm, skip = 0, limit = 10) => {
+const searchConversations = async (userId, searchTerm, skip = 0, limit = 10) => {
   try {
     const skipNum = parseInt(skip) || 0;
     const limitNum = parseInt(limit) || 10;
@@ -347,7 +347,7 @@ export const searchConversations = async (userId, searchTerm, skip = 0, limit = 
 /**
  * Find or create conversation between two users
  */
-export const findOrCreateConversation = async (userId1, userId2) => {
+const findOrCreateConversation = async (userId1, userId2) => {
   try {
     // First, try to find existing conversation
     const findQuery = `
@@ -379,4 +379,20 @@ export const findOrCreateConversation = async (userId1, userId2) => {
     logError('Error finding or creating conversation:', error);
     throw error;
   }
+};
+
+// Export all functions at the end
+export {
+  createApiResponse,
+  getSupportUsersByIds,
+  getUsersBySearch,
+  getUserInboxWithMedia,
+  fetchUsersMap,
+  getMessageAndConversationIds,
+  markMediaMessagesDeleted,
+  markMessagesDeleted,
+  markConversationsInactive,
+  removeUserNotifications,
+  searchConversations,
+  findOrCreateConversation
 };

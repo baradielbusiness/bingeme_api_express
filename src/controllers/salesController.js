@@ -1,4 +1,4 @@
-import { createSuccessResponse, createErrorResponse, getAuthenticatedUserId, logInfo, logError, getUserSalesList, updatePurchaseStatus, safeDecryptId, createExpressSuccessResponse, createExpressErrorResponse } from '../utils/common.js';
+import { createSuccessResponse, createErrorResponse, getAuthenticatedUserId, logInfo, logError, getUserSalesList, updatePurchaseStatus, safeDecryptId } from '../utils/common.js';
 
 /**
  * Handler for GET /sales
@@ -8,7 +8,7 @@ import { createSuccessResponse, createErrorResponse, getAuthenticatedUserId, log
  * @param {object} res - Express response object
  * @returns {object} API response
  */
-export const getSales = async (req, res) => {
+const getSales = async (req, res) => {
   try {
     
     // Extract and validate user authentication
@@ -58,7 +58,7 @@ export const getSales = async (req, res) => {
  * @param {object} res - Express response object
  * @returns {object} API response
  */
-export const deliveredProduct = async (req, res) => {
+const deliveredProduct = async (req, res) => {
   try {
 
     // Extract and validate user authentication
@@ -124,7 +124,7 @@ export const deliveredProduct = async (req, res) => {
  * @param {object} res - Express response object
  * @returns {object} API response
  */
-export const rejectOrder = async (req, res) => {
+const rejectOrder = async (req, res) => {
   try {
 
     // Extract and validate user authentication
@@ -180,4 +180,11 @@ export const rejectOrder = async (req, res) => {
     // TODO: Convert createErrorResponse(error.statusCode || 500, error.message || 'Internal Server Error') to res.status(error.statusCode || 500).json({ error: error.message || 'Internal Server Error' })
     return res.status(error.statusCode || 500).json(createErrorResponse(error.statusCode || 500, error.message || 'Internal Server Error'));
   }
+};
+
+// Export all functions at the end
+export {
+  getSales,
+  deliveredProduct,
+  rejectOrder
 };

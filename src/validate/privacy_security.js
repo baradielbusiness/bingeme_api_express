@@ -1,7 +1,7 @@
 /**
  * Validate privacy settings input
  */
-export const validatePrivacySettings = (privacySettings) => {
+const validatePrivacySettings = (privacySettings) => {
   const errors = [];
   
   if (!privacySettings || typeof privacySettings !== 'object') {
@@ -30,7 +30,7 @@ export const validatePrivacySettings = (privacySettings) => {
 /**
  * Validate security settings input
  */
-export const validateSecuritySettings = (securitySettings) => {
+const validateSecuritySettings = (securitySettings) => {
   const errors = [];
   
   if (!securitySettings || typeof securitySettings !== 'object') {
@@ -63,7 +63,7 @@ export const validateSecuritySettings = (securitySettings) => {
 /**
  * Validate account deletion request
  */
-export const validateAccountDeletionRequest = (requestData) => {
+const validateAccountDeletionRequest = (requestData) => {
   const errors = [];
   
   if (!requestData || typeof requestData !== 'object') {
@@ -94,7 +94,7 @@ export const validateAccountDeletionRequest = (requestData) => {
 /**
  * Validate account deletion OTP verify request (only OTP field)
  */
-export const validateAccountDeletionOTPRequest = (requestData) => {
+const validateAccountDeletionOTPRequest = (requestData) => {
   const errors = [];
   if (!requestData || typeof requestData !== 'object') {
     errors.push('Request data must be an object');
@@ -110,7 +110,7 @@ export const validateAccountDeletionOTPRequest = (requestData) => {
 /**
  * Validate combined privacy and security update request
  */
-export const validatePrivacySecurityUpdateRequest = (requestData) => {
+const validatePrivacySecurityUpdateRequest = (requestData) => {
   const errors = [];
   if (!requestData || typeof requestData !== 'object') {
     return { isValid: false, errors: ['Request data must be an object'] };
@@ -128,4 +128,13 @@ export const validatePrivacySecurityUpdateRequest = (requestData) => {
     errors.push('At least one of privacy_settings or security_settings must be provided');
   }
   return { isValid: errors.length === 0, errors };
+};
+
+// Export all functions at the end
+export {
+  validatePrivacySettings,
+  validateSecuritySettings,
+  validateAccountDeletionRequest,
+  validateAccountDeletionOTPRequest,
+  validatePrivacySecurityUpdateRequest
 };

@@ -137,7 +137,7 @@ const extractS3Key = (req) => {
  * @param {Object} req.headers - Request headers including authorization
  * @returns {Object} Express response object
  */
-export const deleteS3Media = async (req, res) => {
+const deleteS3Media = async (req, res) => {
   try {
     logInfo('S3 media deletion request initiated');
     // TODO: Convert event details to req details
@@ -256,4 +256,9 @@ export const deleteS3Media = async (req, res) => {
     // TODO: Convert createErrorResponse(500, 'Internal server error', error.message) to res.status(500).json({ error: 'Internal server error', details: error.message })
     return res.status(500).json(createErrorResponse(500, 'Internal server error'));
   }
+};
+
+// Export all functions at the end
+export {
+  deleteS3Media
 };

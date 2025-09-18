@@ -37,7 +37,7 @@ const validateS3Key = (s3Key) => {
 /**
  * Delete media file from S3
  */
-export const deleteMediaFile = async (req, res) => {
+const deleteMediaFile = async (req, res) => {
   try {
     const userId = req.userId;
     let s3Key;
@@ -77,4 +77,9 @@ export const deleteMediaFile = async (req, res) => {
     logError('Error deleting media file:', error);
     return res.status(500).json(createErrorResponse(500, 'Internal server error'));
   }
+};
+
+// Export all functions at the end
+export {
+  deleteMediaFile
 };

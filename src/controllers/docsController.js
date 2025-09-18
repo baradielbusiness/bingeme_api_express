@@ -7,7 +7,7 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { logInfo, logError, createExpressErrorResponse } from '../utils/common.js';
+import { logInfo, logError, createErrorResponse } from '../utils/common.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -17,7 +17,7 @@ const __dirname = path.dirname(__filename);
  * @param {object} req - Express request object
  * @param {object} res - Express response object
  */
-export const getSwaggerUI = async (req, res) => {
+const getSwaggerUI = async (req, res) => {
   try {
     logInfo('Serving Swagger UI');
     
@@ -141,7 +141,7 @@ export const getSwaggerUI = async (req, res) => {
     res.send(html);
   } catch (error) {
     logError('Error serving Swagger UI:', error);
-    res.status(500).json(createExpressErrorResponse('Error serving API documentation', 500, { details: error.message }));
+    res.status(500).json(createErrorResponse(500, 'Error serving API documentation', { details: error.message }));
   }
 };
 
@@ -150,7 +150,7 @@ export const getSwaggerUI = async (req, res) => {
  * @param {object} req - Express request object
  * @param {object} res - Express response object
  */
-export const getSwaggerJSON = async (req, res) => {
+const getSwaggerJSON = async (req, res) => {
   try {
     logInfo('Serving Swagger JSON');
     
@@ -170,6 +170,12 @@ export const getSwaggerJSON = async (req, res) => {
     res.json(swaggerJson);
   } catch (error) {
     logError('Error serving Swagger JSON:', error);
-    res.status(500).json(createExpressErrorResponse('Error serving API documentation', 500, { details: error.message }));
+    res.status(500).json(createErrorResponse(500, 'Error serving API documentation', { details: error.message }));
   }
+};
+
+// Export all functions at the end
+export {
+  getSwaggerUI,
+  getSwaggerJSON
 };

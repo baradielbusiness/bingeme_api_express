@@ -10,14 +10,12 @@ import {
   logError, 
   getAuthenticatedUserId, 
   getUserById,
-  createExpressSuccessResponse,
-  createExpressErrorResponse,
   createSuccessResponse,
   createErrorResponse
 } from '../utils/common.js';
 import { getSocialUrls, getCreatorEarningsData, getEarningsOverview } from '../utils/dashboard/dashboard_overview.js';
-import { getPostsReportData } from './posts_report.js';
-import { getIncomeChartData } from './income_chart.js';
+import { getPostsReportData } from '../utils/posts_report.js';
+import { getIncomeChartData } from '../utils/income_chart.js';
 
 /**
  * GET /dashboard - Main dashboard handler for authenticated users.
@@ -26,7 +24,7 @@ import { getIncomeChartData } from './income_chart.js';
  * @param {object} res - Express response object
  * @returns {Promise<object>} Standardized API response with dashboard data
  */
-export const getDashboard = async (req, res) => {
+const getDashboard = async (req, res) => {
   try {
     logInfo('Dashboard request received');
     
@@ -138,7 +136,7 @@ export const getDashboard = async (req, res) => {
  * @param {object} res - Express response object
  * @returns {Promise<object>} Standardized API response with posts report data
  */
-export const getPostsReport = async (req, res) => {
+const getPostsReport = async (req, res) => {
   try {
     logInfo('Posts report request received');
     
@@ -188,7 +186,7 @@ export const getPostsReport = async (req, res) => {
  * @param {object} res - Express response object
  * @returns {Promise<object>} Standardized API response with income chart data
  */
-export const getIncomeChart = async (req, res) => {
+const getIncomeChart = async (req, res) => {
   try {
     logInfo('Income chart request received');
     
@@ -245,4 +243,11 @@ export const getIncomeChart = async (req, res) => {
     // TODO: Convert createErrorResponse(500, 'Internal server error') to res.status(500).json({ error: 'Internal server error' })
     return res.status(500).json(createErrorResponse(500, 'Internal server error'));
   }
+};
+
+// Export all functions at the end
+export {
+  getDashboard,
+  getPostsReport,
+  getIncomeChart
 };

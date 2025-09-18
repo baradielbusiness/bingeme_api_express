@@ -8,7 +8,7 @@
  * @param {string} email - Email to validate
  * @returns {boolean} True if valid email format
  */
-export const validateEmail = (email) => {
+const validateEmail = (email) => {
   if (!email || typeof email !== 'string') return false;
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   return emailRegex.test(email);
@@ -19,7 +19,7 @@ export const validateEmail = (email) => {
  * @param {string} mobile - Mobile number to validate
  * @returns {boolean} True if valid mobile format
  */
-export const validateMobile = (mobile) => {
+const validateMobile = (mobile) => {
   if (!mobile || typeof mobile !== 'string') return false;
   // Remove all non-digit characters
   const cleanMobile = mobile.replace(/\D/g, '');
@@ -32,7 +32,7 @@ export const validateMobile = (mobile) => {
  * @param {string} password - Password to validate
  * @returns {object} Validation result with isValid and message
  */
-export const validatePassword = (password) => {
+const validatePassword = (password) => {
   if (!password || typeof password !== 'string') {
     return { isValid: false, message: 'Password is required' };
   }
@@ -53,7 +53,7 @@ export const validatePassword = (password) => {
  * @param {string} username - Username to validate
  * @returns {object} Validation result with isValid and message
  */
-export const validateUsername = (username) => {
+const validateUsername = (username) => {
   if (!username || typeof username !== 'string') {
     return { isValid: false, message: 'Username is required' };
   }
@@ -80,7 +80,7 @@ export const validateUsername = (username) => {
  * @param {string} name - Name to validate
  * @returns {object} Validation result with isValid and message
  */
-export const validateName = (name) => {
+const validateName = (name) => {
   if (!name || typeof name !== 'string') {
     return { isValid: false, message: 'Name is required' };
   }
@@ -108,7 +108,7 @@ export const validateName = (name) => {
  * @param {string} otp - OTP to validate
  * @returns {boolean} True if valid OTP format
  */
-export const validateOTP = (otp) => {
+const validateOTP = (otp) => {
   if (!otp || typeof otp !== 'string') return false;
   // OTP should be 4-6 digits
   const otpRegex = /^\d{4,6}$/;
@@ -120,7 +120,7 @@ export const validateOTP = (otp) => {
  * @param {string} input - Input to sanitize
  * @returns {string} Sanitized string
  */
-export const sanitizeInput = (input) => {
+const sanitizeInput = (input) => {
   if (!input || typeof input !== 'string') return '';
   return input.trim().replace(/[<>]/g, '');
 };
@@ -130,7 +130,7 @@ export const sanitizeInput = (input) => {
  * @param {string} countryCode - Country code to validate
  * @returns {boolean} True if valid country code format
  */
-export const validateCountryCode = (countryCode) => {
+const validateCountryCode = (countryCode) => {
   if (!countryCode || typeof countryCode !== 'string') return false;
   // Country code should start with + and have 1-4 digits
   const countryCodeRegex = /^\+\d{1,4}$/;
@@ -143,7 +143,7 @@ export const validateCountryCode = (countryCode) => {
  * @param {object} body - Express request body
  * @returns {{ isValid: boolean, message?: string }}
  */
-export const validateMassiveMessageInput = (body) => {
+const validateMassiveMessageInput = (body) => {
   if (!body || typeof body !== 'object') {
     return { isValid: false, message: 'Invalid request body' };
   }
@@ -185,7 +185,7 @@ export const validateMassiveMessageInput = (body) => {
  * @param {object} body
  * @returns {{ isValid: boolean, message?: string }}
  */
-export const validateMessageMediaInput = (body) => {
+const validateMessageMediaInput = (body) => {
   if (!body || typeof body !== 'object') {
     return { isValid: false, message: 'Invalid request body' };
   }
@@ -222,7 +222,7 @@ export const validateMessageMediaInput = (body) => {
  * @param {object} body
  * @returns {{ isValid: boolean, message: string|null }}
  */
-export const validateUserSettings = (body) => {
+const validateUserSettings = (body) => {
   if (!body || typeof body !== 'object') {
     return { isValid: false, message: 'Invalid request body' };
   }
@@ -246,7 +246,7 @@ export const validateUserSettings = (body) => {
  * - strips HTML tags
  * - checks minimal length (20 chars)
  */
-export const validateBankDetails = (bankDetails) => {
+const validateBankDetails = (bankDetails) => {
   if (!bankDetails || typeof bankDetails !== 'string') {
     return false;
   }
@@ -258,7 +258,7 @@ export const validateBankDetails = (bankDetails) => {
  * Validate Indian bank payout method data
  * Ensures account number, holder name, bank name, and IFSC code are valid
  */
-export const validateBankIndiaData = (data) => {
+const validateBankIndiaData = (data) => {
   try {
     const { account_number, holder_name, bank_name, ifsc_code } = data || {};
 
@@ -340,7 +340,7 @@ export const validateBankIndiaData = (data) => {
 /**
  * Validate PayPal payout method data
  */
-export const validatePayPalData = (data) => {
+const validatePayPalData = (data) => {
   try {
     const { paypal_email } = data || {};
     if (!paypal_email) {
@@ -358,7 +358,7 @@ export const validatePayPalData = (data) => {
 /**
  * Validate UPI ID primitive
  */
-export const validateUpiId = (upiId) => {
+const validateUpiId = (upiId) => {
   if (!upiId || typeof upiId !== 'string') return false;
   const UPI_REGEX = /^[a-zA-Z0-9._-]+@[a-zA-Z]{3,}$/;
   return UPI_REGEX.test(upiId.trim());
@@ -367,7 +367,7 @@ export const validateUpiId = (upiId) => {
 /**
  * Validate UPI payout payload
  */
-export const validateUpiData = (data) => {
+const validateUpiData = (data) => {
   try {
     const { upi_id } = data || {};
     if (!upi_id) {
@@ -380,4 +380,24 @@ export const validateUpiData = (data) => {
   } catch (error) {
     return { isValid: false, message: 'Invalid UPI data format' };
   }
+};
+
+// Export all functions at the end
+export {
+  validateEmail,
+  validateMobile,
+  validatePassword,
+  validateUsername,
+  validateName,
+  validateOTP,
+  sanitizeInput,
+  validateCountryCode,
+  validateMassiveMessageInput,
+  validateMessageMediaInput,
+  validateUserSettings,
+  validateBankDetails,
+  validateBankIndiaData,
+  validatePayPalData,
+  validateUpiId,
+  validateUpiData
 };

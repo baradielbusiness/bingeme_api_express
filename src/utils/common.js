@@ -6,8 +6,7 @@
 import dotenv from 'dotenv';
 dotenv.config();
 
-import { getDB } from '../config/database.js';
-import { pool } from '../config/database.js';
+import { getDB, pool } from '../config/database.js';
 import winston from 'winston';
 import nodemailer from 'nodemailer';
 import axios from 'axios';
@@ -57,10 +56,10 @@ validateEnvironment();
 
 // Initialize DynamoDB client for specific tables
 const ddbClient = new DynamoDBClient({ region: process.env.AWS_DEFAULT_REGION });
-export const docClient = DynamoDBDocumentClient.from(ddbClient);
+const docClient = DynamoDBDocumentClient.from(ddbClient);
 
 // Initialize logger
-export const logger = winston.createLogger({
+const logger = winston.createLogger({
   level: 'info',
   format: winston.format.json(),
   transports: [
@@ -71,7 +70,7 @@ export const logger = winston.createLogger({
 /**
  * Get admin settings
  */
-export const getAdminSettings = async () => {
+const getAdminSettings = async () => {
   try {
     const pool = getDB();
     const query = `SELECT * FROM admin_settings ORDER BY id ASC`;
@@ -93,7 +92,7 @@ export const getAdminSettings = async () => {
  * Build CDN URL for uploaded files (parity with Lambda/CDN behavior)
  * Avoids direct S3 calls and returns a public URL string.
  */
-export const getFile = (path) => {
+const getFile = (path) => {
   try {
     if (!path) return '';
 
@@ -134,7 +133,7 @@ export const getFile = (path) => {
 /**
  * Get user by ID
  */
-export const getUserById = async (userId) => {
+const getUserById = async (userId) => {
   try {
     const query = `SELECT * FROM users WHERE id = ? AND status != "deleted"`;
     const [rows] = await pool.query(query, [userId]);
@@ -148,7 +147,7 @@ export const getUserById = async (userId) => {
 /**
  * Get user country
  */
-export const getUserCountry = async (req, authUser = null) => {
+const getUserCountry = async (req, authUser = null) => {
   try {
     // 1) Prefer authenticated user's countries_id (parity with Lambda)
     if (authUser && authUser.countries_id) {
@@ -177,7 +176,7 @@ export const getUserCountry = async (req, authUser = null) => {
 /**
  * Process currency settings
  */
-export const processCurrencySettings = (adminSettings = {}, userCountry) => {
+const processCurrencySettings = (adminSettings = {}, userCountry) => {
   try {
     const isUS = userCountry === 'US';
     const coin_conversion_USD = Number(adminSettings.coin_conversion_USD) || 50;
@@ -196,7 +195,7 @@ export const processCurrencySettings = (adminSettings = {}, userCountry) => {
 /**
  * Upsert FCM token record
  */
-export const upsertFcmTokenRecord = async (userId, fcmToken, deviceInfo = {}) => {
+const upsertFcmTokenRecord = async (userId, fcmToken, deviceInfo = {}) => {
   try {
     const tableName = `fcm-token-${process.env.NODE_ENV || 'dev'}`;
     
@@ -225,7 +224,7 @@ export const upsertFcmTokenRecord = async (userId, fcmToken, deviceInfo = {}) =>
 /**
  * Get subscribers list
  */
-export const getSubscribersList = async (userId, limit = 20, skip = 0) => {
+const getSubscribersList = async (userId, limit = 20, skip = 0) => {
   try {
     const query = `
       SELECT 
@@ -253,7 +252,7 @@ export const getSubscribersList = async (userId, limit = 20, skip = 0) => {
 /**
  * Get subscribers count
  */
-export const getSubscribersCount = async (userId) => {
+const getSubscribersCount = async (userId) => {
   try {
     const query = `
       SELECT COUNT(*) as count 
@@ -272,7 +271,7 @@ export const getSubscribersCount = async (userId) => {
 /**
  * Get user posts list
  */
-export const getUserPostsList = async (userId, limit = 20, skip = 0) => {
+const getUserPostsList = async (userId, limit = 20, skip = 0) => {
   try {
     const query = `
       SELECT 
@@ -300,7 +299,7 @@ export const getUserPostsList = async (userId, limit = 20, skip = 0) => {
 /**
  * Get user posts count
  */
-export const getUserPostsCount = async (userId) => {
+const getUserPostsCount = async (userId) => {
   try {
     const query = `SELECT COUNT(*) as count FROM posts WHERE user_id = ? AND deleted = 0`;
     const [result] = await pool.query(query, [userId]);
@@ -314,7 +313,7 @@ export const getUserPostsCount = async (userId) => {
 /**
  * Get user updates list
  */
-export const getUserUpdatesList = async (userId, limit = 20, skip = 0) => {
+const getUserUpdatesList = async (userId, limit = 20, skip = 0) => {
   try {
     const query = `
       SELECT 
@@ -341,7 +340,7 @@ export const getUserUpdatesList = async (userId, limit = 20, skip = 0) => {
 /**
  * Get user updates count
  */
-export const getUserUpdatesCount = async (userId) => {
+const getUserUpdatesCount = async (userId) => {
   try {
     const query = `SELECT COUNT(*) as count FROM updates WHERE user_id = ? AND deleted = 0`;
     const [result] = await pool.query(query, [userId]);
@@ -355,7 +354,7 @@ export const getUserUpdatesCount = async (userId) => {
 /**
  * Update user post
  */
-export const updateUserPost = async (postId, postData) => {
+const updateUserPost = async (postId, postData) => {
   try {
     const { content, media } = postData;
     const query = `UPDATE posts SET content = ?, media = ?, updated_at = NOW() WHERE id = ?`;
@@ -370,7 +369,7 @@ export const updateUserPost = async (postId, postData) => {
 /**
  * Delete user post
  */
-export const deleteUserPost = async (postId) => {
+const deleteUserPost = async (postId) => {
   try {
     const query = `UPDATE posts SET deleted = 1, deleted_at = NOW() WHERE id = ?`;
     await pool.query(query, [postId]);
@@ -384,7 +383,7 @@ export const deleteUserPost = async (postId) => {
 /**
  * Get post comments
  */
-export const getPostComments = async (postId, limit = 20, skip = 0) => {
+const getPostComments = async (postId, limit = 20, skip = 0) => {
   try {
     const query = `
       SELECT 
@@ -412,9 +411,159 @@ export const getPostComments = async (postId, limit = 20, skip = 0) => {
 };
 
 /**
+ * Get user settings
+ * @param {number} userId - User ID
+ * @returns {Promise<object>} User settings object
+ */
+const getUserSettings = async (userId) => {
+  try {
+    const db = await getDB();
+    const [rows] = await db.execute(`
+      SELECT 
+        username,
+        name,
+        email,
+        mobile,
+        story,
+        country,
+        disable_watermark,
+        dark_mode,
+        created_at,
+        updated_at
+      FROM users 
+      WHERE id = ? AND deleted = 0
+    `, [userId]);
+    
+    if (rows.length === 0) {
+      return null;
+    }
+    
+    return rows[0];
+  } catch (error) {
+    logError('Error getting user settings:', error);
+    throw error;
+  }
+};
+
+/**
+ * Check if a user field exists (for validation)
+ * @param {number} userId - User ID to exclude from check
+ * @param {string} field - Field name to check
+ * @param {string} value - Value to check
+ * @returns {Promise<boolean>} True if field exists for another user
+ */
+const checkUserFieldExists = async (userId, field, value) => {
+  try {
+    const db = await getDB();
+    const [rows] = await db.execute(`
+      SELECT id FROM users 
+      WHERE ${field} = ? AND id != ? AND deleted = 0
+    `, [value, userId]);
+    
+    return rows.length > 0;
+  } catch (error) {
+    logError('Error checking user field exists:', error);
+    throw error;
+  }
+};
+
+/**
+ * Check if mobile number exists
+ * @param {number} userId - User ID to exclude from check
+ * @param {string} mobile - Mobile number to check
+ * @param {string} countryCode - Country code
+ * @returns {Promise<boolean>} True if mobile exists for another user
+ */
+const checkMobileExists = async (userId, mobile, countryCode) => {
+  try {
+    const db = await getDB();
+    const [rows] = await db.execute(`
+      SELECT id FROM users 
+      WHERE mobile = ? AND country_code = ? AND id != ? AND deleted = 0
+    `, [mobile, countryCode, userId]);
+    
+    return rows.length > 0;
+  } catch (error) {
+    logError('Error checking mobile exists:', error);
+    throw error;
+  }
+};
+
+/**
+ * Get user country by ID
+ * @param {number} countryId - Country ID
+ * @returns {Promise<object>} Country object
+ */
+const getUserCountryById = async (countryId) => {
+  try {
+    const db = await getDB();
+    const [rows] = await db.execute(`
+      SELECT id, name, code FROM countries WHERE id = ?
+    `, [countryId]);
+    
+    return rows[0] || null;
+  } catch (error) {
+    logError('Error getting user country by ID:', error);
+    throw error;
+  }
+};
+
+/**
+ * Update user after OTP verification
+ * @param {number} userId - User ID
+ * @param {object} updateFields - Fields to update
+ * @returns {Promise<boolean>} Success status
+ */
+const updateUserAfterOTP = async (userId, updateFields) => {
+  try {
+    const db = await getDB();
+    const fields = Object.keys(updateFields);
+    const values = Object.values(updateFields);
+    
+    const setClause = fields.map(field => `${field} = ?`).join(', ');
+    const [result] = await db.execute(`
+      UPDATE users 
+      SET ${setClause}, updated_at = NOW()
+      WHERE id = ? AND deleted = 0
+    `, [...values, userId]);
+    
+    return result.affectedRows > 0;
+  } catch (error) {
+    logError('Error updating user after OTP:', error);
+    throw error;
+  }
+};
+
+/**
+ * Compare user fields for validation
+ * @param {number} userId - User ID
+ * @param {string} email - Email to check
+ * @param {string} mobile - Mobile to check
+ * @param {string} countryCode - Country code
+ * @returns {Promise<object>} Comparison result
+ */
+const compareUserFields = async (userId, email, mobile, countryCode) => {
+  try {
+    const db = await getDB();
+    const [rows] = await db.execute(`
+      SELECT 
+        CASE WHEN email = ? THEN 1 ELSE 0 END as email_exists,
+        CASE WHEN mobile = ? AND country_code = ? THEN 1 ELSE 0 END as mobile_exists
+      FROM users 
+      WHERE id = ? AND deleted = 0
+    `, [email, mobile, countryCode, userId]);
+    
+    return rows[0] || { email_exists: 0, mobile_exists: 0 };
+  } catch (error) {
+    logError('Error comparing user fields:', error);
+    throw error;
+  }
+};
+
+/**
  * Update user settings
  */
-export const updateUserSettings = async (userId, settings) => {
+const updateUserSettings = async (userId, settings) => {
   try {
     const { username, name, email, mobile, story, country } = settings;
     const query = `
@@ -433,7 +582,7 @@ export const updateUserSettings = async (userId, settings) => {
 /**
  * Send OTP to user
  */
-export const sendOtpToUser = async (userId, otpType = 'verification') => {
+const sendOtpToUser = async (userId, otpType = 'verification') => {
   try {
     const user = await getUserById(userId);
     if (!user) {
@@ -464,7 +613,7 @@ export const sendOtpToUser = async (userId, otpType = 'verification') => {
 /**
  * Verify user OTP
  */
-export const verifyUserOtp = async (userId, otp, otpType = 'verification') => {
+const verifyUserOtp = async (userId, otp, otpType = 'verification') => {
   try {
     const identifier = `${otpType}_${userId}`;
     const isValid = await verifyOTP(identifier, otp);
@@ -483,7 +632,7 @@ export const verifyUserOtp = async (userId, otp, otpType = 'verification') => {
 /**
  * Search users by name
  */
-export const searchUsersByName = async (searchTerm, limit = 20, skip = 0) => {
+const searchUsersByName = async (searchTerm, limit = 20, skip = 0) => {
   try {
     const query = `
       SELECT 
@@ -510,7 +659,7 @@ export const searchUsersByName = async (searchTerm, limit = 20, skip = 0) => {
 /**
  * Change user password
  */
-export const changeUserPassword = async (userId, newPassword) => {
+const changeUserPassword = async (userId, newPassword) => {
   try {
     const bcrypt = await import('bcryptjs');
     const hashedPassword = await bcrypt.hash(newPassword, 10);
@@ -527,7 +676,7 @@ export const changeUserPassword = async (userId, newPassword) => {
 /**
  * Create password OTP for user
  */
-export const createPasswordOtpForUser = async (userId) => {
+const createPasswordOtpForUser = async (userId) => {
   try {
     const otp = generateOTP();
     const identifier = `password_reset_${userId}`;
@@ -545,7 +694,7 @@ export const createPasswordOtpForUser = async (userId) => {
 /**
  * Verify password OTP for user
  */
-export const verifyPasswordOtpForUser = async (userId, otp) => {
+const verifyPasswordOtpForUser = async (userId, otp) => {
   try {
     const identifier = `password_reset_${userId}`;
     const isValid = await verifyOTP(identifier, otp);
@@ -564,7 +713,7 @@ export const verifyPasswordOtpForUser = async (userId, otp) => {
 /**
  * Block user by ID
  */
-export const blockUserById = async (userId, blockedUserId) => {
+const blockUserById = async (userId, blockedUserId) => {
   try {
     const query = `
       INSERT INTO user_blocks (user_id, blocked_user_id, created_at) 
@@ -583,7 +732,7 @@ export const blockUserById = async (userId, blockedUserId) => {
 /**
  * Get user profile by slug
  */
-export const getUserProfileBySlug = async (slug) => {
+const getUserProfileBySlug = async (slug) => {
   try {
     const query = `
       SELECT 
@@ -609,7 +758,7 @@ export const getUserProfileBySlug = async (slug) => {
 /**
  * Check audio call access
  */
-export const checkAudioCallAccess = async (userId, otherUserId) => {
+const checkAudioCallAccess = async (userId, otherUserId) => {
   try {
     // Check if users are blocked or have restrictions
     const query = `
@@ -630,7 +779,7 @@ export const checkAudioCallAccess = async (userId, otherUserId) => {
 /**
  * Get verification request info
  */
-export const getVerificationRequestInfo = async (userId) => {
+const getVerificationRequestInfo = async (userId) => {
   try {
     const query = `
       SELECT 
@@ -656,7 +805,7 @@ export const getVerificationRequestInfo = async (userId) => {
 /**
  * Get verification categories
  */
-export const getVerificationCategories = async () => {
+const getVerificationCategories = async () => {
   try {
     const query = `SELECT * FROM verification_categories WHERE active = 1 ORDER BY name ASC`;
     const [categories] = await pool.query(query);
@@ -670,7 +819,7 @@ export const getVerificationCategories = async () => {
 /**
  * Create verification request
  */
-export const createVerificationRequest = async (requestData) => {
+const createVerificationRequest = async (requestData) => {
   try {
     const { user_id, category_id, documents, status = 'pending' } = requestData;
     
@@ -691,7 +840,7 @@ export const createVerificationRequest = async (requestData) => {
 /**
  * Get verification conversations list
  */
-export const getVerificationConversationsList = async (userId, skip = 0, limit = 10) => {
+const getVerificationConversationsList = async (userId, skip = 0, limit = 10) => {
   try {
     const skipNum = parseInt(skip) || 0;
     const limitNum = parseInt(limit) || 10;
@@ -729,7 +878,7 @@ export const getVerificationConversationsList = async (userId, skip = 0, limit =
 /**
  * Store verification conversation data
  */
-export const storeVerificationConversationData = async (conversationData) => {
+const storeVerificationConversationData = async (conversationData) => {
   try {
     const { from_user_id, to_user_id, message, image = null, type = '1' } = conversationData;
     
@@ -750,7 +899,7 @@ export const storeVerificationConversationData = async (conversationData) => {
 /**
  * Get all countries
  */
-export const getAllCountries = async () => {
+const getAllCountries = async () => {
   try {
     const query = `SELECT * FROM countries ORDER BY name ASC`;
     const [countries] = await pool.query(query);
@@ -764,7 +913,7 @@ export const getAllCountries = async () => {
 /**
  * Get states by country
  */
-export const getStates = async (countryId) => {
+const getStates = async (countryId) => {
   try {
     const query = `SELECT * FROM states WHERE country_id = ? ORDER BY name ASC`;
     const [states] = await pool.query(query, [countryId]);
@@ -778,7 +927,7 @@ export const getStates = async (countryId) => {
 /**
  * Get gender options
  */
-export const getGenderOptions = async () => {
+const getGenderOptions = async () => {
   try {
     return [
       { id: 1, name: 'Male' },
@@ -794,7 +943,7 @@ export const getGenderOptions = async () => {
 /**
  * Get user sales list
  */
-export const getUserSalesList = async (userId, skip = 0, limit = 10) => {
+const getUserSalesList = async (userId, skip = 0, limit = 10) => {
   try {
     const skipNum = parseInt(skip) || 0;
     const limitNum = parseInt(limit) || 10;
@@ -829,7 +978,7 @@ export const getUserSalesList = async (userId, skip = 0, limit = 10) => {
 /**
  * Update purchase status
  */
-export const updatePurchaseStatus = async (saleId, status) => {
+const updatePurchaseStatus = async (saleId, status) => {
   try {
     const query = `UPDATE sales SET status = ?, updated_at = NOW() WHERE id = ?`;
     await pool.query(query, [status, saleId]);
@@ -843,7 +992,7 @@ export const updatePurchaseStatus = async (saleId, status) => {
 /**
  * Safe decrypt ID
  */
-export const safeDecryptId = (encryptedId) => {
+const safeDecryptId = (encryptedId) => {
   try {
     if (!encryptedId) return null;
     return decryptId(encryptedId);
@@ -856,7 +1005,7 @@ export const safeDecryptId = (encryptedId) => {
 /**
  * Check free video call access
  */
-export const checkFreeVideoCallAccess = async (userId, otherUserId) => {
+const checkFreeVideoCallAccess = async (userId, otherUserId) => {
   try {
     // Check if users are blocked or have restrictions
     const query = `
@@ -877,7 +1026,7 @@ export const checkFreeVideoCallAccess = async (userId, otherUserId) => {
 /**
  * Check paid video call access
  */
-export const checkPaidVideoCallAccess = async (userId, otherUserId) => {
+const checkPaidVideoCallAccess = async (userId, otherUserId) => {
   try {
     // Check if users are blocked or have restrictions
     const query = `
@@ -898,7 +1047,7 @@ export const checkPaidVideoCallAccess = async (userId, otherUserId) => {
 /**
  * Check paid chat access
  */
-export const checkPaidChatAccess = async (userId, otherUserId) => {
+const checkPaidChatAccess = async (userId, otherUserId) => {
   try {
     // Check if users are blocked or have restrictions
     const query = `
@@ -919,7 +1068,7 @@ export const checkPaidChatAccess = async (userId, otherUserId) => {
 /**
  * Check free chat access
  */
-export const checkFreeChatAccess = async (userId, otherUserId) => {
+const checkFreeChatAccess = async (userId, otherUserId) => {
   try {
     // Check if users are blocked or have restrictions
     const query = `
@@ -940,7 +1089,7 @@ export const checkFreeChatAccess = async (userId, otherUserId) => {
 /**
  * Check creator agreement access
  */
-export const checkCreatorAgreementAccess = async (userId) => {
+const checkCreatorAgreementAccess = async (userId) => {
   try {
     // Check if user is already a creator or has pending agreement
     const query = `
@@ -960,7 +1109,7 @@ export const checkCreatorAgreementAccess = async (userId) => {
 /**
  * Get creator agreement status
  */
-export const getCreatorAgreementStatus = async (userId) => {
+const getCreatorAgreementStatus = async (userId) => {
   try {
     const query = `
       SELECT status, created_at, updated_at 
@@ -981,7 +1130,7 @@ export const getCreatorAgreementStatus = async (userId) => {
 /**
  * Create creator agreement
  */
-export const createCreatorAgreement = async (agreementData) => {
+const createCreatorAgreement = async (agreementData) => {
   try {
     const { user_id, photo_path, signature_path, pdf_path, status = 'pending' } = agreementData;
     
@@ -1002,7 +1151,7 @@ export const createCreatorAgreement = async (agreementData) => {
 /**
  * Update creator agreement status
  */
-export const updateCreatorAgreementStatus = async (userId, status) => {
+const updateCreatorAgreementStatus = async (userId, status) => {
   try {
     const query = `
       UPDATE creator_agreements 
@@ -1023,7 +1172,7 @@ export const updateCreatorAgreementStatus = async (userId, status) => {
 /**
  * Check video call access (generic)
  */
-export const checkVideoCallAccess = async (userId, otherUserId) => {
+const checkVideoCallAccess = async (userId, otherUserId) => {
   try {
     // Check if users are blocked or have restrictions
     const query = `
@@ -1044,7 +1193,7 @@ export const checkVideoCallAccess = async (userId, otherUserId) => {
 /**
  * Check chat access (generic)
  */
-export const checkChatAccess = async (userId, otherUserId) => {
+const checkChatAccess = async (userId, otherUserId) => {
   try {
     // Check if users are blocked or have restrictions
     const query = `
@@ -1065,7 +1214,7 @@ export const checkChatAccess = async (userId, otherUserId) => {
 /**
  * Check call access (generic)
  */
-export const checkCallAccess = async (userId, otherUserId) => {
+const checkCallAccess = async (userId, otherUserId) => {
   try {
     // Check if users are blocked or have restrictions
     const query = `
@@ -1086,7 +1235,7 @@ export const checkCallAccess = async (userId, otherUserId) => {
 /**
  * Get creator settings by user ID
  */
-export const getCreatorSettingsByUserId = async (userId) => {
+const getCreatorSettingsByUserId = async (userId) => {
   try {
     const query = `
       SELECT 
@@ -1114,7 +1263,7 @@ export const getCreatorSettingsByUserId = async (userId) => {
 /**
  * Update creator settings
  */
-export const updateCreatorSettings = async (userId, settings) => {
+const updateCreatorSettings = async (userId, settings) => {
   try {
     const {
       monthly_price,
@@ -1158,7 +1307,7 @@ export const updateCreatorSettings = async (userId, settings) => {
  * @param {object} access - Feature access flags (e.g., isVcEnable, isAcEnable)
  * @returns {Promise<{success: boolean, message?: string}>}
  */
-export const updateCreatorSettingsByUserId = async (userId, data, access) => {
+const updateCreatorSettingsByUserId = async (userId, data, access) => {
   try {
     const pool = getDB();
 
@@ -1241,7 +1390,7 @@ export const updateCreatorSettingsByUserId = async (userId, data, access) => {
 /**
  * Get creator subscription settings
  */
-export const getCreatorSubscriptionSettings = async (userId) => {
+const getCreatorSubscriptionSettings = async (userId) => {
   try {
     const query = `
       SELECT 
@@ -1269,7 +1418,7 @@ export const getCreatorSubscriptionSettings = async (userId) => {
 /**
  * Update creator subscription settings
  */
-export const updateCreatorSubscriptionSettings = async (userId, settings) => {
+const updateCreatorSubscriptionSettings = async (userId, settings) => {
   try {
     const {
       monthly_price,
@@ -1308,7 +1457,7 @@ export const updateCreatorSubscriptionSettings = async (userId, settings) => {
 /**
  * Get creator withdrawal settings
  */
-export const getCreatorWithdrawalSettings = async (userId) => {
+const getCreatorWithdrawalSettings = async (userId) => {
   try {
     const query = `
       SELECT 
@@ -1334,7 +1483,7 @@ export const getCreatorWithdrawalSettings = async (userId) => {
 /**
  * Update creator withdrawal settings
  */
-export const updateCreatorWithdrawalSettings = async (userId, settings) => {
+const updateCreatorWithdrawalSettings = async (userId, settings) => {
   try {
     const {
       withdrawal_method,
@@ -1366,11 +1515,11 @@ export const updateCreatorWithdrawalSettings = async (userId, settings) => {
 };
 
 // Logging utility functions
-export const logInfo = (message, meta = {}) => {
+const logInfo = (message, meta = {}) => {
   logger.info(message, meta);
 };
 
-export const logError = (message, error = null) => {
+const logError = (message, error = null) => {
   if (error) {
     logger.error(message, { error: error.message, stack: error.stack, ...error });
   } else {
@@ -1379,7 +1528,7 @@ export const logError = (message, error = null) => {
 };
 
 // Rate limiting middleware using DynamoDB
-export const checkRateLimit = async (ip, route) => {
+const checkRateLimit = async (ip, route) => {
     try {
       const key = `rate_limit:${ip}:${route}`;
       const now = Date.now();
@@ -1476,7 +1625,7 @@ export const checkRateLimit = async (ip, route) => {
   };
 
   // Email domain validation
-export const isValidEmailDomain = async (email) => {
+const isValidEmailDomain = async (email) => {
   try {
     const domain = email.split('@')[1];
     const pool = getDB();
@@ -1523,7 +1672,7 @@ export const isValidEmailDomain = async (email) => {
 };
 
 // Generate and store OTP
-export const generateOTP = async (identifier) => {
+const generateOTP = async (identifier) => {
     const otp = crypto.randomInt(10000, 100000).toString();
     
     try {
@@ -1558,7 +1707,7 @@ export const generateOTP = async (identifier) => {
   };
 
 // Check email validation status
-export const checkEmailValidation = async (email) => {
+const checkEmailValidation = async (email) => {
     try {
       const pool = getDB();
       const queryPromise = pool.query(
@@ -1590,7 +1739,7 @@ export const checkEmailValidation = async (email) => {
   };
 
   // Store email validation result
-export const storeEmailValidation = async (email, status, remarks = null) => {
+const storeEmailValidation = async (email, status, remarks = null) => {
     try {
       const pool = getDB();
       const queryPromise = pool.query(
@@ -1624,7 +1773,7 @@ export const storeEmailValidation = async (email, status, remarks = null) => {
     }
   }
 
-  export const validateEmailWithListClean = async (email) => {
+  const validateEmailWithListClean = async (email) => {
     try {
       const pool = getDB();
       // 1. Check if email already validated
@@ -1672,7 +1821,7 @@ export const storeEmailValidation = async (email, status, remarks = null) => {
   };
   
 // Check for duplicate account
-export const checkDuplicateAccount = async (email, phone) => {
+const checkDuplicateAccount = async (email, phone) => {
     try {
       const pool = getDB();
       let query = 'SELECT id FROM users WHERE ';
@@ -1713,7 +1862,7 @@ export const checkDuplicateAccount = async (email, phone) => {
   };
 
 // Common API response function
-export const createResponse = (statusCode, message, data = null, error = null) => {
+const createResponse = (statusCode, message, data = null, error = null) => {
   const response = {
     statusCode,
     headers: {
@@ -1733,8 +1882,8 @@ export const createResponse = (statusCode, message, data = null, error = null) =
   return response;
 };
 
-// Common error response function
-export const createErrorResponse = (statusCode, error, details = null) => {
+// Common error response function (Express version - returns JSON body only)
+const createErrorResponse = (statusCode, error, details = null) => {
   // HTTP status messages mapping
   const statusMessages = {
     400: 'Bad Request',
@@ -1753,16 +1902,16 @@ export const createErrorResponse = (statusCode, error, details = null) => {
   const statusMessage = statusMessages[statusCode] || 'Error';
   const fullMessage = `${statusMessage}: ${error}`;
   
-  return createResponse(statusCode, fullMessage, null, details);
+  return {
+    message: fullMessage,
+    status: statusCode,
+    ...(details && { error: details }),
+    timestamp: new Date().toISOString()
+  };
 };
 
-// Common success response function
-export const createSuccessResponse = (message, data = null) => {
-  return createResponse(200, message, data);
-};
-
-// Express.js response format (for direct JSON responses)
-export const createExpressSuccessResponse = (message, data = null) => {
+// Common success response function (Express version - returns JSON body only)
+const createSuccessResponse = (message, data = null) => {
   return {
     message,
     status: 200,
@@ -1771,16 +1920,8 @@ export const createExpressSuccessResponse = (message, data = null) => {
   };
 };
 
-export const createExpressErrorResponse = (message, statusCode = 400, error = null) => {
-  return {
-    message,
-    status: statusCode,
-    ...(error && { error }),
-    timestamp: new Date().toISOString()
-  };
-};
 
-export const verifyEmailOTP = async (identifier, otp) => {
+const verifyEmailOTP = async (identifier, otp) => {
   try {
     const tableName = `otp-${process.env.NODE_ENV || 'dev'}`; // Fixed table name
     logInfo('Verifying OTP from DynamoDB:', { identifier, tableName });
@@ -1848,7 +1989,7 @@ export const verifyEmailOTP = async (identifier, otp) => {
  * Get WhatsApp access token status from database
  * @returns {Promise<object>} Token status information
  */
-export const getWhatsAppTokenStatus = async () => {
+const getWhatsAppTokenStatus = async () => {
   try {
     const pool = getDB();
     const [rows] = await pool.query(
@@ -1876,7 +2017,7 @@ export const getWhatsAppTokenStatus = async () => {
  * @param {string} message - The message to send
  * @returns {Promise<void>}
  */
-export const sendTelegramNotification = async (message) => {
+const sendTelegramNotification = async (message) => {
   try {
     const chatId = process.env.TELEGRAM_CHAT_ID;
     const botToken = process.env.TELEGRAM_BOT_TOKEN;
@@ -1900,7 +2041,7 @@ export const sendTelegramNotification = async (message) => {
  * @param {object} req - Express request object
  * @returns {object} Device information object
  */
-export const getDeviceInfo = (req) => {
+const getDeviceInfo = (req) => {
   try {
     const headers = req.headers || {};
     const userAgent = headers['user-agent'] || '';
@@ -1958,7 +2099,7 @@ export const getDeviceInfo = (req) => {
  * @param {string} timezone - IANA timezone (e.g., 'Asia/Kolkata')
  * @returns {Date} UTC Date
  */
-export const convertLocalToUTC = (date, time, timezone) => {
+const convertLocalToUTC = (date, time, timezone) => {
   try {
     if (!date || !time || !timezone) {
       throw new Error('date, time, and timezone are required');
@@ -1999,7 +2140,7 @@ export const convertLocalToUTC = (date, time, timezone) => {
  * @param {object} req - Express request object
  * @returns {Promise<object>} Session conversion result
  */
-export const convertAnonymousToAuthenticated = async (anonymousUserId, authenticatedUserId, newToken, req) => {
+const convertAnonymousToAuthenticated = async (anonymousUserId, authenticatedUserId, newToken, req) => {
   try {
     const tableName = `sessions-${process.env.NODE_ENV || 'dev'}`;
     const expiryDays = parseInt(process.env.JWT_EXPIRES_DAYS || '120');
@@ -2048,7 +2189,7 @@ export const convertAnonymousToAuthenticated = async (anonymousUserId, authentic
  * @param {object} payload - Token payload containing user information
  * @returns {string} JWT access token
  */
-export const generateAccessToken = (payload) => {
+const generateAccessToken = (payload) => {
   // Auto-encode user ID if it's a number and not already encoded
   if (payload.id && typeof payload.id === 'number') {
     payload.id = encryptId(payload.id);
@@ -2067,7 +2208,7 @@ export const generateAccessToken = (payload) => {
  * @param {object} payload - Token payload containing user information
  * @returns {string} JWT refresh token
  */
-export const generateRefreshToken = (payload) => {
+const generateRefreshToken = (payload) => {
   // Auto-encode user ID if it's a number and not already encoded
   if (payload.id && typeof payload.id === 'number') {
     payload.id = encryptId(payload.id);
@@ -2082,7 +2223,7 @@ export const generateRefreshToken = (payload) => {
  * @param {string} token - JWT token to verify
  * @returns {object|null} Decoded token payload or null if invalid
  */
-export const verifyAccessToken = (token) => {
+const verifyAccessToken = (token) => {
   try {
     return jwt.verify(token, process.env.JWT_ACCESS_SECRET);
   } catch (error) {
@@ -2096,7 +2237,7 @@ export const verifyAccessToken = (token) => {
  * @param {string} token - JWT token to verify
  * @returns {object|null} Decoded token payload or null if invalid
  */
-export const verifyRefreshToken = (token) => {
+const verifyRefreshToken = (token) => {
   try {
     return jwt.verify(token, process.env.JWT_REFRESH_SECRET);
   } catch (error) {
@@ -2110,7 +2251,7 @@ export const verifyRefreshToken = (token) => {
  * @param {string} token - JWT token to verify
  * @returns {object|null} Decoded token payload or null if invalid
  */
-export const verifyToken = (token) => {
+const verifyToken = (token) => {
   return verifyAccessToken(token);
 };
 
@@ -2121,7 +2262,7 @@ export const verifyToken = (token) => {
  * @param {object} req - Express request object for device info
  * @returns {Promise<boolean>} True if stored successfully
  */
-export const storeRefreshToken = async (anonymousId, refreshToken, req) => {
+const storeRefreshToken = async (anonymousId, refreshToken, req) => {
   try {
     const tableName = `sessions-${process.env.NODE_ENV || 'dev'}`;
     const now = Date.now();
@@ -2181,7 +2322,7 @@ export const storeRefreshToken = async (anonymousId, refreshToken, req) => {
  * @param {string} userId - User ID (for verification)
  * @returns {Promise<object|null>} Refresh token object with expiry or null if not found
  */
-export const getRefreshToken = async (refreshToken, userId) => {
+const getRefreshToken = async (refreshToken, userId) => {
   try {
     const tableName = `sessions-${process.env.NODE_ENV || 'dev'}`;
     
@@ -2228,7 +2369,7 @@ export const getRefreshToken = async (refreshToken, userId) => {
  * @param {number} days - Number of days to check (default: 7)
  * @returns {boolean} True if expires within specified days
  */
-export const isRefreshTokenExpiringSoon = (expiresAt, days = 7) => {
+const isRefreshTokenExpiringSoon = (expiresAt, days = 7) => {
   const nowInSeconds = Math.floor(Date.now() / 1000);
   const daysInSeconds = days * 24 * 60 * 60;
   const threshold = nowInSeconds + daysInSeconds;
@@ -2243,7 +2384,7 @@ export const isRefreshTokenExpiringSoon = (expiresAt, days = 7) => {
  * @param {string} userId - User ID (for verification)
  * @returns {Promise<boolean>} True if revoked successfully
  */
-export const revokeRefreshToken = async (refreshToken, userId) => {
+const revokeRefreshToken = async (refreshToken, userId) => {
   try {
     const tableName = `sessions-${process.env.NODE_ENV || 'dev'}`;
     
@@ -2277,7 +2418,7 @@ export const revokeRefreshToken = async (refreshToken, userId) => {
  * @param {object} options - Options: allowAnonymous (default false), action (string for error message context)
  * @returns {object} { userId, decoded } if valid, or { errorResponse } if not
  */
-export const getAuthenticatedUserId = (req, options = {}) => {
+const getAuthenticatedUserId = (req, options = {}) => {
   const { allowAnonymous = false, action = 'access' } = options;
   const { headers } = req;
   logInfo('getAuthenticatedUserId called', { caller: action });
@@ -2322,7 +2463,7 @@ export const getAuthenticatedUserId = (req, options = {}) => {
 /**
  * Get creator groups
  */
-export const getCreatorGroups = async (userId, creatorGroupName) => {
+const getCreatorGroups = async (userId, creatorGroupName) => {
   try {
     const query = `
       SELECT id, group_name, description, is_active, created_at, updated_at
@@ -2341,7 +2482,7 @@ export const getCreatorGroups = async (userId, creatorGroupName) => {
 /**
  * Get creator group name by ID
  */
-export const getCreatorGroupName = async (groupId) => {
+const getCreatorGroupName = async (groupId) => {
   try {
     const query = 'SELECT group_name FROM creator_groups WHERE id = ? AND is_active = 1';
     const [rows] = await pool.query(query, [groupId]);
@@ -2355,7 +2496,7 @@ export const getCreatorGroupName = async (groupId) => {
 /**
  * Get creator IDs by group name
  */
-export const getCreatorIdsByGroupName = async (groupName) => {
+const getCreatorIdsByGroupName = async (groupName) => {
   try {
     const query = 'SELECT user_id FROM creator_groups WHERE group_name = ? AND is_active = 1';
     const [rows] = await pool.query(query, [groupName]);
@@ -2369,7 +2510,7 @@ export const getCreatorIdsByGroupName = async (groupName) => {
 /**
  * Get creator group based IDs
  */
-export const getCreatorGroupBasedIds = async (groupId) => {
+const getCreatorGroupBasedIds = async (groupId) => {
   try {
     const query = 'SELECT user_id FROM creator_groups WHERE id = ? AND is_active = 1';
     const [rows] = await pool.query(query, [groupId]);
@@ -2383,7 +2524,7 @@ export const getCreatorGroupBasedIds = async (groupId) => {
 /**
  * Get user balance
  */
-export const getUserBalance = async (userId, role) => {
+const getUserBalance = async (userId, role) => {
   try {
     const query = `
       SELECT 
@@ -2409,7 +2550,7 @@ export const getUserBalance = async (userId, role) => {
 /**
  * Get creator earnings
  */
-export const getCreatorEarnings = async (userId) => {
+const getCreatorEarnings = async (userId) => {
   try {
     const query = `
       SELECT 
@@ -2430,7 +2571,7 @@ export const getCreatorEarnings = async (userId) => {
 /**
  * Get agent earnings
  */
-export const getAgentEarnings = async (userId) => {
+const getAgentEarnings = async (userId) => {
   try {
     const query = `
       SELECT 
@@ -2451,7 +2592,7 @@ export const getAgentEarnings = async (userId) => {
 /**
  * Get withdrawal summary
  */
-export const getWithdrawalSummary = async (userId) => {
+const getWithdrawalSummary = async (userId) => {
   try {
     const query = `
       SELECT 
@@ -2473,7 +2614,7 @@ export const getWithdrawalSummary = async (userId) => {
 /**
  * Get all languages (Express parity with Lambda)
  */
-export const getAllLanguages = async () => {
+const getAllLanguages = async () => {
   try {
     const pool = getDB();
     const [rows] = await pool.query(
@@ -2489,7 +2630,7 @@ export const getAllLanguages = async () => {
 /**
  * Get verified user by ID
  */
-export const getVerifiedUserById = async (userId) => {
+const getVerifiedUserById = async (userId) => {
   try {
     const pool = getDB();
     const [rows] = await pool.query('SELECT id, verified_id FROM users WHERE id = ?', [userId]);
@@ -2505,7 +2646,7 @@ export const getVerifiedUserById = async (userId) => {
 /**
  * Days in month helper
  */
-export const getDaysInMonth = (month, year) => {
+const getDaysInMonth = (month, year) => {
   const monthNum = Number(month);
   if (monthNum === 2) {
     return year % 4 ? 28 : (year % 100 ? 29 : (year % 400 ? 28 : 29));
@@ -2516,7 +2657,7 @@ export const getDaysInMonth = (month, year) => {
 /**
  * Month names mapping
  */
-export const MONTH_NAMES = {
+const MONTH_NAMES = {
   '01': 'Jan', '02': 'Feb', '03': 'Mar', '04': 'Apr', '05': 'May', '06': 'Jun',
   '07': 'Jul', '08': 'Aug', '09': 'Sep', '10': 'Oct', '11': 'Nov', '12': 'Dec'
 };
@@ -2524,7 +2665,7 @@ export const MONTH_NAMES = {
 /**
  * Support IDs from admin settings
  */
-export const getSupportCreatorIds = async () => {
+const getSupportCreatorIds = async () => {
   try {
     const pool = getDB();
     const [rows] = await pool.query('SELECT creator_support_id FROM admin_settings LIMIT 1');
@@ -2536,7 +2677,7 @@ export const getSupportCreatorIds = async () => {
   }
 };
 
-export const getSupportUserIds = async () => {
+const getSupportUserIds = async () => {
   try {
     const pool = getDB();
     const [rows] = await pool.query('SELECT support_user_id FROM admin_settings LIMIT 1');
@@ -2548,7 +2689,7 @@ export const getSupportUserIds = async () => {
   }
 };
 
-export const getRestrictedUserIds = async (userId) => {
+const getRestrictedUserIds = async (userId) => {
   try {
     const pool = getDB();
     const [rows] = await pool.query('SELECT user_restricted FROM restrictions WHERE user_id = ?', [userId]);
@@ -2560,11 +2701,86 @@ export const getRestrictedUserIds = async (userId) => {
 };
 
 /**
+ * Get support users by IDs
+ * @param {Array<number>} userIds - Array of user IDs
+ * @returns {Promise<Array>} Support users data
+ */
+const getSupportUsersByIds = async (userIds) => {
+  try {
+    if (!userIds || userIds.length === 0) {
+      return [];
+    }
+    
+    const db = await getDB();
+    const placeholders = userIds.map(() => '?').join(',');
+    const [rows] = await db.execute(`
+      SELECT 
+        id,
+        username,
+        name,
+        email,
+        mobile,
+        profile_image,
+        is_verified,
+        created_at
+      FROM users 
+      WHERE id IN (${placeholders}) AND deleted = 0
+    `, userIds);
+    
+    return rows;
+  } catch (error) {
+    logError('Error getting support users by IDs:', error);
+    return [];
+  }
+};
+
+/**
+ * Get users by search term
+ * @param {string} searchTerm - Search term
+ * @param {number} limit - Limit
+ * @param {number} skip - Skip
+ * @returns {Promise<Array>} Users matching search term
+ */
+const getUsersBySearch = async (searchTerm, limit = 20, skip = 0) => {
+  try {
+    const db = await getDB();
+    const searchPattern = `%${searchTerm}%`;
+    const [rows] = await db.execute(`
+      SELECT 
+        id,
+        username,
+        name,
+        email,
+        profile_image,
+        is_verified,
+        created_at
+      FROM users 
+      WHERE (username LIKE ? OR name LIKE ? OR email LIKE ?) 
+        AND deleted = 0
+      ORDER BY 
+        CASE 
+          WHEN username LIKE ? THEN 1
+          WHEN name LIKE ? THEN 2
+          WHEN email LIKE ? THEN 3
+          ELSE 4
+        END,
+        created_at DESC
+      LIMIT ? OFFSET ?
+    `, [searchPattern, searchPattern, searchPattern, searchPattern, searchPattern, searchPattern, limit, skip]);
+    
+    return rows;
+  } catch (error) {
+    logError('Error getting users by search:', error);
+    return [];
+  }
+};
+
+/**
  * ID obfuscation utilities
  */
 const ENCODED_ID_LENGTH = 24;
 
-export const encryptId = (id) => {
+const encryptId = (id) => {
   const secret = process.env.ENCRYPT_SECRET_ID;
   if (!secret || secret.length < 32) {
     throw new Error('ENCRYPT_SECRET_ID must be set and at least 32 characters');
@@ -2581,7 +2797,7 @@ export const encryptId = (id) => {
   return base64url;
 };
 
-export const decryptId = (encodedId) => {
+const decryptId = (encodedId) => {
   const secret = process.env.ENCRYPT_SECRET_ID;
   if (!secret || secret.length < 32) {
     throw new Error('ENCRYPT_SECRET_ID must be set and at least 32 characters');
@@ -2602,14 +2818,14 @@ export const decryptId = (encodedId) => {
   return parseInt(decrypted, 10);
 };
 
-export const isEncryptedId = (id) => {
+const isEncryptedId = (id) => {
   return typeof id === 'string' && id.length === ENCODED_ID_LENGTH && /^[a-zA-Z0-9_-]+$/.test(id);
 };
 
 /**
  * UTC to local conversion
  */
-export const convertUTCToLocal = (utcDate, timezone = 'Asia/Kolkata') => {
+const convertUTCToLocal = (utcDate, timezone = 'Asia/Kolkata') => {
   try {
     if (!utcDate) {
       throw new Error('UTC date is required');
@@ -2634,7 +2850,7 @@ export const convertUTCToLocal = (utcDate, timezone = 'Asia/Kolkata') => {
 /**
  * Updates with counts
  */
-export const getUserUpdatesWithCounts = async (userId, event = {}) => {
+const getUserUpdatesWithCounts = async (userId, event = {}) => {
   const pool = getDB();
   const { queryStringParameters = {} } = event || {};
   const { skip: skipParam = 0, limit: limitParam = 10 } = queryStringParameters;
@@ -2700,7 +2916,7 @@ export const getUserUpdatesWithCounts = async (userId, event = {}) => {
 /**
  * Basic format helpers
  */
-export const formatDate = (date) => {
+const formatDate = (date) => {
   const d = new Date(date);
   const day = d.getDate().toString().padStart(2, '0');
   const month = d.toLocaleDateString('en-US', { month: 'long' });
@@ -2708,7 +2924,7 @@ export const formatDate = (date) => {
   return `${day} ${month} ${year}`;
 };
 
-export const formatRelativeTime = (date) => {
+const formatRelativeTime = (date) => {
   const now = new Date();
   const postDate = new Date(date);
   const diffInSeconds = Math.floor((now - postDate) / 1000);
@@ -2728,9 +2944,9 @@ export const formatRelativeTime = (date) => {
   return `${diffInYears} year${diffInYears > 1 ? 's' : ''} ago`;
 };
 
-export const formatTimeAgo = (date) => formatRelativeTime(date);
+const formatTimeAgo = (date) => formatRelativeTime(date);
 
-export const formatNumberWithK = (num) => {
+const formatNumberWithK = (num) => {
   if (num === null || num === undefined || isNaN(num) || !isFinite(num)) return '0';
   const number = Number(num);
   const isNegative = number < 0;
@@ -2747,7 +2963,7 @@ export const formatNumberWithK = (num) => {
   return `${sign}${clean}k`;
 };
 
-export const getCommentLikesCount = async (commentId) => {
+const getCommentLikesCount = async (commentId) => {
   try {
     const pool = getDB();
     const [rows] = await pool.execute(`
@@ -2761,7 +2977,7 @@ export const getCommentLikesCount = async (commentId) => {
   }
 };
 
-export const formatPaymentType = (type) => {
+const formatPaymentType = (type) => {
   if (!type) return 'Subscription';
   const map = {
     'video_call_tip': 'Video Call Tip',
@@ -2786,7 +3002,7 @@ export const formatPaymentType = (type) => {
     .join(' ');
 };
 
-export const convertExpiresAtToTimestamp = (expiresAt) => {
+const convertExpiresAtToTimestamp = (expiresAt) => {
   if (!expiresAt) return null;
   const now = new Date();
   let hoursToAdd = 0;
@@ -2800,7 +3016,7 @@ export const convertExpiresAtToTimestamp = (expiresAt) => {
   return expiryDate.toISOString().slice(0, 19).replace('T', ' ');
 };
 
-export const encryptSensitiveData = (data) => {
+const encryptSensitiveData = (data) => {
   if (!data || typeof data !== 'string') return data;
   const secret = process.env.ENCRYPT_SECRET_ID;
   if (!secret || secret.length < 32) throw new Error('ENCRYPT_SECRET_ID must be set and at least 32 characters');
@@ -2817,7 +3033,7 @@ export const encryptSensitiveData = (data) => {
   return Buffer.from(JSON.stringify(payload), 'utf8').toString('base64');
 };
 
-export const decryptSensitiveData = (encryptedData) => {
+const decryptSensitiveData = (encryptedData) => {
   if (!encryptedData || typeof encryptedData !== 'string') return encryptedData;
   const secret = process.env.ENCRYPT_SECRET_ID;
   if (!secret || secret.length < 32) throw new Error('ENCRYPT_SECRET_ID must be set and at least 32 characters');
@@ -2841,7 +3057,7 @@ export const decryptSensitiveData = (encryptedData) => {
 /**
  * Sessions list and revoke by token
  */
-export const getUserSessionsWithDeviceInfo = async (userId) => {
+const getUserSessionsWithDeviceInfo = async (userId) => {
   try {
     const tableName = `sessions-${process.env.NODE_ENV || 'dev'}`;
     const result = await docClient.send(new QueryCommand({
@@ -2867,7 +3083,7 @@ export const getUserSessionsWithDeviceInfo = async (userId) => {
   }
 };
 
-export const revokeSessionByToken = async (token, userId) => {
+const revokeSessionByToken = async (token, userId) => {
   try {
     const tableName = `sessions-${process.env.NODE_ENV || 'dev'}`;
     await docClient.send(new DeleteCommand({
@@ -2879,4 +3095,131 @@ export const revokeSessionByToken = async (token, userId) => {
     logError('Error revoking session by token:', error);
     return false;
   }
+};
+
+// Export all functions at the end
+export {
+  docClient,
+  logger,
+  getAdminSettings,
+  getFile,
+  getUserById,
+  getUserCountry,
+  processCurrencySettings,
+  upsertFcmTokenRecord,
+  getSubscribersList,
+  getSubscribersCount,
+  getUserPostsList,
+  getUserPostsCount,
+  getUserUpdatesList,
+  getUserUpdatesCount,
+  updateUserPost,
+  deleteUserPost,
+  getPostComments,
+  getUserSettings,
+  checkUserFieldExists,
+  checkMobileExists,
+  getUserCountryById,
+  updateUserAfterOTP,
+  compareUserFields,
+  updateUserSettings,
+  sendOtpToUser,
+  verifyUserOtp,
+  searchUsersByName,
+  changeUserPassword,
+  createPasswordOtpForUser,
+  verifyPasswordOtpForUser,
+  blockUserById,
+  getUserProfileBySlug,
+  checkAudioCallAccess,
+  getVerificationRequestInfo,
+  getVerificationCategories,
+  createVerificationRequest,
+  getVerificationConversationsList,
+  storeVerificationConversationData,
+  getAllCountries,
+  getStates,
+  getGenderOptions,
+  getUserSalesList,
+  updatePurchaseStatus,
+  safeDecryptId,
+  checkFreeVideoCallAccess,
+  checkPaidVideoCallAccess,
+  checkPaidChatAccess,
+  checkFreeChatAccess,
+  checkCreatorAgreementAccess,
+  getCreatorAgreementStatus,
+  createCreatorAgreement,
+  updateCreatorAgreementStatus,
+  checkVideoCallAccess,
+  checkChatAccess,
+  checkCallAccess,
+  getCreatorSettingsByUserId,
+  updateCreatorSettings,
+  updateCreatorSettingsByUserId,
+  getCreatorSubscriptionSettings,
+  updateCreatorSubscriptionSettings,
+  getCreatorWithdrawalSettings,
+  updateCreatorWithdrawalSettings,
+  logInfo,
+  logError,
+  checkRateLimit,
+  isValidEmailDomain,
+  generateOTP,
+  checkEmailValidation,
+  storeEmailValidation,
+  validateEmailWithListClean,
+  checkDuplicateAccount,
+  createResponse,
+  createErrorResponse,
+  createSuccessResponse,
+  verifyEmailOTP,
+  getWhatsAppTokenStatus,
+  sendTelegramNotification,
+  getDeviceInfo,
+  convertLocalToUTC,
+  convertAnonymousToAuthenticated,
+  generateAccessToken,
+  generateRefreshToken,
+  verifyAccessToken,
+  verifyRefreshToken,
+  verifyToken,
+  storeRefreshToken,
+  getRefreshToken,
+  isRefreshTokenExpiringSoon,
+  revokeRefreshToken,
+  getAuthenticatedUserId,
+  getCreatorGroups,
+  getCreatorGroupName,
+  getCreatorIdsByGroupName,
+  getCreatorGroupBasedIds,
+  getUserBalance,
+  getCreatorEarnings,
+  getAgentEarnings,
+  getWithdrawalSummary,
+  getAllLanguages,
+  getVerifiedUserById,
+  getDaysInMonth,
+  MONTH_NAMES,
+  getSupportCreatorIds,
+  getSupportUserIds,
+  getRestrictedUserIds,
+  getSupportUsersByIds,
+  getUsersBySearch,
+  encryptId,
+  decryptId,
+  isEncryptedId,
+  convertUTCToLocal,
+  getUserUpdatesWithCounts,
+  formatDate,
+  formatRelativeTime,
+  formatTimeAgo,
+  formatNumberWithK,
+  getCommentLikesCount,
+  formatPaymentType,
+  convertExpiresAtToTimestamp,
+  encryptSensitiveData,
+  decryptSensitiveData,
+  getUserSessionsWithDeviceInfo,
+  revokeSessionByToken
 };

@@ -10,7 +10,7 @@ import { logInfo, logError } from './common.js';
  * Fetch all languages for select input
  * @returns {Promise<Array>} Array of languages { id, name, abbreviation }
  */
-export const getAllLanguages = async () => {
+const getAllLanguages = async () => {
   try {
     const pool = getDB();
     const [rows] = await pool.query(
@@ -28,7 +28,7 @@ export const getAllLanguages = async () => {
  * Fetch all countries for select input
  * @returns {Promise<Array>} Array of countries { id, country_name, country_code }
  */
-export const getAllCountries = async () => {
+const getAllCountries = async () => {
   try {
     const pool = getDB();
     const [rows] = await pool.query(
@@ -47,7 +47,7 @@ export const getAllCountries = async () => {
  * @param {number|null} countries_id - Optional country ID to filter states
  * @returns {Promise<Array>} Array of states { id, name, code, countries_id }
  */
-export const getStates = async (countries_id = null) => {
+const getStates = async (countries_id = null) => {
   try {
     const pool = getDB();
     let query = 'SELECT id, name, code, countries_id FROM states';
@@ -69,7 +69,7 @@ export const getStates = async (countries_id = null) => {
  * Fetch gender options from admin_settings table (comma-separated string)
  * @returns {Promise<Array>} Array of gender strings
  */
-export const getGenderOptions = async () => {
+const getGenderOptions = async () => {
   try {
     const pool = getDB();
     const [rows] = await pool.query('SELECT genders FROM admin_settings LIMIT 1', []);
@@ -86,7 +86,7 @@ export const getGenderOptions = async () => {
  * @param {number|string} userId
  * @returns {Promise<object|null>} User object or null
  */
-export const getUserById = async (userId) => {
+const getUserById = async (userId) => {
   try {
     const pool = getDB();
     const [rows] = await pool.query(
@@ -104,7 +104,7 @@ export const getUserById = async (userId) => {
  * Get admin settings
  * @returns {Promise<object>} Admin settings object
  */
-export const getAdminSettings = async () => {
+const getAdminSettings = async () => {
   try {
     const pool = getDB();
     const [rows] = await pool.query('SELECT * FROM admin_settings LIMIT 1');
@@ -120,7 +120,7 @@ export const getAdminSettings = async () => {
  * @param {number} userId
  * @returns {Promise<object>} Creator settings object
  */
-export const getCreatorSettingsByUserId = async (userId) => {
+const getCreatorSettingsByUserId = async (userId) => {
   try {
     const pool = getDB();
     const [rows] = await pool.query('SELECT * FROM creator_settings WHERE user_id = ?', [userId]);
@@ -158,7 +158,7 @@ export const getCreatorSettingsByUserId = async (userId) => {
  * @param {object} access - Feature access flags and adminSettings
  * @returns {Promise<{success: boolean, message?: string}>}
  */
-export const updateCreatorSettingsByUserId = async (userId, data, access) => {
+const updateCreatorSettingsByUserId = async (userId, data, access) => {
   try {
     const pool = getDB();
     // Prepare update data
@@ -215,7 +215,7 @@ export const updateCreatorSettingsByUserId = async (userId, data, access) => {
  * @param {object} adminSettings
  * @returns {Promise<boolean>}
  */
-export const checkVideoCallAccess = async (userId, adminSettings) => {
+const checkVideoCallAccess = async (userId, adminSettings) => {
   try {
     const pool = getDB();
     // Check if video call feature is globally enabled
@@ -245,7 +245,7 @@ export const checkVideoCallAccess = async (userId, adminSettings) => {
  * @param {object} adminSettings
  * @returns {Promise<boolean>}
  */
-export const checkFreeVideoCallAccess = async (userId, adminSettings) => {
+const checkFreeVideoCallAccess = async (userId, adminSettings) => {
   try {
     const pool = getDB();
     // Check if free video call feature is globally enabled
@@ -270,7 +270,7 @@ export const checkFreeVideoCallAccess = async (userId, adminSettings) => {
  * @param {object} adminSettings
  * @returns {Promise<boolean>}
  */
-export const checkAudioCallAccess = async (userId, adminSettings) => {
+const checkAudioCallAccess = async (userId, adminSettings) => {
   try {
     const pool = getDB();
     // Check if audio call feature is globally enabled
@@ -300,7 +300,7 @@ export const checkAudioCallAccess = async (userId, adminSettings) => {
  * @param {object} adminSettings
  * @returns {Promise<boolean>}
  */
-export const checkPaidChatAccess = async (userId, adminSettings) => {
+const checkPaidChatAccess = async (userId, adminSettings) => {
   try {
     const pool = getDB();
     // Check if paid chat feature is globally enabled
@@ -329,7 +329,7 @@ export const checkPaidChatAccess = async (userId, adminSettings) => {
  * @param {string} path - File path
  * @returns {string} Full file URL
  */
-export const getFile = (path) => {
+const getFile = (path) => {
   if (!path) return '';
   
   // Extract domain from APP_URL (get part after https://)
@@ -350,4 +350,21 @@ export const getFile = (path) => {
     // For other files, use updates/ prefix
     return `${cdnBase}/updates/${path}`;
   }
+};
+
+// Export all functions at the end
+export {
+  getAllLanguages,
+  getAllCountries,
+  getStates,
+  getGenderOptions,
+  getUserById,
+  getAdminSettings,
+  getCreatorSettingsByUserId,
+  updateCreatorSettingsByUserId,
+  checkVideoCallAccess,
+  checkFreeVideoCallAccess,
+  checkAudioCallAccess,
+  checkPaidChatAccess,
+  getFile
 };

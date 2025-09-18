@@ -1,4 +1,4 @@
-import { createSuccessResponse, createErrorResponse, logInfo, logError, getSubscribersList, getSubscribersCount, getUserById, getFile, decryptId, isEncryptedId, verifyAccessToken, getUserPostsList, getUserPostsCount, getUserUpdatesList, getUserUpdatesCount, updateUserPost, deleteUserPost, getPostComments, updateUserSettings, sendOtpToUser, verifyUserOtp, searchUsersByName, changeUserPassword, createPasswordOtpForUser, verifyPasswordOtpForUser, blockUserById, getUserProfileBySlug, getAuthenticatedUserId, safeDecryptId, encryptId, createExpressSuccessResponse, createExpressErrorResponse, formatRelativeTime, formatDate, formatNumberWithK, getAllLanguages, getAllCountries, getStates, getGenderOptions, generateOTP, verifyEmailOTP, getUserSettings, checkUserFieldExists, checkMobileExists, getUserCountryById, updateUserAfterOTP, compareUserFields, getSupportCreatorIds, getSupportUserIds, getRestrictedUserIds, getSupportUsersByIds, getUsersBySearch, createApiResponse } from '../utils/common.js';
+import { createSuccessResponse, createErrorResponse, logInfo, logError, getSubscribersList, getSubscribersCount, getUserById, getFile, decryptId, isEncryptedId, verifyAccessToken, getUserPostsList, getUserPostsCount, updateUserSettings, getAuthenticatedUserId, safeDecryptId, encryptId, formatRelativeTime, formatDate, formatNumberWithK, getAllLanguages, getStates, generateOTP, verifyEmailOTP, getUserSettings, checkUserFieldExists, checkMobileExists, getUserCountryById, updateUserAfterOTP, compareUserFields, getSupportCreatorIds, getSupportUserIds, getRestrictedUserIds, getSupportUsersByIds, getUsersBySearch } from '../utils/common.js';
 import { processUploadRequest } from '../utils/uploadUtils.js';
 import { getDB } from '../config/database.js';
 import { cancelSubscriptions } from '../utils/subscription.js';
@@ -328,7 +328,7 @@ const createUserProfileImageHandler = async (req, imageType) => {
 /**
  * Get user's subscribers with pagination and filtering
  */
-export const getSubscribers = async (req, res) => {
+const getSubscribers = async (req, res) => {
   try {
     const userId = req.userId;
     const { sort = null, skip: skipRaw, limit: limitRaw } = req.query;
@@ -352,7 +352,7 @@ export const getSubscribers = async (req, res) => {
 
     logInfo('Subscribers retrieved successfully', { userId, totalCount, returnedCount: subscribers.length, sort });
 
-    return res.json(createExpressSuccessResponse('Subscribers retrieved successfully', {
+    return res.json(createSuccessResponse('Subscribers retrieved successfully', {
       subscribers,
       pagination: { total: totalCount, skip, limit, hasMore, next }
     }));
@@ -365,7 +365,89 @@ export const getSubscribers = async (req, res) => {
 /**
  * Get user's posts with pagination
  */
-export const getMyPosts = async (req, res) => {
+/**
+ * Edit user update/post
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ */
+const editUpdate = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const { id, content, media_urls } = req.body;
+    
+    if (!id) {
+      return res.status(400).json(createErrorResponse(400, 'Update ID is required'));
+    }
+    
+    const db = await getDB();
+    
+    // Check if update exists and belongs to user
+    const [existingUpdate] = await db.execute(`
+      SELECT id FROM user_updates 
+      WHERE id = ? AND user_id = ? AND status = 'active'
+    `, [id, userId]);
+    
+    if (existingUpdate.length === 0) {
+      return res.status(404).json(createErrorResponse(404, 'Update not found'));
+    }
+    
+    // Update the post
+    await db.execute(`
+      UPDATE user_updates 
+      SET content = ?, media_urls = ?, updated_at = NOW()
+      WHERE id = ? AND user_id = ?
+    `, [content, JSON.stringify(media_urls || []), id, userId]);
+    
+    logInfo('User update edited successfully', { userId, updateId: id });
+    return res.json(createSuccessResponse('Update edited successfully'));
+  } catch (error) {
+    logError('Error editing user update:', error);
+    return res.status(500).json(createErrorResponse(500, 'Failed to edit update'));
+  }
+};
+
+/**
+ * Delete user update/post
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ */
+const deleteUpdate = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const { id } = req.params;
+    
+    if (!id) {
+      return res.status(400).json(createErrorResponse(400, 'Update ID is required'));
+    }
+    
+    const db = await getDB();
+    
+    // Check if update exists and belongs to user
+    const [existingUpdate] = await db.execute(`
+      SELECT id FROM user_updates 
+      WHERE id = ? AND user_id = ? AND status = 'active'
+    `, [id, userId]);
+    
+    if (existingUpdate.length === 0) {
+      return res.status(404).json(createErrorResponse(404, 'Update not found'));
+    }
+    
+    // Soft delete the post
+    await db.execute(`
+      UPDATE user_updates 
+      SET status = 'deleted', updated_at = NOW()
+      WHERE id = ? AND user_id = ?
+    `, [id, userId]);
+    
+    logInfo('User update deleted successfully', { userId, updateId: id });
+    return res.json(createSuccessResponse('Update deleted successfully'));
+  } catch (error) {
+    logError('Error deleting user update:', error);
+    return res.status(500).json(createErrorResponse(500, 'Failed to delete update'));
+  }
+};
+
+const getMyPosts = async (req, res) => {
   try {
     const userId = req.userId;
     const { skip: skipRaw, limit: limitRaw } = req.query;
@@ -384,7 +466,7 @@ export const getMyPosts = async (req, res) => {
 
     logInfo('Posts retrieved successfully', { userId, totalCount, returnedCount: posts.length });
 
-    return res.json(createExpressSuccessResponse('Posts retrieved successfully', {
+    return res.json(createSuccessResponse('Posts retrieved successfully', {
       posts,
       pagination: { total: totalCount, skip, limit, hasMore, next }
     }));
@@ -398,7 +480,7 @@ export const getMyPosts = async (req, res) => {
 /**
  * Get user settings
  */
-export const getSettings = async (req, res) => {
+const getSettings = async (req, res) => {
   try {
     const userId = req.userId;
     const user = await getUserById(userId);
@@ -419,7 +501,7 @@ export const getSettings = async (req, res) => {
     };
 
     logInfo('User settings retrieved successfully', { userId });
-    return res.json(createExpressSuccessResponse('User settings retrieved successfully', { user: settings }));
+    return res.json(createSuccessResponse('User settings retrieved successfully', { user: settings }));
   } catch (error) {
     logError('Error fetching user settings:', error);
     return res.status(500).json(createErrorResponse(500, 'Failed to fetch user settings'));
@@ -429,7 +511,7 @@ export const getSettings = async (req, res) => {
 /**
  * Update user settings
  */
-export const postSettings = async (req, res) => {
+const postSettings = async (req, res) => {
   try {
     const userId = req.userId;
     const settingsData = req.body;
@@ -440,10 +522,10 @@ export const postSettings = async (req, res) => {
     }
 
     logInfo('User settings updated successfully', { userId });
-    return res.json(createExpressSuccessResponse('User settings updated successfully'));
+    return res.json(createSuccessResponse('User settings updated successfully'));
   } catch (error) {
     logError('Error updating user settings:', error);
-    return res.status(500).json(createExpressErrorResponse('Failed to update user settings', 500));
+    return res.status(500).json(createErrorResponse(500, 'Failed to update user settings'));
   }
 };
 
@@ -538,7 +620,7 @@ const processJwtToken = (token) => {
  * @param {Object} res - Express response object
  * @returns {Promise<Object>} API Gateway response object
  */
-export const getUserInfo = async (req, res) => {
+const getUserInfo = async (req, res) => {
   const { path, method: httpMethod, headers } = req;
   const { awsRequestId } = { awsRequestId: 'express-request' }; // TODO: Convert context.awsRequestId to req.id or similar
 
@@ -627,7 +709,7 @@ const updateUserPassword = async (userId, newHashedPassword) => {
  * @param {object} res - Express response object
  * @returns {object} API Gateway response
  */
-export const changePassword = async (req, res) => {
+const changePassword = async (req, res) => {
   try {
     // 1. Authenticate user using utility (handles JWT extraction/validation)
     // TODO: Convert getAuthenticatedUserId(event, { action: 'change password' }) to getAuthenticatedUserId(req, { action: 'change password' })
@@ -775,7 +857,7 @@ const validateCreatePassword = ({ password, confirm_password }) => {
  * @param {object} res - Express response object
  * @returns {Promise<object>} API response
  */
-export const createPasswordOtp = async (req, res) => {
+const createPasswordOtp = async (req, res) => {
   try {
     // Require authenticated user (non-anonymous)
     // TODO: Convert getAuthenticatedUserId(event, { allowAnonymous: false, action: 'create password' }) to getAuthenticatedUserId(req, { allowAnonymous: false, action: 'create password' })
@@ -913,7 +995,7 @@ export const createPasswordOtp = async (req, res) => {
  * @param {object} res - Express response object
  * @returns {Promise<object>} API response
  */
-export const verifyPasswordOtp = async (req, res) => {
+const verifyPasswordOtp = async (req, res) => {
   try {
     // TODO: Convert getAuthenticatedUserId(event, { allowAnonymous: false, action: 'verify password otp' }) to getAuthenticatedUserId(req, { allowAnonymous: false, action: 'verify password otp' })
     const { userId, errorResponse } = getAuthenticatedUserId(req, { allowAnonymous: false, action: 'verify password otp' });
@@ -1091,7 +1173,53 @@ const validateReportInputs = ({ reason, message, name, email }) => {
  * @param {object} res - Express response object
  * @returns {object} Response with report status
  */
-export const blockUser = async (req, res) => {
+/**
+ * Unrestrict user (remove restriction)
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ */
+const unrestrictUser = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const { id } = req.params;
+    
+    if (!id) {
+      return res.status(400).json(createErrorResponse(400, 'User ID is required'));
+    }
+    
+    const userToUnrestrictId = parseInt(id);
+    if (isNaN(userToUnrestrictId)) {
+      return res.status(400).json(createErrorResponse(400, 'Invalid user ID'));
+    }
+    
+    const db = await getDB();
+    
+    // Check if restriction exists
+    const [existingRestriction] = await db.execute(`
+      SELECT id FROM user_restrictions 
+      WHERE creator_id = ? AND user_id = ? AND status = 'active'
+    `, [userId, userToUnrestrictId]);
+    
+    if (existingRestriction.length === 0) {
+      return res.status(404).json(createErrorResponse(404, 'User restriction not found'));
+    }
+    
+    // Remove the restriction
+    await db.execute(`
+      UPDATE user_restrictions 
+      SET status = 'inactive', updated_at = NOW()
+      WHERE creator_id = ? AND user_id = ?
+    `, [userId, userToUnrestrictId]);
+    
+    logInfo('User restriction removed successfully', { userId, userToUnrestrictId });
+    return res.json(createSuccessResponse('User restriction removed successfully'));
+  } catch (error) {
+    logError('Error removing user restriction:', error);
+    return res.status(500).json(createErrorResponse(500, 'Failed to remove user restriction'));
+  }
+};
+
+const blockUser = async (req, res) => {
   try {
     logInfo('Report user request received');
 
@@ -1364,7 +1492,7 @@ const formatUpdates = async (updates, mediaByUpdate, commentsCounts, likesCounts
  * @param {Object} res - Express response object
  * @returns {Promise<Object>} API response with profile data or error
  */
-export const getProfile = async (req, res) => {
+const getProfile = async (req, res) => {
   try {
     // Step 1: Validate request parameters
     // TODO: Convert validateProfileRequest(event) to validateProfileRequest(req)
@@ -1490,7 +1618,7 @@ const setUserDarkMode = async (userId, darkModeValue) => {
  * @param {object} res - Express response object
  * @returns {object} - API Gateway response.
  */
-export const darkMode = async (req, res) => {
+const darkMode = async (req, res) => {
   try {
     logInfo('Dark mode request received');
 
@@ -1577,7 +1705,7 @@ export const darkMode = async (req, res) => {
  * @param {object} res - Express response object
  * @returns {Promise<object>} API response with pre-signed URLs or error
  */
-export const getUserCoverUploadUrl = async (req, res) => {
+const getUserCoverUploadUrl = async (req, res) => {
   // Delegate to shared profile image upload handler with 'cover' type
   // TODO: Convert getUserProfileImageUploadUrlHandler(event, 'cover') to getUserProfileImageUploadUrlHandler(req, 'cover')
   const result = await getUserProfileImageUploadUrlHandler(req, 'cover');
@@ -1598,7 +1726,7 @@ export const getUserCoverUploadUrl = async (req, res) => {
  * @param {object} res - Express response object
  * @returns {Promise<object>} API response with success status or error
  */
-export const createUserCover = async (req, res) => {
+const createUserCover = async (req, res) => {
   // Delegate to shared profile image handler with 'cover' type
   // TODO: Convert createUserProfileImageHandler(event, 'cover') to createUserProfileImageHandler(req, 'cover')
   const result = await createUserProfileImageHandler(req, 'cover');
@@ -1619,7 +1747,7 @@ export const createUserCover = async (req, res) => {
  * @param {object} res - Express response object
  * @returns {Promise<object>} API response with pre-signed URLs or error
  */
-export const getUserAvatarUploadUrl = async (req, res) => {
+const getUserAvatarUploadUrl = async (req, res) => {
   // Delegate to shared profile image upload handler with 'avatar' type
   // TODO: Convert getUserProfileImageUploadUrlHandler(event, 'avatar') to getUserProfileImageUploadUrlHandler(req, 'avatar')
   const result = await getUserProfileImageUploadUrlHandler(req, 'avatar');
@@ -1640,7 +1768,7 @@ export const getUserAvatarUploadUrl = async (req, res) => {
  * @param {object} res - Express response object
  * @returns {Promise<object>} API response with success status or error
  */
-export const createUserAvatar = async (req, res) => {
+const createUserAvatar = async (req, res) => {
   // Delegate to shared profile image handler with 'avatar' type
   // TODO: Convert createUserProfileImageHandler(event, 'avatar') to createUserProfileImageHandler(req, 'avatar')
   const result = await createUserProfileImageHandler(req, 'avatar');
@@ -1745,7 +1873,7 @@ const dbGetRestrictedUsersCount = async (userId) => {
  * @param {object} req - Express request object
  * @param {object} res - Express response object
  */
-export const restrictUser = async (req, res) => {
+const restrictUser = async (req, res) => {
   try {
     logInfo('Restrict user request received');
 
@@ -1861,7 +1989,7 @@ export const restrictUser = async (req, res) => {
  * @param {object} req - Express request object
  * @param {object} res - Express response object
  */
-export const getRestrictions = async (req, res) => {
+const getRestrictions = async (req, res) => {
   try {
     logInfo('Get restrictions request received');
 
@@ -1926,7 +2054,7 @@ export const getRestrictions = async (req, res) => {
 // Creator Subscribers Route
 // =========================
 
-export const getCreatorSubscribers = async (req, res) => {
+const getCreatorSubscribers = async (req, res) => {
   try {
     logInfo('Creator subscribers request received');
     const { userId, errorResponse } = getAuthenticatedUserId(req, { allowAnonymous: false, action: 'get creator subscribers' });
@@ -2021,7 +2149,7 @@ export const getCreatorSubscribers = async (req, res) => {
 // Posts Route
 // =========================
 
-export const getPosts = async (req, res) => {
+const getPosts = async (req, res) => {
   try {
     logInfo('Posts request received');
     const { userId, errorResponse } = getAuthenticatedUserId(req, { allowAnonymous: false, action: 'get posts' });
@@ -2124,7 +2252,7 @@ export const getPosts = async (req, res) => {
 // Updates Route (GET /updates)
 // =========================
 
-export const getUpdates = async (req, res) => {
+const getUpdates = async (req, res) => {
   try {
     logInfo('Updates request received');
     const { userId, errorResponse } = getAuthenticatedUserId(req, { allowAnonymous: false, action: 'get updates' });
@@ -2237,7 +2365,7 @@ export const getUpdates = async (req, res) => {
 // Edit Post Route (PUT /posts/edit)
 // =========================
 
-export const editPost = async (req, res) => {
+const editPost = async (req, res) => {
   try {
     logInfo('Edit post request received');
     const { userId, errorResponse } = getAuthenticatedUserId(req, { allowAnonymous: false, action: 'edit post' });
@@ -2292,7 +2420,7 @@ export const editPost = async (req, res) => {
 // Delete Post Route (DELETE /posts/delete/{id})
 // =========================
 
-export const deletePost = async (req, res) => {
+const deletePost = async (req, res) => {
   try {
     logInfo('Delete post request received');
     const { userId, errorResponse } = getAuthenticatedUserId(req, { allowAnonymous: false, action: 'delete post' });
@@ -2329,7 +2457,7 @@ export const deletePost = async (req, res) => {
 // Comments Route (GET /comments/{id})
 // =========================
 
-export const getComments = async (req, res) => {
+const getComments = async (req, res) => {
   try {
     logInfo('Get comments request received');
     const { userId, errorResponse } = getAuthenticatedUserId(req, { allowAnonymous: false, action: 'get comments' });
@@ -2424,7 +2552,7 @@ export const getComments = async (req, res) => {
 // Send OTP Route (POST /user/send-otp)
 // =========================
 
-export const sendOtp = async (req, res) => {
+const sendOtp = async (req, res) => {
   try {
     logInfo('Send OTP request received');
     const { userId, errorResponse } = getAuthenticatedUserId(req, { allowAnonymous: false, action: 'send OTP' });
@@ -2489,7 +2617,7 @@ export const sendOtp = async (req, res) => {
 // Verify OTP Route (POST /user/profile/verify-otp)
 // =========================
 
-export const verifyOtp = async (req, res) => {
+const verifyOtp = async (req, res) => {
   try {
     logInfo('Verify OTP request received');
     const { userId, errorResponse } = getAuthenticatedUserId(req, { allowAnonymous: false, action: 'verify OTP' });
@@ -2551,7 +2679,7 @@ export const verifyOtp = async (req, res) => {
 // User Profile Routes
 // =========================
 
-export const getUserProfile = async (req, res) => {
+const getUserProfile = async (req, res) => {
   try {
     logInfo('Get user profile request received');
     const { userId, errorResponse } = getAuthenticatedUserId(req, { allowAnonymous: false, action: 'get user profile' });
@@ -2621,7 +2749,7 @@ export const getUserProfile = async (req, res) => {
   }
 };
 
-export const updateUserProfile = async (req, res) => {
+const updateUserProfile = async (req, res) => {
   try {
     logInfo('Update user profile request received');
     const { userId, errorResponse } = getAuthenticatedUserId(req, { allowAnonymous: false, action: 'update user profile' });
@@ -2733,7 +2861,7 @@ export const updateUserProfile = async (req, res) => {
 // Search Users Route (GET /user/search)
 // =========================
 
-export const searchUsers = async (req, res) => {
+const searchUsers = async (req, res) => {
   try {
     logInfo('Search users request received');
     const { userId, errorResponse } = getAuthenticatedUserId(req, { allowAnonymous: false, action: 'search users' });
@@ -2810,4 +2938,55 @@ export const searchUsers = async (req, res) => {
     logError('Search users error:', error);
     return res.status(500).json(createErrorResponse(500, 'Internal server error'));
   }
+};
+
+// Export all functions at the end
+export {
+  getUserProfileImageUploadUrlHandler,
+  moveProcessedFileToFinalLocation,
+  cleanupOldImageFile,
+  createUserProfileImageHandler,
+  getSubscribers,
+  editUpdate,
+  deleteUpdate,
+  getMyPosts,
+  getSettings,
+  postSettings,
+  getUserInfoById,
+  getUserInfo,
+  updateUserPassword,
+  changePassword,
+  updateUserPasswordById,
+  createPasswordOtp,
+  verifyPasswordOtp,
+  getOrCreateReport,
+  addReport,
+  unrestrictUser,
+  blockUser,
+  formatUpdates,
+  getProfile,
+  setUserDarkMode,
+  darkMode,
+  getUserCoverUploadUrl,
+  createUserCover,
+  getUserAvatarUploadUrl,
+  createUserAvatar,
+  dbGetRestriction,
+  dbAddRestriction,
+  dbRemoveRestriction,
+  dbGetRestrictedUsers,
+  dbGetRestrictedUsersCount,
+  restrictUser,
+  getRestrictions,
+  getCreatorSubscribers,
+  getPosts,
+  getUpdates,
+  editPost,
+  deletePost,
+  getComments,
+  sendOtp,
+  verifyOtp,
+  getUserProfile,
+  updateUserProfile,
+  searchUsers
 };

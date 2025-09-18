@@ -14,7 +14,7 @@ import { sendContactMessageEmail } from '../utils/mail.js';
  * @param {Object} res - Express response object
  * @returns {Promise<Object>} Response with user info and form settings
  */
-export const getContactUserInfo = async (req, res) => {
+const getContactUserInfo = async (req, res) => {
   try {
     // Get user ID if authenticated (allow anonymous for contact form)
     // TODO: Convert getAuthenticatedUserId(event, { allowAnonymous: true, action: 'contact form access' }) to getAuthenticatedUserId(req, { allowAnonymous: true, action: 'contact form access' })
@@ -68,7 +68,7 @@ export const getContactUserInfo = async (req, res) => {
  * @param {Object} res - Express response object
  * @returns {Promise<Object>} Response indicating success or failure
  */
-export const submitContactForm = async (req, res) => {
+const submitContactForm = async (req, res) => {
   try {
     // Parse request body
     // TODO: Convert JSON.parse(event.body || '{}') to req.body (already parsed by Express middleware)
@@ -199,4 +199,11 @@ const validateCaptcha = async (captchaResponse) => {
     logError('Error validating captcha:', error);
     return false;
   }
+};
+
+// Export all functions at the end
+export {
+  getContactUserInfo,
+  submitContactForm,
+  validateCaptcha
 };

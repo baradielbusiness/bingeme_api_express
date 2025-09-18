@@ -9,7 +9,7 @@ import bcrypt from 'bcryptjs';
  * @param {object} req - Express request object
  * @returns {object} API response
  */
-export const getPrivacySecurity = async (req, res) => {
+const getPrivacySecurity = async (req, res) => {
   try {
     // Authenticate the user
     // TODO: Convert getAuthenticatedUserId(event, { action: 'privacy & security' }) to getAuthenticatedUserId(req, { action: 'privacy & security' })
@@ -54,7 +54,7 @@ export const getPrivacySecurity = async (req, res) => {
  * @param {object} req - Express request object
  * @returns {object} API response
  */
-export const updatePrivacySecurity = async (req, res) => {
+const updatePrivacySecurity = async (req, res) => {
   try {
     // Authenticate the user
     // TODO: Convert getAuthenticatedUserId(event, { action: 'privacy & security' }) to getAuthenticatedUserId(req, { action: 'privacy & security' })
@@ -106,7 +106,7 @@ export const updatePrivacySecurity = async (req, res) => {
  * @param {object} req - Express request object
  * @returns {object} API response
  */
-export const getAccountDeletionStatus = async (req, res) => {
+const getAccountDeletionStatus = async (req, res) => {
   try {
     // Authenticate the user
     // TODO: Convert getAuthenticatedUserId(event, { action: 'account deletion status' }) to getAuthenticatedUserId(req, { action: 'account deletion status' })
@@ -165,7 +165,7 @@ export const getAccountDeletionStatus = async (req, res) => {
  * @param {object} req - Express request object
  * @returns {object} API response
  */
-export const deleteAccount = async (req, res) => {
+const deleteAccount = async (req, res) => {
   try {
     // Authenticate the user
     // TODO: Convert getAuthenticatedUserId(event, { action: 'account deletion' }) to getAuthenticatedUserId(req, { action: 'account deletion' })
@@ -270,7 +270,7 @@ export const deleteAccount = async (req, res) => {
  * @param {object} req - Express request object
  * @returns {object} API response
  */
-export const deleteAccountWithOtp = async (req, res) => {
+const deleteAccountWithOtp = async (req, res) => {
   try {
     // Authenticate the user
     // TODO: Convert getAuthenticatedUserId(event, { action: 'account deletion with OTP' }) to getAuthenticatedUserId(req, { action: 'account deletion with OTP' })
@@ -341,7 +341,7 @@ export const deleteAccountWithOtp = async (req, res) => {
  * @param {object} req - Express request object
  * @returns {object} API response
  */
-export const clearSessions = async (req, res) => {
+const clearSessions = async (req, res) => {
   try {
     // Authenticate the user
     // TODO: Convert getAuthenticatedUserId(event, { action: 'clear sessions' }) to getAuthenticatedUserId(req, { action: 'clear sessions' })
@@ -392,7 +392,7 @@ export const clearSessions = async (req, res) => {
  * @param {object} req - Express request object
  * @returns {object} API response
  */
-export const getAccountRetrieve = async (req, res) => {
+const getAccountRetrieve = async (req, res) => {
   try {
     // Authenticate the user
     // TODO: Convert getAuthenticatedUserId(event, { action: 'account retrieve info' }) to getAuthenticatedUserId(req, { action: 'account retrieve info' })
@@ -435,7 +435,7 @@ export const getAccountRetrieve = async (req, res) => {
  * @param {object} req - Express request object
  * @returns {object} API response
  */
-export const retrieveAccount = async (req, res) => {
+const retrieveAccount = async (req, res) => {
   try {
     // Authenticate the user
     // TODO: Convert getAuthenticatedUserId(event, { action: 'account retrieve' }) to getAuthenticatedUserId(req, { action: 'account retrieve' })
@@ -483,4 +483,16 @@ export const retrieveAccount = async (req, res) => {
     // TODO: Convert createErrorResponse(500, 'Internal server error') to res.status(500).json({ error: 'Internal server error' })
     return res.status(500).json(createErrorResponse(500, 'Internal server error'));
   }
+};
+
+// Export all functions at the end
+export {
+  getPrivacySecurity,
+  updatePrivacySecurity,
+  getAccountDeletionStatus,
+  deleteAccount,
+  deleteAccountWithOtp,
+  clearSessions,
+  getAccountRetrieve,
+  retrieveAccount
 };

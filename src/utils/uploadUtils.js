@@ -10,7 +10,7 @@ const s3Client = new S3Client({
 /**
  * Process upload request - generate pre-signed URLs
  */
-export const processUploadRequest = async (fileNames, folder = 'uploads') => {
+const processUploadRequest = async (fileNames, folder = 'uploads') => {
   try {
     const uploadUrls = [];
     
@@ -74,4 +74,9 @@ const getContentType = (extension) => {
   };
   
   return contentTypes[extension.toLowerCase()] || 'application/octet-stream';
+};
+
+// Export all functions at the end
+export {
+  processUploadRequest
 };

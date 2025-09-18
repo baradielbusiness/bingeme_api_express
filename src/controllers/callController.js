@@ -19,7 +19,7 @@ import { RtcTokenBuilder, Role } from '../agora/RtcTokenBuilder2.js';
  * @param {object} req - Express request object
  * @param {object} res - Express response object
  */
-export const getAgoraDetails = async (req, res) => {
+const getAgoraDetails = async (req, res) => {
   try {
     logInfo('Fetching Agora app details for video call configuration');
 
@@ -157,3 +157,8 @@ const validateRoomAccess = async (roomId, userId) => {
   }
 };
 
+// Export all functions at the end
+export {
+  getAgoraDetails,
+  validateRoomAccess
+};

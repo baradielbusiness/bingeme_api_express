@@ -1,7 +1,7 @@
 /**
  * Validate product input
  */
-export const validateProductInput = (input, options = {}) => {
+const validateProductInput = (input, options = {}) => {
   const errors = [];
   const { isUpdate = false } = options;
   
@@ -59,7 +59,7 @@ export const validateProductInput = (input, options = {}) => {
 /**
  * Validate product ID
  */
-export const validateProductId = (productId) => {
+const validateProductId = (productId) => {
   const errors = [];
   
   if (!productId) {
@@ -71,4 +71,10 @@ export const validateProductId = (productId) => {
   }
   
   return errors;
+};
+
+// Export all functions at the end
+export {
+  validateProductInput,
+  validateProductId
 };

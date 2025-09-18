@@ -16,7 +16,7 @@
  * 
  */
 
-import { pool } from '../config/database.js';
+import { pool, getDB } from '../config/database.js';
 import { logError, logInfo } from './common.js';
 
 const getAdminSettings = async () => {
@@ -299,6 +299,37 @@ const cancelSubscription = async (subscriptionId, subscriberId) => {
   }
 };
 
+/**
+ * Cancel multiple subscriptions for a user
+ * @param {number} userId - User ID (subscriber)
+ * @param {number} creatorId - Creator ID
+ * @param {Array<string>} planNames - Array of plan names to cancel
+ * @returns {Promise<boolean>} Success status
+ */
+const cancelSubscriptions = async (userId, creatorId, planNames) => {
+  try {
+    const db = await getDB();
+    
+    if (!planNames || planNames.length === 0) {
+      return true;
+    }
+    
+    const placeholders = planNames.map(() => '?').join(',');
+    const [result] = await db.execute(`
+      UPDATE subscriptions 
+      SET status = 'cancelled', updated_at = NOW()
+      WHERE user_id = ? AND creator_id = ? AND plan_name IN (${placeholders}) AND status = 'active'
+    `, [userId, creatorId, ...planNames]);
+    
+    logInfo('Subscriptions cancelled', { userId, creatorId, planNames, affectedRows: result.affectedRows });
+    return true;
+  } catch (error) {
+    logError('Error cancelling subscriptions:', error);
+    throw error;
+  }
+};
+
+// Export all functions at the end
 export {
   getAdminSettings,
   getUserSubscriptionPlans,
@@ -311,5 +342,6 @@ export {
   getSubscriptionStats,
   isUserSubscribed,
   createSubscription,
-  cancelSubscription
+  cancelSubscription,
+  cancelSubscriptions
 };

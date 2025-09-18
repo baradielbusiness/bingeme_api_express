@@ -44,7 +44,7 @@ const encryptEmail = (email) => {
  * @param {string} type - Type of OTP (signup, login, forgot_password, 2fa)
  * @returns {Promise<boolean>} True if sent successfully
  */
-export const sendEmailOTP = async (email, otp, type = 'signup') => {
+const sendEmailOTP = async (email, otp, type = 'signup') => {
   try {
     logInfo('sendEmailOTP called', { email, otp, type });
     
@@ -125,7 +125,7 @@ export const sendEmailOTP = async (email, otp, type = 'signup') => {
  * @param {object} contactData - Contact form data
  * @returns {Promise<boolean>} True if sent successfully
  */
-export const sendContactMessageEmail = async (contactData) => {
+const sendContactMessageEmail = async (contactData) => {
   try {
     const transporter = createTransporter();
     
@@ -192,4 +192,10 @@ export const sendContactMessageEmail = async (contactData) => {
     logError('Contact message email sending failed', error);
     return false;
   }
+};
+
+// Export all functions at the end
+export {
+  sendEmailOTP,
+  sendContactMessageEmail
 };

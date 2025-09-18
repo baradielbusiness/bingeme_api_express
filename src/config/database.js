@@ -7,7 +7,7 @@ let connectionPool = null;
  * Create database connection pool
  * Manages MySQL connections efficiently
  */
-export const createConnectionPool = () => {
+const createConnectionPool = () => {
   if (connectionPool) {
     return connectionPool;
   }
@@ -39,7 +39,7 @@ export const createConnectionPool = () => {
  * Connect to database
  * Establishes initial database connection
  */
-export const connectDB = async () => {
+const connectDB = async () => {
   const allowStartWithoutDb = (process.env.ALLOW_START_WITHOUT_DB === 'true') || (process.env.NODE_ENV === 'development');
   try {
     const pool = createConnectionPool();
@@ -62,7 +62,7 @@ export const connectDB = async () => {
  * Get database connection pool
  * Returns the existing connection pool
  */
-export const getDB = () => {
+const getDB = () => {
   if (!connectionPool) {
     // Lazily create the pool if not initialized yet
     connectionPool = createConnectionPool();
@@ -72,7 +72,7 @@ export const getDB = () => {
 
 // Lightweight proxy to maintain compatibility with modules importing { pool }
 // Uses lazy getDB() under the hood to avoid premature initialization
-export const pool = {
+const pool = {
   query: (...args) => getDB().query(...args),
   execute: (...args) => getDB().execute(...args),
   getConnection: (...args) => getDB().getConnection(...args)
@@ -82,10 +82,19 @@ export const pool = {
  * Close database connections
  * Gracefully closes all database connections
  */
-export const closeDB = async () => {
+const closeDB = async () => {
   if (connectionPool) {
     await connectionPool.end();
     connectionPool = null;
     logInfo('Database connections closed');
   }
+};
+
+// Export all functions at the end
+export {
+  createConnectionPool,
+  connectDB,
+  getDB,
+  pool,
+  closeDB
 };

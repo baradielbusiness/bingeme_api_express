@@ -66,7 +66,7 @@ const parseRequestBody = (req) => {
  * @param {object} req - Express request object with headers containing Authorization token
  * @returns {object} API response with sanitized payout method details or error response
  */
-export const getPayoutMethod = async (req, res) => {
+const getPayoutMethod = async (req, res) => {
   try {
     // Extract and validate user authentication	
     // TODO: Convert getAuthenticatedUserId(event, { action: 'payout_method getPayoutMethodHandler' }) to getAuthenticatedUserId(req, { action: 'payout_method getPayoutMethodHandler' })
@@ -113,7 +113,7 @@ export const getPayoutMethod = async (req, res) => {
  * @param {object} req - Express request object with path parameters and request body
  * @returns {object} API response with configuration result or error response
  */
-export const createPayoutMethod = async (req, res) => {
+const createPayoutMethod = async (req, res) => {
   try {
     // Authenticate user using common.js utility
     // TODO: Convert getAuthenticatedUserId(event, { action: 'payout_method createPayoutMethodHandler' }) to getAuthenticatedUserId(req, { action: 'payout_method createPayoutMethodHandler' })
@@ -347,7 +347,7 @@ export const createPayoutMethod = async (req, res) => {
  * @param {object} req - Express request object with headers containing Authorization token
  * @returns {object} API response with deletion result or error response
  */
-export const deletePayoutMethod = async (req, res) => {
+const deletePayoutMethod = async (req, res) => {
   try {
     // Extract and validate user authentication
     // TODO: Convert getAuthenticatedUserId(event, { action: 'payout_method deletePayoutMethodHandler' }) to getAuthenticatedUserId(req, { action: 'payout_method deletePayoutMethodHandler' })
@@ -389,7 +389,7 @@ export const deletePayoutMethod = async (req, res) => {
  * Get payout conversations for the authenticated user
  * Retrieves conversations where type = '2' (payout) and user is either sender or receiver
  */
-export const getPayoutConversations = async (req, res) => {
+const getPayoutConversations = async (req, res) => {
   try {
     // Authenticate user and get user ID
     // TODO: Convert getAuthenticatedUserId(event, { action: 'get payout conversations' }) to getAuthenticatedUserId(req, { action: 'get payout conversations' })
@@ -498,7 +498,7 @@ export const getPayoutConversations = async (req, res) => {
  * 3. Uploads processed files back to S3
  * 4. Stores both original and processed paths in database
  */
-export const storePayoutConversation = async (req, res) => {
+const storePayoutConversation = async (req, res) => {
   try {
     // Authenticate user and get user ID
     // TODO: Convert getAuthenticatedUserId(event, { action: 'store payout conversation' }) to getAuthenticatedUserId(req, { action: 'store payout conversation' })
@@ -631,7 +631,7 @@ export const storePayoutConversation = async (req, res) => {
  * @param {object} req - Express request object
  * @returns {Promise<object>} API response with pre-signed URLs or error
  */
-export const getPayoutUploadUrl = async (req, res) => {
+const getPayoutUploadUrl = async (req, res) => {
   // Configuration options for payout upload processing
   const uploadOptions = {
     action: 'getPayoutUploadUrl',
@@ -651,4 +651,14 @@ export const getPayoutUploadUrl = async (req, res) => {
   } else {
     return res.status(result.statusCode).json(createErrorResponse(result.statusCode, JSON.parse(result.body).message || JSON.parse(result.body).error));
   }
+};
+
+// Export all functions at the end
+export {
+  getPayoutMethod,
+  createPayoutMethod,
+  deletePayoutMethod,
+  getPayoutConversations,
+  storePayoutConversation,
+  getPayoutUploadUrl
 };

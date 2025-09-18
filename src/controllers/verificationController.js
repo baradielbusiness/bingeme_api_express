@@ -1,4 +1,4 @@
-import { createSuccessResponse, createErrorResponse, logInfo, logError, getAllCountries, getStates, getGenderOptions, getFile, getUserById, getVerificationRequestInfo, getVerificationCategories, createVerificationRequest, getVerificationConversationsList, storeVerificationConversationData, getAuthenticatedUserId } from '../utils/common.js';
+import { createSuccessResponse, createErrorResponse, logInfo, logError, getGenderOptions, getFile, getUserById, getVerificationRequestInfo, getVerificationConversationsList, storeVerificationConversationData, getAuthenticatedUserId } from '../utils/common.js';
 import { processUploadRequest } from '../utils/uploadUtils.js';
 import { processMediaFiles, cleanupS3Files } from '../utils/mediaProcessing.js';
 import { validateVerificationRequest, validateVerificationFiles } from '../validate/verification.js';
@@ -253,7 +253,7 @@ const processVerificationFiles = (userId, body, fileFields) => {
  * @param {object} res - Express response object
  * @returns {Promise<object>} Express response with pre-signed URLs or error
  */
-export const getVerificationUploadUrl = async (req, res) => {
+const getVerificationUploadUrl = async (req, res) => {
   // Configuration options for verification upload processing with destructuring
     const uploadOptions = {
       action: 'getVerificationUploadUrl',
@@ -286,7 +286,7 @@ export const getVerificationUploadUrl = async (req, res) => {
  * @param {Object} res - Express response object
  * @returns {Promise<Object>} Express response with verification data or error
  */
-export const getVerificationAccount = async (req, res) => {
+const getVerificationAccount = async (req, res) => {
   try {
     logInfo('Verification account request received');
     
@@ -368,7 +368,7 @@ export const getVerificationAccount = async (req, res) => {
  * @param {object} res - Express response object
  * @returns {Promise<object>} Express response with processed media and user data
  */
-export const verifyAccountSend = async (req, res) => {
+const verifyAccountSend = async (req, res) => {
   try {
     logInfo('Verification upload request initiated');
 
@@ -542,7 +542,7 @@ export const verifyAccountSend = async (req, res) => {
  * @param {object} res - Express response object
  * @returns {Promise<object>} Express response with conversations data
  */
-export const getVerificationConversations = async (req, res) => {
+const getVerificationConversations = async (req, res) => {
   try {
     // TODO: Convert getAuthenticatedUserId(event, { allowAnonymous: false, action: 'verificationConversations' }) to getAuthenticatedUserId(req, { allowAnonymous: false, action: 'verificationConversations' })
     const { userId, errorResponse } = getAuthenticatedUserId(req, { allowAnonymous: false, action: 'verificationConversations' });
@@ -576,7 +576,7 @@ export const getVerificationConversations = async (req, res) => {
  * @param {object} res - Express response object
  * @returns {Promise<object>} Express response with conversation data
  */
-export const storeVerificationConversation = async (req, res) => {
+const storeVerificationConversation = async (req, res) => {
   try {
     // TODO: Convert getAuthenticatedUserId(event, { allowAnonymous: false, action: 'verificationConversationStore' }) to getAuthenticatedUserId(req, { allowAnonymous: false, action: 'verificationConversationStore' })
     const { userId, errorResponse } = getAuthenticatedUserId(req, { allowAnonymous: false, action: 'verificationConversationStore' });
@@ -607,4 +607,16 @@ export const storeVerificationConversation = async (req, res) => {
     // TODO: Convert createErrorResponse(500, 'Failed to store verification conversation') to res.status(500).json({ error: 'Failed to store verification conversation' })
     return res.status(500).json(createErrorResponse(500, 'Failed to store verification conversation'));
   }
+};
+
+// Export all functions at the end
+export {
+  getVerificationRequestInfoHelper,
+  getUserCategories,
+  getAllCategories,
+  getVerificationUploadUrl,
+  getVerificationAccount,
+  verifyAccountSend,
+  getVerificationConversations,
+  storeVerificationConversation
 };

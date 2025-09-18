@@ -66,7 +66,7 @@ import {
   validateMessageMediaInput,
   validateMassiveMessageInput
 } from '../utils/validations.js';
-import { validateConversationSearchRequest } from '../validate/conversation_search.js';
+import { validateConversationSearchInput } from '../validate/conversation_search.js';
 import { validateMessagesInboxRequest } from '../validate/messages.js';
 import { 
   findOrCreateConversation 
@@ -267,7 +267,7 @@ const positionSupportConversation = (formattedMessagesInbox, supportIndex, defau
  * @param {Object} res - Express response object
  * @returns {Promise<Object>} Express response with formatted messages and pagination
  */
-export const getConversation = async (req, res) => {
+const getConversation = async (req, res) => {
   try {
     // TODO: Convert getAuthenticatedUserId(event, { action: 'conversation getUserMessagesHandler' }) to getAuthenticatedUserId(req, { action: 'conversation getUserMessagesHandler' })
     const { userId, errorResponse } = getAuthenticatedUserId(req, { action: 'conversation getUserMessagesHandler' });
@@ -340,7 +340,7 @@ export const getConversation = async (req, res) => {
  * @param {Object} res - Express response object
  * @returns {Promise<Object>} Express response with search results or error details
  */
-export const getConversationSearch = async (req, res) => {
+const getConversationSearch = async (req, res) => {
   try {
     logInfo('searchConversationHandler: Request received', { 
       // TODO: Convert event.path to req.path
@@ -366,7 +366,7 @@ export const getConversationSearch = async (req, res) => {
 
     // Step 2: Validate search parameters
     // TODO: Convert validateConversationSearchRequest(event) to validateConversationSearchRequest(req)
-    const validation = validateConversationSearchRequest(req);
+    const validation = validateConversationSearchInput(req);
     if (!validation.valid) {
       logError('searchConversationHandler: Validation failed', { error: validation.error });
       // TODO: Convert createErrorResponse(400, validation.error) to res.status(400).json({ error: validation.error })
@@ -405,7 +405,7 @@ export const getConversationSearch = async (req, res) => {
  * @param {Object} res - Express response object
  * @returns {Promise<Object>} Express response with messages or error details
  */
-export const getMessagesInbox = async (req, res) => {
+const getMessagesInbox = async (req, res) => {
   try {
     // Log incoming request details for monitoring and debugging
     logInfo('Messages inbox request received', { 
@@ -617,7 +617,7 @@ export const getMessagesInbox = async (req, res) => {
  * @param {Object} res - Express response object
  * @returns {Promise<Object>} Express response with deletion result or error details
  */
-export const deleteMessage = async (req, res) => {
+const deleteMessage = async (req, res) => {
   try {
     // Log incoming request details for monitoring and debugging
     logInfo('Delete message request received', { 
@@ -749,7 +749,7 @@ export const deleteMessage = async (req, res) => {
  * @param {Object} res - Express response object
  * @returns {Promise<Object>} Express response with deletion result or error details
  */
-export const deleteConversation = async (req, res) => {
+const deleteConversation = async (req, res) => {
   try {
     // Log incoming request details for monitoring and debugging
     logInfo('Delete conversation request received', { 
@@ -873,7 +873,7 @@ export const deleteConversation = async (req, res) => {
  * @param {Object} res - Express response object
  * @returns {Promise<Object>} Express response with upload URLs or error details
  */
-export const getMessageUploadUrl = async (req, res) => {
+const getMessageUploadUrl = async (req, res) => {
   try {
     // Log incoming request details for monitoring and debugging
     logInfo('Message upload URL request received', { 
@@ -947,7 +947,7 @@ export const getMessageUploadUrl = async (req, res) => {
  * @param {Object} res - Express response object
  * @returns {Promise<Object>} Express response with message result or error details
  */
-export const sendMessage = async (req, res) => {
+const sendMessage = async (req, res) => {
   try {
     // Log incoming request details for monitoring and debugging
     logInfo('Send message request received', { 
@@ -1318,7 +1318,7 @@ const buildResponseData = (results, message, price, processedMedia, expiresAtTim
  * @param {Object} res - Express response object
  * @returns {Promise<Object>} Express response with massive message result or error details
  */
-export const sendMassiveMessage = async (req, res) => {
+const sendMassiveMessage = async (req, res) => {
   try {
     // Log incoming request details for monitoring and debugging
     logInfo('Massive message request received', { 
@@ -1496,7 +1496,7 @@ export const sendMassiveMessage = async (req, res) => {
  * @param {Object} res - Express response object
  * @returns {Promise<Object>} Express response with message or error details
  */
-export const getMessageById = async (req, res) => {
+const getMessageById = async (req, res) => {
   try {
     // Log incoming request details for monitoring and debugging
     logInfo('Message by ID request received', { 
@@ -1626,4 +1626,21 @@ export const getMessageById = async (req, res) => {
     // TODO: Convert createErrorResponse(500, 'Internal server error') to res.status(500).json({ error: 'Internal server error' })
     return res.status(500).json(createErrorResponse(500, 'Internal server error'));
   }
+};
+
+// Export all functions at the end
+export {
+  getSupportConfiguration,
+  getConversation,
+  getConversationSearch,
+  getMessagesInbox,
+  deleteMessage,
+  deleteConversation,
+  getMessageUploadUrl,
+  sendMessage,
+  getActiveSubscribers,
+  processMassiveMessageMedia,
+  processSubscriber,
+  sendMassiveMessage,
+  getMessageById
 };

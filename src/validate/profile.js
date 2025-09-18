@@ -8,7 +8,78 @@
  * @param {Object} input - Profile update input data
  * @returns {Array} Array of validation errors
  */
-export const validateProfileUpdateInput = (input) => {
+/**
+ * Validate profile request
+ * @param {Object} req - Express request object
+ * @returns {Object} Validation result with valid flag, data, and error
+ */
+const validateProfileRequest = (req) => {
+  try {
+    const errors = [];
+    const data = {};
+
+    // Extract user info from request (assuming it's added by auth middleware)
+    if (!req.user || !req.user.userId) {
+      errors.push('User authentication required');
+      return { valid: false, error: errors.join(', '), data: {} };
+    }
+
+    data.userId = req.user.userId;
+    data.username = req.user.username || '';
+
+    // Validate query parameters
+    const { skip, limit, type } = req.query || {};
+
+    // Validate pagination parameters
+    if (skip !== undefined) {
+      const skipNum = parseInt(skip);
+      if (isNaN(skipNum) || skipNum < 0) {
+        errors.push('Skip must be a non-negative number');
+      } else {
+        data.skip = skipNum;
+      }
+    } else {
+      data.skip = 0;
+    }
+
+    if (limit !== undefined) {
+      const limitNum = parseInt(limit);
+      if (isNaN(limitNum) || limitNum < 1 || limitNum > 100) {
+        errors.push('Limit must be a number between 1 and 100');
+      } else {
+        data.limit = limitNum;
+      }
+    } else {
+      data.limit = 20;
+    }
+
+    // Validate type parameter
+    if (type !== undefined) {
+      const validTypes = ['all', 'posts', 'updates', 'live'];
+      if (!validTypes.includes(type)) {
+        errors.push('Type must be one of: all, posts, updates, live');
+      } else {
+        data.type = type;
+      }
+    } else {
+      data.type = 'all';
+    }
+
+    return {
+      valid: errors.length === 0,
+      error: errors.length > 0 ? errors.join(', ') : null,
+      data: data
+    };
+  } catch (error) {
+    return {
+      valid: false,
+      error: 'Invalid request format',
+      data: {}
+    };
+  }
+};
+
+const validateProfileUpdateInput = (input) => {
   const errors = [];
   
   if (!input || typeof input !== 'object') {
@@ -169,7 +240,7 @@ export const validateProfileUpdateInput = (input) => {
  * @param {Object} input - Profile image upload input data
  * @returns {Array} Array of validation errors
  */
-export const validateProfileImageUploadInput = (input) => {
+const validateProfileImageUploadInput = (input) => {
   const errors = [];
   
   if (!input || typeof input !== 'object') {
@@ -197,7 +268,7 @@ export const validateProfileImageUploadInput = (input) => {
  * @param {Object} input - Profile settings input data
  * @returns {Array} Array of validation errors
  */
-export const validateProfileSettingsInput = (input) => {
+const validateProfileSettingsInput = (input) => {
   const errors = [];
   
   if (!input || typeof input !== 'object') {
@@ -259,7 +330,7 @@ export const validateProfileSettingsInput = (input) => {
  * @param {number|string} userId - User ID to validate
  * @returns {Array} Array of validation errors
  */
-export const validateUserId = (userId) => {
+const validateUserId = (userId) => {
   const errors = [];
   
   if (!userId) {
@@ -278,7 +349,7 @@ export const validateUserId = (userId) => {
  * @param {string} username - Username to validate
  * @returns {Array} Array of validation errors
  */
-export const validateUsername = (username) => {
+const validateUsername = (username) => {
   const errors = [];
   
   if (!username || typeof username !== 'string') {
@@ -292,4 +363,14 @@ export const validateUsername = (username) => {
   }
   
   return errors;
+};
+
+// Export all functions at the end
+export {
+  validateProfileRequest,
+  validateProfileUpdateInput,
+  validateProfileImageUploadInput,
+  validateProfileSettingsInput,
+  validateUserId,
+  validateUsername
 };

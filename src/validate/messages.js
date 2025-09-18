@@ -8,7 +8,7 @@
  * @param {Object} input - Message input data
  * @returns {Array} Array of validation errors
  */
-export const validateMessageInput = (input) => {
+const validateMessageInput = (input) => {
   const errors = [];
   
   if (!input || typeof input !== 'object') {
@@ -61,7 +61,7 @@ export const validateMessageInput = (input) => {
  * @param {number|string} messageId - Message ID to validate
  * @returns {Array} Array of validation errors
  */
-export const validateMessageId = (messageId) => {
+const validateMessageId = (messageId) => {
   const errors = [];
   
   if (!messageId) {
@@ -80,7 +80,7 @@ export const validateMessageId = (messageId) => {
  * @param {number|string} conversationId - Conversation ID to validate
  * @returns {Array} Array of validation errors
  */
-export const validateConversationId = (conversationId) => {
+const validateConversationId = (conversationId) => {
   const errors = [];
   
   if (!conversationId) {
@@ -99,7 +99,7 @@ export const validateConversationId = (conversationId) => {
  * @param {Object} params - Pagination parameters
  * @returns {Array} Array of validation errors
  */
-export const validatePaginationParams = (params) => {
+const validatePaginationParams = (params) => {
   const errors = [];
   
   if (!params || typeof params !== 'object') {
@@ -129,11 +129,93 @@ export const validatePaginationParams = (params) => {
 };
 
 /**
+ * Validate messages inbox request parameters
+ * @param {Object} req - Express request object
+ * @returns {Object} Validation result with valid flag, data, and error
+ */
+const validateMessagesInboxRequest = (req) => {
+  try {
+    const errors = [];
+    const data = {};
+
+    // Extract user info from request (assuming it's added by auth middleware)
+    if (!req.user || !req.user.userId) {
+      errors.push('User authentication required');
+      return { valid: false, error: errors.join(', '), data: {} };
+    }
+
+    data.userId = req.user.userId;
+    data.username = req.user.username || '';
+
+    // Validate query parameters
+    const { skip, limit, search, type } = req.query || {};
+
+    // Validate pagination parameters
+    if (skip !== undefined) {
+      const skipNum = parseInt(skip);
+      if (isNaN(skipNum) || skipNum < 0) {
+        errors.push('Skip must be a non-negative number');
+      } else {
+        data.skip = skipNum;
+      }
+    } else {
+      data.skip = 0;
+    }
+
+    if (limit !== undefined) {
+      const limitNum = parseInt(limit);
+      if (isNaN(limitNum) || limitNum < 1 || limitNum > 100) {
+        errors.push('Limit must be a number between 1 and 100');
+      } else {
+        data.limit = limitNum;
+      }
+    } else {
+      data.limit = 20;
+    }
+
+    // Validate search parameter
+    if (search !== undefined) {
+      if (typeof search !== 'string') {
+        errors.push('Search must be a string');
+      } else if (search.length > 100) {
+        errors.push('Search term must not exceed 100 characters');
+      } else {
+        data.search = search.trim();
+      }
+    }
+
+    // Validate type parameter
+    if (type !== undefined) {
+      const validTypes = ['all', 'unread', 'read'];
+      if (!validTypes.includes(type)) {
+        errors.push('Type must be one of: all, unread, read');
+      } else {
+        data.type = type;
+      }
+    } else {
+      data.type = 'all';
+    }
+
+    return {
+      valid: errors.length === 0,
+      error: errors.length > 0 ? errors.join(', ') : null,
+      data: data
+    };
+  } catch (error) {
+    return {
+      valid: false,
+      error: 'Invalid request format',
+      data: {}
+    };
+  }
+};
+
+/**
  * Validate massive message input
  * @param {Object} input - Massive message input data
  * @returns {Array} Array of validation errors
  */
-export const validateMassiveMessageInput = (input) => {
+const validateMassiveMessageInput = (input) => {
   const errors = [];
   
   if (!input || typeof input !== 'object') {
@@ -170,4 +252,14 @@ export const validateMassiveMessageInput = (input) => {
   }
   
   return errors;
+};
+
+// Export all functions at the end
+export {
+  validateMessageInput,
+  validateMessageId,
+  validateConversationId,
+  validatePaginationParams,
+  validateMessagesInboxRequest,
+  validateMassiveMessageInput
 };
