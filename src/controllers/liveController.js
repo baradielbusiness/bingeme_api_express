@@ -50,20 +50,81 @@ import {
 } from '../utils/live.js';
 import { pool } from '../config/database.js';
 import { RtcTokenBuilder, Role as RtcRole } from '../agora/RtcTokenBuilder2.js';
+import { validateLiveStreamData } from '../validate/live.js';
 import dayjs from 'dayjs';
 
 /**
+ * List of all available video filters for live streaming.
+ * This list must be kept in sync with the frontend and Laravel backend.
+ * Keys are used as filter identifiers; values are display names for UI.
+ */
+const FILTERS = {
+  normal: 'Normal',
+  'icy-water': 'Icy Water',
+  'summer-heat': 'Summer Heat',
+  fever: 'Fever',
+  strawberry: 'Strawberry',
+  ibiza: 'Ibiza',
+  'sweet-sunset': 'Sweet Sunset',
+  'blue-rock': 'Blue Rock',
+  'ocean-wave': 'Ocean Wave',
+  'little-red': 'Little Red',
+  'vintage-may': 'Vintage May',
+  'desert-morning': 'Desert Morning',
+  'blue-lagoon': 'Blue Lagoon',
+  'warm-ice': 'Warm Ice',
+  'burnt-coffee': 'Burnt Coffee',
+  waterness: 'Waterness',
+  'old-wood': 'Old Wood',
+  'distant-mountain': 'Distant Mountain',
+  'coal-paper': 'Coal Paper',
+  'simple-gray': 'Simple Gray',
+  'rose-quartz': 'Rose Quartz',
+  amazon: 'Amazon',
+  'baseline-special': 'Baseline Special',
+  'baby-glass': 'Baby Glass',
+  'rose-glass': 'Rose Glass',
+  'yellow-haze': 'Yellow Haze',
+  'blue-haze': 'Blue Haze',
+  'studio-54': 'Studio 54',
+  'burnt-peach': 'Burnt Peach',
+  'mono-sky': 'Mono Sky',
+  'mustard-grass': 'Mustard Grass',
+  leaf: 'Leaf',
+  ryellow: 'Ryellow',
+  'baseline-darken': 'Baseline Darken',
+  'red-sky': 'Red Sky',
+};
+
+/**
  * Handler to fetch the latest live and tipping menu for a user (GET /live/create)
+ *
+ * Returns the latest live stream and its tipping menus for the authenticated user.
+ *
+ * @param {object} req - Express request object
+ * @returns {object} API response with tippingMenus and liveId or error
  */
 export const getLiveCreate = async (req, res) => {
+  // Authenticate user
+  // TODO: Convert getAuthenticatedUserId(event, { action: 'access' }) to getAuthenticatedUserId(req, { action: 'access' })
+  const { userId, errorResponse } = getAuthenticatedUserId(req, { action: 'access' });
+  if (errorResponse) {
+    // TODO: Convert return errorResponse to return res.status(errorResponse.statusCode).json(errorResponse.body)
+    return res.status(errorResponse.statusCode).json(errorResponse.body);
+  }
+
+  // Fetch user and verify
+  const user = await getUserById(userId);
+  if (!user) {
+    // TODO: Convert createErrorResponse(404, 'User not found') to res.status(404).json({ error: 'User not found' })
+    return res.status(404).json({ error: 'User not found' });
+  }
+  if (user.verified_id !== 'yes') {
+    // TODO: Convert createErrorResponse(403, 'User must be verified to access creator settings') to res.status(403).json({ error: 'User must be verified to access creator settings' })
+    return res.status(403).json({ error: 'User must be verified to access creator settings' });
+  }
+
   try {
-    const userId = req.userId;
-
-    // Fetch user and verify
-    const user = await getUserById(userId);
-    if (!user) return res.status(404).json(createErrorResponse(404, 'User not found'));
-    if (user.verified_id !== 'yes') return res.status(403).json(createErrorResponse(403, 'User must be verified to access creator settings'));
-
     // Get latest live for the user using utility function
     const latestLive = await getLatestLiveForUser(userId);
     let tippingMenus = [];
@@ -79,150 +140,187 @@ export const getLiveCreate = async (req, res) => {
       id: encryptId(item.id)
     }));
 
-    return res.status(200).json(createSuccessResponse('Fetched latest live and tipping menu', { 
-      tippingMenus: encryptedTippingMenus, 
-      liveId: liveId ? encryptId(liveId) : null 
-    }));
+    // TODO: Convert createSuccessResponse('Fetched latest live and tipping menu', { ... }) to res.json({ success: true, message: 'Fetched latest live and tipping menu', data: { ... } })
+    return res.json({
+      success: true,
+      message: 'Fetched latest live and tipping menu',
+      data: { 
+        tippingMenus: encryptedTippingMenus, 
+        liveId: liveId ? encryptId(liveId) : null 
+      }
+    });
   } catch (error) {
-    logError('getLiveCreate error:', error);
-    return res.status(500).json(createErrorResponse(500, 'Failed to fetch latest live/tipping menu', error.message));
+    // TODO: Convert createErrorResponse(500, 'Failed to fetch latest live/tipping menu', error.message) to res.status(500).json({ error: 'Failed to fetch latest live/tipping menu', details: error.message })
+    return res.status(500).json({ error: 'Failed to fetch latest live/tipping menu', details: error.message });
   }
 };
 
 /**
  * Handler to create or edit a live stream (POST /live/create)
+ *
+ * Handles both creation and editing logic, including tipping menu and goal management.
+ * Validates input, manages scheduling, and updates/creates records as needed.
+ *
+ * @param {object} req - Express request object with path parameters and request body
+ * @returns {object} API response with encrypted liveId and URL or error
  */
 export const postLiveCreate = async (req, res) => {
+  // Authenticate user
+  // TODO: Convert getAuthenticatedUserId(event, { action: 'access' }) to getAuthenticatedUserId(req, { action: 'access' })
+  const { userId, errorResponse } = getAuthenticatedUserId(req, { action: 'access' });
+  if (errorResponse) {
+    // TODO: Convert return errorResponse to return res.status(errorResponse.statusCode).json(errorResponse.body)
+    return res.status(errorResponse.statusCode).json(errorResponse.body);
+  }
+
+  // Fetch user and verify
+  const user = await getUserById(userId);
+  if (!user) {
+    // TODO: Convert createErrorResponse(404, 'User not found') to res.status(404).json({ error: 'User not found' })
+    return res.status(404).json({ error: 'User not found' });
+  }
+  if (user.verified_id !== 'yes') {
+    // TODO: Convert createErrorResponse(403, 'User must be verified to access creator settings') to res.status(403).json({ error: 'User must be verified to access creator settings' })
+    return res.status(403).json({ error: 'User must be verified to access creator settings' });
+  }
+
+  let data;
   try {
-    const userId = req.userId;
-    const data = req.body;
+    // TODO: Convert JSON.parse(event.body || '{}') to JSON.parse(req.body || '{}')
+    data = JSON.parse(req.body || '{}');
+  } catch (e) {
+    // TODO: Convert createErrorResponse(400, 'Invalid JSON body') to res.status(400).json({ error: 'Invalid JSON body' })
+    return res.status(400).json({ error: 'Invalid JSON body' });
+  }
 
-    // Fetch user and verify
-    const user = await getUserById(userId);
-    if (!user) return res.status(404).json(createErrorResponse(404, 'User not found'));
-    if (user.verified_id !== 'yes') return res.status(403).json(createErrorResponse(403, 'User must be verified to access creator settings'));
-
-    // Validate input fields for live creation/edit
-    const errors = {};
-    if (!data.name || data.name.length > 50) errors.name = 'Name is required and max 50 chars';
-    if (!data.type) errors.type = 'Type is required';
-    if (data.agree !== '1') errors.agree = 'You must agree to the terms';
-    
-    // Scheduled time must be in the future (UTC)
-    let nowUTC = new Date();
-    let liveType = data.type;
-    let datetime = null;
-    
-    if (liveType === 'scheduled' && data.scheduled_date && data.scheduled_time) {
-      // Validate timezone is provided for scheduled lives
-      if (!data.timezone) {
-        errors.timezone = 'Timezone is required for scheduled live streams';
-      } else {
-        try {
-          // Convert user's local timezone to UTC using the utility function
-          datetime = convertLocalToUTC(data.scheduled_date, data.scheduled_time, data.timezone);
-          
-          // Validate that the converted datetime is in the future
-          if (datetime <= nowUTC) {
-            errors.scheduled_time = 'Scheduled Time Should Be Greater Than Current Time';
-          }
-
-        } catch (timezoneError) {
-          logError('[postLiveCreate] Timezone conversion failed:', timezoneError);
-          errors.timezone = timezoneError.message;
-        }
-      }
+  // Get admin settings for price validation
+  const adminSettings = await getAdminSettings();
+  
+  // Validate input fields for live creation/edit using comprehensive validation
+  const validationResult = validateLiveStreamData(data, adminSettings);
+  if (!validationResult.valid) {
+    // TODO: Convert createErrorResponse(422, 'Validation failed', validationResult.errors) to res.status(422).json({ error: 'Validation failed', details: validationResult.errors })
+    return res.status(422).json({ error: 'Validation failed', details: validationResult.errors });
+  }
+  
+  // Use validated data for further processing
+  const validatedData = validationResult.data;
+  
+  // Scheduled time must be in the future (UTC)
+  let nowUTC = new Date();
+  let liveType = validatedData.type;
+  let datetime = null;
+  
+  if (liveType === 'scheduled' && data.scheduled_date && data.scheduled_time) {
+    // Validate timezone is provided for scheduled lives
+    if (!data.timezone) {
+      // TODO: Convert createErrorResponse(422, 'Validation failed', { timezone: 'Timezone is required for scheduled live streams' }) to res.status(422).json({ error: 'Validation failed', details: { timezone: 'Timezone is required for scheduled live streams' } })
+      return res.status(422).json({ error: 'Validation failed', details: { timezone: 'Timezone is required for scheduled live streams' } });
     } else {
-      datetime = nowUTC;
-    }
-    
-    if (Object.keys(errors).length > 0) {
-      return res.status(422).json(createErrorResponse(422, 'Validation failed', errors));
-    }
+      try {
+        // Convert user's local timezone to UTC using the utility function
+        datetime = convertLocalToUTC(data.scheduled_date, data.scheduled_time, data.timezone);
+        
+        // Validate that the converted datetime is in the future
+        if (datetime <= nowUTC) {
+          // TODO: Convert createErrorResponse(422, 'Validation failed', { scheduled_time: 'Scheduled Time Should Be Greater Than Current Time' }) to res.status(422).json({ error: 'Validation failed', details: { scheduled_time: 'Scheduled Time Should Be Greater Than Current Time' } })
+          return res.status(422).json({ error: 'Validation failed', details: { scheduled_time: 'Scheduled Time Should Be Greater Than Current Time' } });
+        }
 
-    const conn = await pool.getConnection();
-    try {
-      await conn.beginTransaction();
-      let liveId = null;
-      let isEdit = false;
-      let live = null;
-      let channel = null;
-      let url = null;
-      let liveEmailFlag = true; // Set to true for new live, may change for edit
-      
-      // Get admin settings for buffer and max reschedules
-      const adminSettings = await getAdminSettings();
-      const maxReschedules = adminSettings.max_number_of_reschedules || 3;
-      const liveMailBufferMins = adminSettings.live_schedule_delay || 120;
-      
-      // Get restricted creators for live email
-      const restrictedLiveEmailCreators = await getRestrictedLiveEmailCreators(conn);
-      
-      // If editing an existing live
-      if (data.encryptedLiveId) {
-        liveId = safeDecryptId(data.encryptedLiveId);
-        if (!liveId) {
-          await conn.rollback();
-          conn.release();
-          return res.status(400).json(createErrorResponse(400, 'Invalid encrypted live_id'));
-        }
-        
-        // Fetch live record
-        const [lives] = await conn.query('SELECT * FROM live_streamings WHERE id = ?', [liveId]);
-        live = lives[0];
-        if (!live) {
-          await conn.rollback();
-          conn.release();
-          return res.status(404).json(createErrorResponse(404, 'Live not found'));
-        }
-        isEdit = true;
-        
-        if (live.type !== 'scheduled' && liveType === 'scheduled') {
-          await conn.rollback();
-          conn.release();
-          return res.status(400).json(createErrorResponse(400, 'Live type cannot be modified'));
-        }
-        
-        // Reschedule logic: only allow if under max, and at least 12 hours in advance
-        let newLiveDatetime = datetime;
-        let oldLiveDatetime = new Date(live.date_time);
-        if (maxReschedules > (live.number_of_reschedules || 0)) {
-          if (newLiveDatetime.getTime() !== oldLiveDatetime.getTime()) {
-            // Must be at least 12 hours from now unless in skip group
-            const skipIds = await getCreatorGroupBasedIds('20'); // Group 20: Creators exempt from 12-hour reschedule rule
-            logInfo('[postLiveCreate] Skip IDs:', skipIds);
-            const isRescheduledSkipped = skipIds.includes(userId);
-            if (newLiveDatetime < new Date(Date.now() + 12 * 60 * 60 * 1000) && !isRescheduledSkipped) {
-              await conn.rollback();
-              conn.release();
-              return res.status(400).json(createErrorResponse(400, 'New Livetime should be greater than 12hrs from the Current time'));
-            }
-            // Increment number_of_reschedules using utility
-            await incrementLiveReschedules(conn, liveId);
-            liveEmailFlag = true;
-          }
-        } else {
-          await conn.rollback();
-          conn.release();
-          return res.status(400).json(createErrorResponse(400, 'Max number of reschedules reached. Please delete and create new.'));
-        }
-        
-        // Update live fields using utility
-        await updateLiveStreaming(conn, data, liveId, datetime);
-        channel = live.channel;
-      } else {
-        // Creating new live
-        const [activeLives] = await conn.query('SELECT COUNT(*) as cnt FROM live_streamings WHERE user_id = ? AND status = "0"', [userId]);
-        if (activeLives[0].cnt > 0) {
-          await conn.rollback();
-          conn.release();
-          return res.status(400).json(createErrorResponse(400, 'Live already created'));
-        }
-        channel = `live_${Math.random().toString(36).substring(2, 7)}_${userId}`;
-        // Create new live using utility
-        liveId = await createLiveStreaming(conn, data, userId, channel, datetime);
-        liveEmailFlag = true;
+      } catch (timezoneError) {
+        logError('[liveCreatePostHandler] Timezone conversion failed:', timezoneError);
+        // TODO: Convert createErrorResponse(422, 'Validation failed', { timezone: timezoneError.message }) to res.status(422).json({ error: 'Validation failed', details: { timezone: timezoneError.message } })
+        return res.status(422).json({ error: 'Validation failed', details: { timezone: timezoneError.message } });
       }
+    }
+  } else {
+    datetime = nowUTC;
+  }
+
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+    let liveId = null;
+    let isEdit = false;
+    let live = null;
+    let channel = null;
+    let url = null;
+    let liveEmailFlag = true; // Set to true for new live, may change for edit
+    // Get admin settings for buffer and max reschedules
+    const adminSettings = await getAdminSettings();
+    const maxReschedules = adminSettings.max_number_of_reschedules || 3;
+    const liveMailBufferMins = adminSettings.live_schedule_delay || 120;
+    // Get restricted creators for live email
+    const restrictedLiveEmailCreators = await getRestrictedLiveEmailCreators(conn);
+    // If editing an existing live
+    if (data.encryptedLiveId) {
+      liveId = safeDecryptId(data.encryptedLiveId);
+      if (!liveId) {
+        await conn.rollback();
+        conn.release();
+        // TODO: Convert createErrorResponse(400, 'Invalid encrypted live_id') to res.status(400).json({ error: 'Invalid encrypted live_id' })
+        return res.status(400).json({ error: 'Invalid encrypted live_id' });
+      }
+      // Fetch live record
+      const [lives] = await conn.query('SELECT * FROM live_streamings WHERE id = ?', [liveId]);
+      live = lives[0];
+      if (!live) {
+        await conn.rollback();
+        conn.release();
+        // TODO: Convert createErrorResponse(404, 'Live not found') to res.status(404).json({ error: 'Live not found' })
+        return res.status(404).json({ error: 'Live not found' });
+      }
+      isEdit = true;
+      if (live.type !== 'scheduled' && liveType === 'scheduled') {
+        await conn.rollback();
+        conn.release();
+        // TODO: Convert createErrorResponse(400, 'Live type cannot be modified') to res.status(400).json({ error: 'Live type cannot be modified' })
+        return res.status(400).json({ error: 'Live type cannot be modified' });
+      }
+      // Reschedule logic: only allow if under max, and at least 12 hours in advance
+      let newLiveDatetime = datetime;
+      let oldLiveDatetime = new Date(live.date_time);
+      if (maxReschedules > (live.number_of_reschedules || 0)) {
+        if (newLiveDatetime.getTime() !== oldLiveDatetime.getTime()) {
+          // Must be at least 12 hours from now unless in skip group
+          const skipIds = await getCreatorGroupBasedIds('20'); // Group 20: Creators exempt from 12-hour reschedule rule
+          logInfo('[liveCreatePostHandler] Skip IDs:', skipIds);
+          const isRescheduledSkipped = skipIds.includes(userId);
+          if (newLiveDatetime < new Date(Date.now() + 12 * 60 * 60 * 1000) && !isRescheduledSkipped) {
+            await conn.rollback();
+            conn.release();
+            // TODO: Convert createErrorResponse(400, 'New Livetime should be greater than 12hrs from the Current time') to res.status(400).json({ error: 'New Livetime should be greater than 12hrs from the Current time' })
+            return res.status(400).json({ error: 'New Livetime should be greater than 12hrs from the Current time' });
+          }
+          // Increment number_of_reschedules using utility
+          await incrementLiveReschedules(conn, liveId);
+          liveEmailFlag = true;
+        }
+      } else {
+        await conn.rollback();
+        conn.release();
+        // TODO: Convert createErrorResponse(400, 'Max number of reschedules reached. Please delete and create new.') to res.status(400).json({ error: 'Max number of reschedules reached. Please delete and create new.' })
+        return res.status(400).json({ error: 'Max number of reschedules reached. Please delete and create new.' });
+      }
+      // Update live fields using utility - merge validated data with original data for fields not validated
+      const updateData = { ...data, ...validatedData };
+      await updateLiveStreaming(conn, updateData, liveId, datetime);
+      channel = live.channel;
+    } else {
+      // Creating new live
+      const [activeLives] = await conn.query('SELECT COUNT(*) as cnt FROM live_streamings WHERE user_id = ? AND status = "0"', [userId]);
+      if (activeLives[0].cnt > 0) {
+        await conn.rollback();
+        conn.release();
+        // TODO: Convert createErrorResponse(400, 'Live already created') to res.status(400).json({ error: 'Live already created' })
+        return res.status(400).json({ error: 'Live already created' });
+      }
+      channel = `live_${Math.random().toString(36).substring(2, 7)}_${userId}`;
+      // Create new live using utility - merge validated data with original data for fields not validated
+      const createData = { ...data, ...validatedData };
+      liveId = await createLiveStreaming(conn, createData, userId, channel, datetime);
+      liveEmailFlag = true;
+    }
       
       // Buffer and restricted creator logic for liveEmailFlag
       const nowUTCBuffer = new Date(Date.now() + liveMailBufferMins * 60 * 1000);
@@ -310,18 +408,19 @@ export const postLiveCreate = async (req, res) => {
         }
       }
       
-      await conn.commit();
-      conn.release();
-      return res.status(200).json(createSuccessResponse('Live stream created/edited successfully', responseData));
-    } catch (error) {
-      await conn.rollback();
-      conn.release();
-      logError('postLiveCreate error:', error);
-      return res.status(500).json(createErrorResponse(500, 'Failed to create/edit live stream', error.message));
-    }
+    await conn.commit();
+    conn.release();
+    // TODO: Convert createSuccessResponse('Live stream created/edited successfully', responseData) to res.json({ success: true, message: 'Live stream created/edited successfully', data: responseData })
+    return res.json({
+      success: true,
+      message: 'Live stream created/edited successfully',
+      data: responseData
+    });
   } catch (error) {
-    logError('postLiveCreate error:', error);
-    return res.status(500).json(createErrorResponse(500, 'Failed to create/edit live stream', error.message));
+    await conn.rollback();
+    conn.release();
+    // TODO: Convert createErrorResponse(500, 'Failed to create/edit live stream', error.message) to res.status(500).json({ error: 'Failed to create/edit live stream', details: error.message })
+    return res.status(500).json({ error: 'Failed to create/edit live stream', details: error.message });
   }
 };
 
@@ -612,13 +711,39 @@ const FILTERS = {
 /**
  * Handler to get live filters (GET /live/filter)
  */
+/**
+ * GET /live/filter handler
+ *
+ * Fetches the list of all available video filters and the currently applied filter for a given live stream.
+ *
+ * Business rules:
+ *   - Requires user authentication (JWT Bearer token in headers).
+ *   - Requires an encrypted live stream ID as a query parameter (?c=...).
+ *   - Returns 400 if the parameter is missing or invalid.
+ *   - Returns 404 if the live stream does not exist.
+ *   - (Optionally) Could restrict access to the creator only, but currently allows any authenticated user.
+ *
+ * @param {object} req - Express request object
+ * @returns {object} API response with { filters, current_filter }
+ */
 export const getLiveFilter = async (req, res) => {
   try {
-    const userId = req.userId;
-    const { c: encryptedLiveId } = req.query;
+    // Step 1: Authenticate the user (throws 401/403 if not valid)
+    // TODO: Convert getAuthenticatedUserId(event, { action: 'access' }) to getAuthenticatedUserId(req, { action: 'access' })
+    const { userId, errorResponse } = getAuthenticatedUserId(req, { action: 'access' });
+    if (errorResponse) {
+      // TODO: Convert return errorResponse to return res.status(errorResponse.statusCode).json(errorResponse.body)
+      return res.status(errorResponse.statusCode).json(errorResponse.body);
+    }
 
+    // Step 2: Parse and validate the encrypted live stream ID from query params
+    // TODO: Convert event.queryStringParameters = {} to req.query = {}
+    const { queryStringParameters = {} } = req.query;
+    const { c: encryptedLiveId } = queryStringParameters;
     if (!encryptedLiveId) {
-      return res.status(400).json(createErrorResponse(400, 'Missing live id parameter'));
+      // Client did not provide the required parameter
+      // TODO: Convert createErrorResponse(400, 'Missing live id parameter') to res.status(400).json({ error: 'Missing live id parameter' })
+      return res.status(400).json({ error: 'Missing live id parameter' });
     }
     
     // Decrypt the live ID for security
@@ -626,38 +751,91 @@ export const getLiveFilter = async (req, res) => {
     try {
       liveId = safeDecryptId(encryptedLiveId);
     } catch (error) {
-      logError('[getLiveFilter] Failed to decrypt live ID:', { encryptedLiveId, error: error.message });
-      return res.status(400).json(createErrorResponse(400, 'Invalid live id format'));
+      logError('[getLiveFilterHandler] Failed to decrypt live ID:', { encryptedLiveId, error: error.message });
+      // TODO: Convert createErrorResponse(400, 'Invalid live id format') to res.status(400).json({ error: 'Invalid live id format' })
+      return res.status(400).json({ error: 'Invalid live id format' });
     }
 
-    // Fetch the live stream from the database
+    // Step 3: Fetch the live stream from the database
+    // Only need id, user_id, and filter_applied fields
     const [rows] = await pool.query('SELECT id, user_id, filter_applied FROM live_streamings WHERE id = ?', [liveId]);
     const live = rows[0];
     if (!live) {
-      return res.status(404).json(createErrorResponse(404, 'Live stream not found'));
+      // No live stream found for this ID
+      // TODO: Convert createErrorResponse(404, 'Live stream not found') to res.status(404).json({ error: 'Live stream not found' })
+      return res.status(404).json({ error: 'Live stream not found' });
     }
 
-    return res.status(200).json(createSuccessResponse('Live filters fetched', {
-      filters: FILTERS,
-      current_filter: live.filter_applied || 'normal',
-    }));
+    // Step 4: (Optional) Restrict filter info to creator only
+    // if (live.user_id !== userId) {
+    //   return createErrorResponse(403, 'Not authorized to view this live filter');
+    // }
+
+    // Step 5: Return the filter list and the current filter (default to 'normal' if not set)
+    // TODO: Convert createSuccessResponse('Live filters fetched', { ... }) to res.json({ success: true, message: 'Live filters fetched', data: { ... } })
+    return res.json({
+      success: true,
+      message: 'Live filters fetched',
+      data: {
+        filters: FILTERS,
+        current_filter: live.filter_applied || 'normal',
+      }
+    });
   } catch (error) {
-    logError('getLiveFilter error:', error);
-    return res.status(500).json(createErrorResponse(500, 'Failed to fetch live filters', error.message));
+    // Log and return a generic error response
+    logError('getLiveFilterHandler error:', error);
+    // TODO: Convert createErrorResponse(500, 'Failed to fetch live filters', error.message) to res.status(500).json({ error: 'Failed to fetch live filters', details: error.message })
+    return res.status(500).json({ error: 'Failed to fetch live filters', details: error.message });
   }
 };
 
 /**
  * Handler to apply live filter (POST /live/filter)
  */
+/**
+ * POST /live/filter handler
+ *
+ * Allows the creator of a live stream to apply a new video filter.
+ *
+ * Business rules:
+ *   - Requires user authentication (JWT Bearer token in headers).
+ *   - Requires a JSON body with:
+ *       - c: encrypted live stream ID
+ *       - filter: filter key (must be in FILTERS)
+ *   - Only the creator of the live stream can update the filter.
+ *   - All changes are performed in a DB transaction for safety.
+ *   - Returns 400 for missing/invalid input, 403 for unauthorized, 404 for not found.
+ *   - Returns 200 with success: true if the filter is applied.
+ *
+ * @param {object} req - Express request object
+ * @returns {object} API response with { success: true } on success
+ */
 export const postLiveFilter = async (req, res) => {
   let conn;
   try {
-    const userId = req.userId;
-    const { c: encryptedLiveId, filter } = req.body;
+    // Step 1: Authenticate the user
+    // TODO: Convert getAuthenticatedUserId(event, { action: 'access' }) to getAuthenticatedUserId(req, { action: 'access' })
+    const { userId, errorResponse } = getAuthenticatedUserId(req, { action: 'access' });
+    if (errorResponse) {
+      // TODO: Convert return errorResponse to return res.status(errorResponse.statusCode).json(errorResponse.body)
+      return res.status(errorResponse.statusCode).json(errorResponse.body);
+    }
 
+    // Step 2: Parse and validate the request body
+    let data;
+    try {
+      // TODO: Convert JSON.parse(event.body || '{}') to JSON.parse(req.body || '{}')
+      data = JSON.parse(req.body || '{}');
+    } catch {
+      // Malformed JSON
+      // TODO: Convert createErrorResponse(400, 'Invalid JSON body') to res.status(400).json({ error: 'Invalid JSON body' })
+      return res.status(400).json({ error: 'Invalid JSON body' });
+    }
+    const { c: encryptedLiveId, filter } = data;
     if (!encryptedLiveId) {
-      return res.status(400).json(createErrorResponse(400, 'Missing live id parameter'));
+      // Client did not provide the required parameter
+      // TODO: Convert createErrorResponse(400, 'Missing live id parameter') to res.status(400).json({ error: 'Missing live id parameter' })
+      return res.status(400).json({ error: 'Missing live id parameter' });
     }
     
     // Decrypt the live ID for security
@@ -665,40 +843,48 @@ export const postLiveFilter = async (req, res) => {
     try {
       liveId = safeDecryptId(encryptedLiveId);
     } catch (error) {
-      logError('[postLiveFilter] Failed to decrypt live ID:', { encryptedLiveId, error: error.message });
-      return res.status(400).json(createErrorResponse(400, 'Invalid live id format'));
+      logError('[postLiveFilterHandler] Failed to decrypt live ID:', { encryptedLiveId, error: error.message });
+      // TODO: Convert createErrorResponse(400, 'Invalid live id format') to res.status(400).json({ error: 'Invalid live id format' })
+      return res.status(400).json({ error: 'Invalid live id format' });
     }
     
     // Sanitize filter: must be a valid key, else set to 'none'
     const filterKey = typeof filter === 'string' && FILTERS.hasOwnProperty(filter) ? filter : 'none';
 
-    // Start a DB transaction for atomicity
+    // Step 3: Start a DB transaction for atomicity
     conn = await pool.getConnection();
     await conn.beginTransaction();
 
-    // Fetch the live stream and check ownership
+    // Step 4: Fetch the live stream and check ownership
     const [rows] = await conn.query('SELECT id, user_id FROM live_streamings WHERE id = ?', [liveId]);
     const live = rows[0];
     if (!live || live.user_id !== userId) {
       // Only the creator can update the filter
       await conn.rollback();
       conn.release();
-      return res.status(403).json(createErrorResponse(403, 'Not authorized to apply filter to this live'));
+      // TODO: Convert createErrorResponse(403, 'Not authorized to apply filter to this live') to res.status(403).json({ error: 'Not authorized to apply filter to this live' })
+      return res.status(403).json({ error: 'Not authorized to apply filter to this live' });
     }
 
-    // Update the filter_applied field
+    // Step 5: Update the filter_applied field
     await conn.query('UPDATE live_streamings SET filter_applied = ? WHERE id = ?', [filterKey, liveId]);
     await conn.commit();
     conn.release();
-    return res.status(200).json(createSuccessResponse('Live filter applied', { success: true }));
+    // TODO: Convert createSuccessResponse('Live filter applied', { success: true }) to res.json({ success: true, message: 'Live filter applied', data: { success: true } })
+    return res.json({
+      success: true,
+      message: 'Live filter applied',
+      data: { success: true }
+    });
   } catch (error) {
     // Rollback transaction and log error if anything fails
     if (conn) {
       await conn.rollback();
       conn.release();
     }
-    logError('postLiveFilter error:', error);
-    return res.status(500).json(createErrorResponse(500, 'Failed to apply live filter', error.message));
+    logError('postLiveFilterHandler error:', error);
+    // TODO: Convert createErrorResponse(500, 'Failed to apply live filter', error.message) to res.status(500).json({ error: 'Failed to apply live filter', details: error.message })
+    return res.status(500).json({ error: 'Failed to apply live filter', details: error.message });
   }
 };
 
@@ -1044,76 +1230,114 @@ export const postLiveGoal = async (req, res) => {
 /**
  * Handler to provide all live details and Agora token for a given liveId (GET /live/go/:liveId)
  */
+/**
+ * Handler to provide all live details and Agora token for a given liveId.
+ *
+ * Route: /live/go/{liveId}
+ * Returns: Agora token, earnings (total, bookings, tip), goal, tipmenu, viewers count.
+ * Only returns details if current time is within 5 minutes before or after the live's scheduled time.
+ *
+ * @param {object} req - Express request object
+ * @returns {object} API response with live details or error
+ */
 export const getLiveGo = async (req, res) => {
+  // Authenticate user and check permissions
+  // TODO: Convert getAuthenticatedUserId(event, { action: 'access' }) to getAuthenticatedUserId(req, { action: 'access' })
+  const { userId, errorResponse } = getAuthenticatedUserId(req, { action: 'access' });
+  if (errorResponse) {
+    // TODO: Convert return errorResponse to return res.status(errorResponse.statusCode).json(errorResponse.body)
+    return res.status(errorResponse.statusCode).json(errorResponse.body);
+  }
+
+  // Get live ID from path and decrypt it
+  // TODO: Convert event.pathParameters && event.pathParameters.liveId to req.params && req.params.liveId
+  const encryptedLiveId = req.params && req.params.liveId;
+  if (!encryptedLiveId) {
+    // TODO: Convert createErrorResponse(400, 'Live id is required in path') to res.status(400).json({ error: 'Live id is required in path' })
+    return res.status(400).json({ error: 'Live id is required in path' });
+  }
+
+  // Decrypt the live ID from path parameter for security
+  let liveId;
   try {
-    const userId = req.userId;
-    const { liveId } = req.params;
+    liveId = safeDecryptId(encryptedLiveId);
+  } catch (error) {
+    logError('[liveGoDetailsHandler] Failed to decrypt live ID:', { encryptedLiveId, error: error.message });
+    // TODO: Convert createErrorResponse(400, 'Invalid live id format') to res.status(400).json({ error: 'Invalid live id format' })
+    return res.status(400).json({ error: 'Invalid live id format' });
+  }
 
-    // Decrypt the live ID from path parameter for security
-    let decryptedLiveId;
+  // Fetch user and verify
+  const user = await getUserById(userId);
+  if (!user) {
+    // TODO: Convert createErrorResponse(404, 'User not found') to res.status(404).json({ error: 'User not found' })
+    return res.status(404).json({ error: 'User not found' });
+  }
+  if (user.verified_id !== 'yes') {
+    // TODO: Convert createErrorResponse(403, 'User must be verified to access creator settings') to res.status(403).json({ error: 'User must be verified to access creator settings' })
+    return res.status(403).json({ error: 'User must be verified to access creator settings' });
+  }
+
+  // Fetch live details and verify
+  const live = await getLiveStreamings(liveId);
+  if (!live) {
+    // TODO: Convert createErrorResponse(404, 'Live not found') to res.status(404).json({ error: 'Live not found' })
+    return res.status(404).json({ error: 'Live not found' });
+  }
+  if (live.status !== '0') {
+    // TODO: Convert createErrorResponse(400, 'Live already closed') to res.status(400).json({ error: 'Live already closed' })
+    return res.status(400).json({ error: 'Live already closed' });
+  }
+  if (live.user_id !== user.id) {
+    // TODO: Convert createErrorResponse(403, 'You are not authorized to access this live') to res.status(403).json({ error: 'You are not authorized to access this live' })
+    return res.status(403).json({ error: 'You are not authorized to access this live' });
+  }
+
+  // Update creator_joined to 1 if creator is joining their own live and hasn't joined yet
+  if (live.creator_joined === 0 && live.user_id === user.id) {
     try {
-      decryptedLiveId = safeDecryptId(liveId);
+      await updateCreatorJoined(liveId);
+      logInfo('[liveGoDetailsHandler] Creator joined live stream', { liveId, userId: user.id });
     } catch (error) {
-      logError('[getLiveGo] Failed to decrypt live ID:', { liveId, error: error.message });
-      return res.status(400).json(createErrorResponse(400, 'Invalid live id format'));
+      logError('[liveGoDetailsHandler] Failed to update creator_joined:', error);
+      // Continue execution even if update fails
     }
+  }
 
-    // Fetch user and verify
-    const user = await getUserById(userId);
-    if (!user) return res.status(404).json(createErrorResponse(404, 'User not found'));
-    if (user.verified_id !== 'yes') return res.status(403).json(createErrorResponse(403, 'User must be verified to access creator settings'));
+  // Check if current time is within 5 minutes BEFORE the live's scheduled time
+  const now = dayjs.utc ? dayjs.utc() : dayjs();
+  const liveTime = dayjs(live.date_time);
+  const diffMinutes = liveTime.diff(now, 'minute');
+  // Todo: enable this later
+  // if (diffMinutes >= 5) {
+  //   return createErrorResponse(403, 'Live details are only available within 5 minutes before the live starts');
+  // }
 
-    // Fetch live details and verify
-    const live = await getLiveStreamings(decryptedLiveId);
-    if (!live) return res.status(404).json(createErrorResponse(404, 'Live not found'));
-    if (live.status !== '0') return res.status(400).json(createErrorResponse(400, 'Live already closed'));
-    if (live.user_id !== user.id) return res.status(403).json(createErrorResponse(403, 'You are not authorized to access this live'));
-
-    // Update creator_joined to 1 if creator is joining their own live and hasn't joined yet
-    if (live.creator_joined === 0 && live.user_id === user.id) {
-      try {
-        await updateCreatorJoined(decryptedLiveId);
-        logInfo('[getLiveGo] Creator joined live stream', { liveId: decryptedLiveId, userId: user.id });
-      } catch (error) {
-        logError('[getLiveGo] Failed to update creator_joined:', error);
-        // Continue execution even if update fails
-      }
-    }
-
-    // Check if current time is within 5 minutes BEFORE the live's scheduled time
-    const now = dayjs.utc ? dayjs.utc() : dayjs();
-    const liveTime = dayjs(live.date_time);
-    const diffMinutes = liveTime.diff(now, 'minute');
-    // Todo: enable this later
-    // if (diffMinutes >= 5) {
-    //   return res.status(403).json(createErrorResponse(403, 'Live details are only available within 5 minutes before the live starts'));
-    // }
-
+  try {
     // Fetch admin settings for Agora
     const adminSettings = await getAdminSettings();
     const { agora_app_id: agoraAppId, agora_app_certificate: agoraAppCertificate } = adminSettings;
     const { channel: agoraChannel, duration: liveDuration, user_id } = live;
-    
     // Generate random UID and determine role
     const uid = Math.floor(Math.random() * 10000);
     const role = (user_id === user.id) ? RtcRole.PUBLISHER : RtcRole.SUBSCRIBER;
     const expireTimeInSeconds = ((live.duration || 0) + 60) * 60 * 24;
-    const token = RtcTokenBuilder.buildTokenWithUid(agoraAppId, agoraAppCertificate, agoraChannel, uid, role, expireTimeInSeconds);
+    const token = RtcTokenBuilder.buildTokenWithUid( agoraAppId, agoraAppCertificate, agoraChannel, uid, role, expireTimeInSeconds );
 
     // Fetch all live-related data using utility functions
-    const totalEarnings = await getLiveTotalEarnings(decryptedLiveId);
-    const bookings = await getLiveBookingsCount(decryptedLiveId);
-    const tip = await getLiveTipEarnings(decryptedLiveId);
-    const goal = await getActiveLiveGoal(decryptedLiveId);
-    const tipmenu = await getActiveLiveTippingMenus(decryptedLiveId);
-    const viewersCount = await getLiveViewersCount(decryptedLiveId);
+    const totalEarnings = await getLiveTotalEarnings(liveId);
+    const bookings = await getLiveBookingsCount(liveId);
+    const tip = await getLiveTipEarnings(liveId);
+    const goal = await getActiveLiveGoal(liveId);
+    const tipmenu = await getActiveLiveTippingMenus(liveId);
+    const viewersCount = await getLiveViewersCount(liveId);
 
     // Process goal and create DynamoDB record if needed
     let finalGoal = goal;
     if (goal && goal.name && goal.price) {
       const dynamoGoal = await upsertLiveGoalDynamo({
         goal_id: goal.goal_id,
-        live_id: decryptedLiveId,
+        live_id: liveId,
         goal_name: goal.name,
         coins: goal.price
       });
@@ -1125,7 +1349,7 @@ export const getLiveGo = async (req, res) => {
           name: goal_name,
           price: coins
         };
-        logInfo('[getLiveGo] DynamoDB goal processed', { goalId: goal.goal_id });
+        logInfo('[liveGoDetailsHandler] DynamoDB goal processed', { goalId: goal.goal_id });
       }
     }
 
@@ -1135,9 +1359,9 @@ export const getLiveGo = async (req, res) => {
         finalGoal.goal_id = encryptId(finalGoal.goal_id);
         // Use the original encrypted liveId instead of encrypting the numeric live_id again
         // This ensures consistency between input and output
-        finalGoal.live_id = liveId;
+        finalGoal.live_id = encryptedLiveId;
       } catch (error) {
-        logError('[getLiveGo] Failed to encrypt goal IDs:', { 
+        logError('[liveGoDetailsHandler] Failed to encrypt goal IDs:', { 
           goalId: finalGoal.goal_id, 
           liveId: finalGoal.live_id, 
           error: error.message 
@@ -1153,7 +1377,7 @@ export const getLiveGo = async (req, res) => {
           id: encryptId(item.id)
         };
       } catch (error) {
-        logError('[getLiveGo] Failed to encrypt tipmenu ID:', { 
+        logError('[liveGoDetailsHandler] Failed to encrypt tipmenu ID:', { 
           originalId: item.id, 
           error: error.message 
         });
@@ -1163,23 +1387,29 @@ export const getLiveGo = async (req, res) => {
     });
 
     // Return all details including Agora token with encrypted IDs
-    return res.status(200).json(createSuccessResponse('Live details fetched', {
-      agoraAppId,
-      agoraChannel,
-      token,
-      uid,
-      liveDuration,
-      earnings: {
-        total: totalEarnings,
-        bookings,
-        tip
-      },
-      goal: finalGoal,
-      tipmenu: encryptedTipmenu,
-      viewersCount
-    }));
+    // TODO: Convert createSuccessResponse('Live details fetched', { ... }) to res.json({ success: true, message: 'Live details fetched', data: { ... } })
+    return res.json({
+      success: true,
+      message: 'Live details fetched',
+      data: {
+        agoraAppId,
+        agoraChannel,
+        token,
+        uid,
+        liveDuration,
+        earnings: {
+          total: totalEarnings,
+          bookings,
+          tip
+        },
+        goal: finalGoal,
+        tipmenu: encryptedTipmenu,
+        viewersCount
+      }
+    });
   } catch (error) {
-    logError('[getLiveGo] Error:', error);
-    return res.status(500).json(createErrorResponse(500, 'Failed to fetch live details', error.message));
+    logError('[liveGoDetailsHandler] Error:', error);
+    // TODO: Convert createErrorResponse(500, 'Failed to fetch live details', error.message) to res.status(500).json({ error: 'Failed to fetch live details', details: error.message })
+    return res.status(500).json({ error: 'Failed to fetch live details', details: error.message });
   }
 };

@@ -11,6 +11,7 @@ router.get('/', setEdgeCacheHeaders, payoutController.getPayoutMethod);
 router.post('/create', payoutController.createPayoutMethod);
 router.delete('/delete', payoutController.deletePayoutMethod);
 router.get('/conversations', setEdgeCacheHeaders, payoutController.getPayoutConversations);
-router.post('/conversations', payoutController.storePayoutConversation);
+router.post('/conversations/store', payoutController.storePayoutConversation);
+router.get('/upload-url', setEdgeCacheHeaders, payoutController.getPayoutUploadUrl);
 
 export default router;

@@ -1,16 +1,18 @@
 /**
  * @file referralsController.js
- * @description Referrals controller for Bingeme API Express.js
- * Handles referral system functionality including statistics and referral list retrieval
+ * @description Lambda API controller for retrieving user referrals in the Bingeme platform.
+ * 
+ * This file handles the complete referral system functionality including:
+ * - User authentication and validation
+ * - Referral statistics calculation with percentage logic
+ * - Referral data retrieval with user grouping and amount aggregation
+ * - Pagination support for large referral lists
+ * - Response formatting according to API specifications
+ * 
+ * Flow: Auth → Stats Calculation → Data Retrieval → Response Formatting
  */
 
-import { 
-  logInfo, 
-  logError, 
-  createErrorResponse, 
-  createSuccessResponse, 
-  getAuthenticatedUserId 
-} from '../utils/common.js';
+import { createSuccessResponse, createErrorResponse, getAuthenticatedUserId, logInfo, logError } from '../utils/common.js';
 import { getDB } from '../config/database.js';
 
 // Constants for better maintainability
@@ -22,23 +24,32 @@ const DEFAULT_BASE_URL = 'https://bingeme.com';
 const REFERRAL_SYSTEM_DISABLED_MESSAGE = 'Referral system is currently disabled';
 
 /**
- * Get user referrals with pagination and filtering
- * @param {Object} req - Express request object
- * @param {Object} res - Express response object
+ * Main Express handler for GET /referrals endpoint.
+ * Handles authentication, parameter parsing, and response formatting.
+ * 
+ * @param {object} req - Express request object
+ * @param {object} res - Express response object
  */
 export const getReferrals = async (req, res) => {
+  // Authenticate and validate user
+  // TODO: Convert getAuthenticatedUserId(event, { allowAnonymous: false, action: 'my_referrals getHandler' }) to getAuthenticatedUserId(req, { allowAnonymous: false, action: 'my_referrals getHandler' })
+  const { userId, errorResponse } = getAuthenticatedUserId(req, { 
+    allowAnonymous: false, 
+    action: 'my_referrals getHandler' 
+  });
+  
+  if (errorResponse) {
+    // TODO: Convert return errorResponse to return res.status(errorResponse.statusCode).json(errorResponse.body)
+    return res.status(errorResponse.statusCode).json(errorResponse.body);
+  }
+
+  // Parse pagination parameters with defaults
+  // TODO: Convert event.queryStringParameters = {} to req.query = {}
+  const { query: queryStringParameters = {} } = req;
+  const skip = parseInt(queryStringParameters.skip) || DEFAULT_SKIP;
+  const limit = parseInt(queryStringParameters.limit) || DEFAULT_LIMIT;
+
   try {
-    // Authenticate and validate user
-    const userId = req.userId;
-    if (!userId) {
-      return res.status(401).json(createErrorResponse(401, 'Authentication required'));
-    }
-
-    // Parse pagination parameters with defaults
-    const { skip: skipRaw, limit: limitRaw } = req.query;
-    const skip = parseInt(skipRaw) || DEFAULT_SKIP;
-    const limit = parseInt(limitRaw) || DEFAULT_LIMIT;
-
     const data = await getUserReferralsList(userId, skip, limit);
     
     logInfo('Referrals API request completed successfully:', { 
@@ -47,10 +58,16 @@ export const getReferrals = async (req, res) => {
       pagination: data.pagination
     });
     
-    return res.json(createSuccessResponse('Referrals retrieved successfully', data));
+    // TODO: Convert createSuccessResponse('Referrals retrieved successfully', [data]) to res.json({ success: true, message: 'Referrals retrieved successfully', data: [data] })
+    return res.json({
+      success: true,
+      message: 'Referrals retrieved successfully',
+      data: [data]
+    });
   } catch (error) {
     logError('Failed to fetch referrals:', error);
-    return res.status(500).json(createErrorResponse(500, 'Failed to fetch referrals'));
+    // TODO: Convert createErrorResponse(500, 'Failed to fetch referrals') to res.status(500).json({ error: 'Failed to fetch referrals' })
+    return res.status(500).json({ error: 'Failed to fetch referrals' });
   }
 };
 
