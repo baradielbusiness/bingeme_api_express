@@ -1,35 +1,49 @@
 import { pool, getDB } from '../config/database.js';
-import { logInfo, logError } from './common.js';
+import { logInfo, logError, encryptId, getFile } from './common.js';
+import { processMediaFiles } from './mediaProcessing.js';
 
 /**
  * Get user products
  */
 const getUserProducts = async (userId, limit = 20, skip = 0, status = 'all', sortBy = 'latest') => {
   try {
-    let whereClause = 'WHERE user_id = ? AND status != "deleted"';
-    let orderClause = 'ORDER BY created_at DESC';
+    let whereClause = "WHERE p.user_id = ? AND p.status != '2'";
+    let orderClause = 'ORDER BY p.created_at DESC';
     
     if (status !== 'all') {
-      whereClause += ` AND status = '${status}'`;
+      whereClause += ` AND p.status = '${status}'`;
     }
     
     if (sortBy === 'name') {
-      orderClause = 'ORDER BY name ASC';
+      orderClause = 'ORDER BY p.name ASC';
     }
     
     const query = `
       SELECT 
-        id,
-        name,
-        price,
-        delivery_time,
-        tags,
-        description,
-        type,
-        status,
-        created_at,
-        updated_at
-      FROM products 
+        p.id,
+        p.name,
+        p.price,
+        p.delivery_time,
+        p.tags,
+        p.description,
+        p.type,
+        p.status,
+        p.created_at,
+        p.updated_at,
+        mp.name as image,
+        COALESCE(purchase_counts.purchases_count, 0) as purchases_count
+      FROM products p
+      LEFT JOIN media_products mp ON p.id = mp.products_id 
+        AND mp.id = (SELECT MIN(id) FROM media_products WHERE products_id = p.id)
+      LEFT JOIN (
+        SELECT 
+          products_id,
+          COUNT(*) as purchases_count
+        FROM purchases 
+        WHERE delivery_status != 'rejected' 
+          AND status != '2'
+        GROUP BY products_id
+      ) as purchase_counts ON p.id = purchase_counts.products_id
       ${whereClause}
       ${orderClause}
       LIMIT ? OFFSET ?
@@ -38,7 +52,7 @@ const getUserProducts = async (userId, limit = 20, skip = 0, status = 'all', sor
     const [products] = await pool.query(query, [userId, limit, skip]);
     
     // Get total count
-    const countQuery = `SELECT COUNT(*) as total FROM products ${whereClause}`;
+    const countQuery = `SELECT COUNT(*) as total FROM products p ${whereClause}`;
     const [countResult] = await pool.query(countQuery, [userId]);
     const totalCount = countResult[0].total;
     
@@ -58,8 +72,8 @@ const createProduct = async (productData) => {
     const db = await getDB();
     
     const [result] = await db.execute(`
-      INSERT INTO products (user_id, name, type, price, delivery_time, tags, description, file, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+      INSERT INTO products (user_id, name, type, price, delivery_time, tags, description, file, status, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, '1', NOW(), NOW())
     `, [userId, name, type, price, delivery_time, tags, description, file]);
     
     logInfo('Product created successfully', { productId: result.insertId, userId });
@@ -70,7 +84,7 @@ const createProduct = async (productData) => {
   }
 };
 
-const getProductByIdForUser = async (productId, userId) => {
+const getProductByIdForUser = async (userId, productId) => {
   try {
     const query = `
       SELECT 
@@ -85,7 +99,7 @@ const getProductByIdForUser = async (productId, userId) => {
         created_at,
         updated_at
       FROM products 
-      WHERE id = ? AND user_id = ? AND status != "deleted"
+      WHERE id = ? AND user_id = ? AND status != '2'
     `;
     
     const [rows] = await pool.query(query, [productId, userId]);
@@ -99,18 +113,31 @@ const getProductByIdForUser = async (productId, userId) => {
 /**
  * Update product
  */
-const updateProduct = async (productId, productData) => {
+const updateProduct = async (productData) => {
   try {
-    const { name, price, delivery_time, tags, description, type, status } = productData;
-    
+    const { id, userId, name, price, delivery_time, tags, description, type, status } = productData || {};
+    if (!id) {
+      throw new Error('Product ID is required');
+    }
+
     const query = `
       UPDATE products 
-      SET name = ?, price = ?, delivery_time = ?, tags = ?, description = ?, type = ?, status = ?, updated_at = NOW() 
-      WHERE id = ? AND status != "deleted"
+      SET name = ?, price = ?, delivery_time = ?, tags = ?, description = ?, 
+          ${typeof type !== 'undefined' ? 'type = ?,' : ''} 
+          ${typeof status !== 'undefined' ? 'status = ?,' : ''}
+          updated_at = NOW() 
+      WHERE id = ? ${userId ? 'AND user_id = ?' : ''} AND status != '2'
     `;
-    
-    await pool.query(query, [name, price, delivery_time, tags, description, type, status, productId]);
-    logInfo(`Updated product: ${productId}`);
+
+    const params = [name, price, delivery_time, tags, description];
+    if (typeof type !== 'undefined') params.push(type);
+    if (typeof status !== 'undefined') params.push(status);
+    params.push(id);
+    if (userId) params.push(userId);
+
+    const [result] = await pool.query(query, params);
+    logInfo('Updated product', { id, affectedRows: result.affectedRows });
+    return result.affectedRows > 0;
   } catch (error) {
     logError('Error updating product:', error);
     throw error;
@@ -120,11 +147,12 @@ const updateProduct = async (productId, productData) => {
 /**
  * Soft delete product
  */
-const softDeleteProduct = async (productId) => {
+const softDeleteProduct = async (userId, productId) => {
   try {
-    const query = `UPDATE products SET deleted = 1, deleted_at = NOW() WHERE id = ?`;
-    await pool.query(query, [productId]);
-    logInfo(`Soft deleted product: ${productId}`);
+    const query = `UPDATE products SET status = "2", updated_at = NOW() WHERE id = ? AND user_id = ? AND status != "2"`;
+    const [result] = await pool.query(query, [productId, userId]);
+    logInfo('Soft deleted product', { productId, userId, affectedRows: result.affectedRows });
+    return result.affectedRows > 0;
   } catch (error) {
     logError('Error soft deleting product:', error);
     throw error;
@@ -133,18 +161,33 @@ const softDeleteProduct = async (productId) => {
 
 /**
  * Insert product media
+ * @param {number} productId - Product ID to associate media with
+ * @param {Array<string>} filePaths - Array of file paths to insert
+ * @param {string} [status='active'] - Media status
+ * @returns {Promise<void>}
  */
-const insertProductMedia = async (productId, mediaData) => {
+const insertProductMedia = async (productId, filePaths, status = 'active') => {
   try {
-    const { media_path, media_type, media_size } = mediaData;
-    
-    const query = `
-      INSERT INTO product_media (product_id, media_path, media_type, media_size, created_at) 
-      VALUES (?, ?, ?, ?, NOW())
-    `;
-    
-    const [result] = await pool.query(query, [productId, media_path, media_type, media_size]);
-    return result.insertId;
+    for (const filePath of filePaths) {
+      if (filePath) {
+        // Remove 'uploads/shop/' prefix before storing in DB to keep only filename
+        const normalizedPath = typeof filePath === 'string' ? filePath.replace(/^uploads\/shop\//, '') : filePath;
+        // Extract file extension using destructuring with split
+        const [...pathParts] = normalizedPath.split('.');
+        const fileExtension = pathParts.pop();
+        
+        // For preview images, convert extension to webp as they are processed
+        const displayName = normalizedPath.includes('preview') 
+          ? normalizedPath.replace(/\.[^/.]+$/, '.webp')
+          : normalizedPath;
+
+        await pool.query(
+          `INSERT INTO media_products (products_id, name, media_extension, created_at, updated_at, status)
+           VALUES (?, ?, ?, NOW(), NOW(), ?)`,
+          [productId, displayName, fileExtension, status]
+        );
+      }
+    }
   } catch (error) {
     logError('Error inserting product media:', error);
     throw error;
@@ -168,17 +211,21 @@ const mapProductType = (type) => {
  */
 const formatProductsForResponse = (products) => {
   return products.map(product => ({
-    id: product.id,
+    id: encryptId(product.id), // Encrypt product ID for security
     name: product.name,
-    price: product.price,
-    delivery_time: product.delivery_time,
-    // Keep tags as stored; parse only if valid JSON, else return raw string
-    tags: (() => { try { return product.tags ? JSON.parse(product.tags) : []; } catch { return product.tags || []; } })(),
-    description: product.description,
     type: product.type,
+    price: product.price,
+    description: product.description,
+    tags: product.tags, // Keep tags as stored string
+    delivery_time: product.delivery_time,
+    image: product.image ? getFile(`shop/${product.image}`) : null,
     status: product.status,
-    created_at: product.created_at,
-    updated_at: product.updated_at
+    created_at: new Date(product.created_at).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    }),
+    purchases_count: product.purchases_count
   }));
 };
 
@@ -203,6 +250,9 @@ const formatProductForEdit = (product) => {
  * Process file upload data
  */
 const processFileUploadData = (fileData) => {
+  if (!fileData || !Array.isArray(fileData)) {
+    return [];
+  }
   return fileData.map(file => ({
     media_path: file.media_path,
     media_type: file.media_type,
@@ -213,9 +263,20 @@ const processFileUploadData = (fileData) => {
 /**
  * Handle media processing
  */
-const handleMediaProcessing = async (mediaFiles) => {
-  // This would integrate with the media processing utility
-  return mediaFiles;
+const handleMediaProcessing = async (filePaths, bucketName, mediaType) => {
+  if (filePaths.length === 0) {
+    return { original: [], converted: [] };
+  }
+
+  try {
+    logInfo(`Starting ${mediaType} file processing:`, { fileCount: filePaths.length });
+    const processedFiles = await processMediaFiles(filePaths, bucketName, mediaType);
+    logInfo(`${mediaType} file processing completed successfully`);
+    return processedFiles;
+  } catch (error) {
+    logError(`${mediaType} file processing failed:`, { error: error.message });
+    throw error;
+  }
 };
 
 /**
@@ -231,12 +292,14 @@ const cleanupMediaFiles = async (fileKeys) => {
  */
 const getAvailableProductTags = async () => {
   try {
-    const query = `SELECT DISTINCT tag FROM product_tags WHERE active = 1 ORDER BY tag ASC`;
-    const [rows] = await pool.query(query);
-    return rows.map(row => row.tag);
+    const [rows] = await pool.execute(
+      `SELECT tag FROM tags WHERE sample = 1 ORDER BY tag ASC LIMIT ${PRODUCT_CONFIG.MAX_TAGS_LIMIT}`
+    );
+    
+    return rows.map(({ tag }) => tag);
   } catch (error) {
-    logError('Error getting available product tags:', error);
-    return [];
+    logError('Database error fetching product tags:', error);
+    throw new Error('Failed to fetch available product tags');
   }
 };
 
@@ -245,23 +308,82 @@ const getAvailableProductTags = async () => {
  */
 const getProductAdminSettings = async () => {
   try {
-    const query = `SELECT * FROM admin_settings WHERE setting_type = 'product'`;
-    const [rows] = await pool.query(query);
-    return rows;
+    // Query for product-specific settings that actually exist in the database
+    const [rows] = await pool.execute(
+      'SELECT min_price_product as min_product_amount, max_price_product as max_product_amount, update_length as product_description_length, currency_symbol, currency_code, coin_conversion_USD, file_size_allowed, min_price_product_usd, max_price_product_usd FROM admin_settings LIMIT 1'
+    );
+    
+    // Use destructuring with default values for fallback logic
+    const [firstRow] = rows;
+    
+    // If we got data, return it, otherwise use defaults
+    return firstRow ?? DEFAULT_PRODUCT_SETTINGS;
   } catch (error) {
-    logError('Error getting product admin settings:', error);
-    return [];
+    logError('Database error fetching product admin settings:', error);
+    throw new Error('Failed to fetch product admin settings');
   }
+};
+
+/**
+ * Default settings for fallback when admin settings unavailable
+ */
+const DEFAULT_PRODUCT_SETTINGS = {
+  min_product_amount: 1,
+  max_product_amount: 5000,
+  product_description_length: 2000,
+  currency_symbol: '₹',
+  currency_code: 'INR',
+  coin_conversion_USD: 50,
+  file_size_allowed: 1000,
+};
+
+/**
+ * Configuration constants for product creation
+ */
+const PRODUCT_CONFIG = {
+  MAX_TAGS_LIMIT: 100,
+  MIN_PRICE: 1,
+  MIN_DESCRIPTION_LENGTH: 100,
 };
 
 /**
  * Process product admin settings
  */
-const processProductAdminSettings = (adminSettings, userCountry) => {
-  // Process admin settings for product creation
+const processProductAdminSettings = (settings, userCountry = 'IN') => {
+  const {
+    min_product_amount = DEFAULT_PRODUCT_SETTINGS.min_product_amount,
+    max_product_amount = DEFAULT_PRODUCT_SETTINGS.max_product_amount,
+    min_price_product_usd = DEFAULT_PRODUCT_SETTINGS.min_product_amount,
+    max_price_product_usd = DEFAULT_PRODUCT_SETTINGS.max_product_amount,
+    product_description_length = DEFAULT_PRODUCT_SETTINGS.product_description_length,
+    file_size_allowed = DEFAULT_PRODUCT_SETTINGS.file_size_allowed
+  } = settings;
+
+  // Use destructuring and Math.max for cleaner validation
+  const { MIN_PRICE, MIN_DESCRIPTION_LENGTH } = PRODUCT_CONFIG;
+  const { min_product_amount: defaultMin, max_product_amount: defaultMax, product_description_length: defaultDesc, file_size_allowed: defaultFileSize } = DEFAULT_PRODUCT_SETTINGS;
+  
+  // Determine pricing based on user country (similar to PHP Helper logic)
+  let minPrice, maxPrice;
+  if (userCountry === 'IN') {
+    // Use local currency pricing for India
+    minPrice = Math.max(MIN_PRICE, parseInt(min_product_amount) || defaultMin);
+    maxPrice = Math.max(MIN_PRICE, parseInt(max_product_amount) || defaultMax);
+  } else {
+    // Use USD pricing for other countries
+    minPrice = Math.max(MIN_PRICE, parseInt(min_price_product_usd) || defaultMin);
+    maxPrice = Math.max(MIN_PRICE, parseInt(max_price_product_usd) || defaultMax);
+  }
+  
   return {
-    pricing: { min_price: 1, max_price: 1000 },
-    limits: { max_description_length: 1000, max_file_size: 10485760 }
+    pricing: {
+      min_price: minPrice,
+      max_price: maxPrice
+    },
+    limits: {
+      max_description_length: Math.max(MIN_DESCRIPTION_LENGTH, parseInt(product_description_length) || defaultDesc),
+      max_file_size: Math.max(MIN_DESCRIPTION_LENGTH, parseInt(file_size_allowed) || defaultFileSize) / 1000
+    }
   };
 };
 

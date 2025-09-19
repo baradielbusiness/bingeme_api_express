@@ -8,5 +8,6 @@ const router = express.Router();
 router.use(authMiddleware);
 
 router.get('/', setEdgeCacheHeaders, productsController.getProducts);
+router.get('/create', productsController.getProductCreateData);
 
 export default router;

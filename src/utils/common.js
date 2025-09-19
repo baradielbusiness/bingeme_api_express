@@ -2013,7 +2013,6 @@ const createErrorResponse = (statusCode, error, details = null) => {
 // Common success response function (Express version - returns JSON body only)
 const createSuccessResponse = (message, data = null) => {
   return {
-    success: true,
     message,
     status: 200,
     ...(data && { data }),
