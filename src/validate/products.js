@@ -37,7 +37,7 @@ const validateProductInput = (data, options = {}) => {
   } = data;
   
   const { isUpdate = false } = options;
-
+  
   try {
     // Name validation - required, must be string between 5-100 characters
     if (typeof name !== 'string' || name.length < 5 || name.length > 100) {
@@ -107,7 +107,7 @@ const validateProductInput = (data, options = {}) => {
     logError('Error during product validation:', error);
     errors.push('Validation error occurred.');
   }
-
+  
   return errors;
 };
 

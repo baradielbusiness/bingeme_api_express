@@ -56,6 +56,11 @@ router.get('/updates', setEdgeCacheHeaders, authMiddleware, userController.getUp
 router.put('/posts/edit', authMiddleware, userController.editUpdate);
 router.delete('/posts/delete/:id', authMiddleware, userController.deleteUpdate);
 router.get('/comments/:id', setEdgeCacheHeaders, authMiddleware, userController.getComments);
+router.post('/posts/store-comment', authMiddleware, postsController.addComment);
+router.post('/posts/comment-like', authMiddleware, postsController.toggleCommentLike);
+router.post('/posts/delete-comment', authMiddleware, postsController.deleteComment);
+router.post('/posts/like', authMiddleware, postsController.toggleLike);
+router.post('/posts/pin', authMiddleware, postsController.pinPost);
 router.post('/user/send-otp', authMiddleware, userController.sendOtp);
 router.post('/user/profile/verify-otp', authMiddleware, userController.verifyOtp);
 router.get('/user/profile', setEdgeCacheHeaders, authMiddleware, userController.getSettings);
