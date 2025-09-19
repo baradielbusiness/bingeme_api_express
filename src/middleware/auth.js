@@ -11,25 +11,28 @@ const authMiddleware = (req, res, next) => {
     
     // Check if authorization header exists and starts with 'Bearer '
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.status(401).json(createErrorResponse(401, 'Access token required'));
+      return res.status(401).json(createErrorResponse(401, 'Unauthorized access'));
     }
-    
+    console.log('authHeader', authHeader);
     // Extract token from header
     const token = authHeader.substring(7);
     
     // Verify JWT token
     const decoded = jwt.verify(token, process.env.JWT_ACCESS_SECRET);
-
+    console.log('decoded', decoded);
     // Decode 24-char encoded id if present, else use numeric id
     let userId = decoded.id ?? decoded.userId;
     if (typeof userId === 'string' && isEncryptedId(userId)) {
       try {
         userId = decryptId(userId);
       } catch (e) {
-        return res.status(401).json(createErrorResponse(401, 'Invalid token format'));
+        return res.status(401).json(createErrorResponse(401, 'Unauthorized access'));
       }
     }
-
+    if (!userId) {
+      return res.status(401).json(createErrorResponse(401, 'Unauthorized access'));
+    }
+    console.log('userId', userId);
     // Add user information to request object
     req.user = decoded;
     req.userId = userId;

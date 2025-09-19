@@ -247,7 +247,7 @@ const createUserProfileImageHandler = async (req, imageType) => {
         original: processedImage.original, 
         converted: processedImage.converted 
       });
-    } catch (error) {
+  } catch (error) {
       logError(`${imageType} image processing failed:`, { userId, imagePath, error: error.message });
       // TODO: Convert createErrorResponse(500, `Failed to process ${imageType} image`) to res.status(500).json({ error: `Failed to process ${imageType} image` })
       return { statusCode: 500, body: JSON.stringify({ error: `Failed to process ${imageType} image` }) };
@@ -415,7 +415,7 @@ const deleteUpdate = async (req, res) => {
   try {
     const userId = req.user.userId;
     const { id } = req.params;
-    
+
     if (!id) {
       return res.status(400).json(createErrorResponse(400, 'Update ID is required'));
     }
@@ -1186,7 +1186,7 @@ const unrestrictUser = async (req, res) => {
     if (!id) {
       return res.status(400).json(createErrorResponse(400, 'User ID is required'));
     }
-    
+
     const userToUnrestrictId = parseInt(id);
     if (isNaN(userToUnrestrictId)) {
       return res.status(400).json(createErrorResponse(400, 'Invalid user ID'));
@@ -1244,7 +1244,7 @@ const blockUser = async (req, res) => {
     try {
       parsedUserToBlockId = safeDecryptId(userToBlockId);
       logInfo('Decoded user ID:', { originalId: userToBlockId, decodedId: parsedUserToBlockId });
-    } catch (error) {
+  } catch (error) {
       logError('Error decrypting user ID:', { userToBlockId, error: error.message });
       // TODO: Convert createErrorResponse(400, 'Invalid user ID format') to res.status(400).json({ error: 'Invalid user ID format' })
       return res.status(400).json(createErrorResponse(400, 'Invalid user ID format'));
@@ -1736,7 +1736,7 @@ const createUserCover = async (req, res) => {
     return res.status(result.statusCode).json(JSON.parse(result.body));
   }
   
-  return res.json(result);
+    return res.json(result);
 };
 
 /**
@@ -2155,39 +2155,43 @@ const getPosts = async (req, res) => {
       return res.status(400).json(createErrorResponse(400, 'Invalid type parameter. Must be one of: all, free, paid'));
     }
     const offset = (pageNum - 1) * limitNum;
-    let whereClause = 'WHERE p.user_id = ?';
+    let whereClause = 'WHERE u.user_id = ?';
     if (type === 'free') {
-      whereClause += ' AND p.price = 0';
+      whereClause += ' AND u.price = 0';
     } else if (type === 'paid') {
-      whereClause += ' AND p.price > 0';
+      whereClause += ' AND u.price > 0';
     }
     const query = `
       SELECT 
-        p.id,
-        p.title,
-        p.description,
-        p.price,
-        p.created_at,
-        p.updated_at,
-        p.status,
-        p.media_type,
-        p.media_url,
-        p.thumbnail_url,
-        p.is_pinned,
-        COUNT(l.id) as likes_count,
-        COUNT(c.id) as comments_count
-      FROM posts p
-      LEFT JOIN post_likes l ON p.id = l.post_id
-      LEFT JOIN post_comments c ON p.id = c.post_id
+        u.id,
+        u.description as title,
+        u.description,
+        u.price,
+        u.date as created_at,
+        u.date as updated_at,
+        u.status,
+        CASE 
+          WHEN u.img_type = 'jpg' OR u.img_type = 'jpeg' OR u.img_type = 'png' OR u.img_type = 'gif' THEN 'image'
+          WHEN u.img_type = 'mp4' OR u.img_type = 'avi' OR u.img_type = 'mov' THEN 'video'
+          ELSE 'unknown'
+        END as media_type,
+        u.image as media_url,
+        u.image as thumbnail_url,
+        u.fixed_post as is_pinned,
+        COUNT(DISTINCT l.id) as likes_count,
+        COUNT(DISTINCT c.id) as comments_count
+      FROM updates u
+      LEFT JOIN likes l ON u.id = l.updates_id AND l.status = '1'
+      LEFT JOIN comments c ON u.id = c.updates_id AND c.status = '1'
       ${whereClause}
-      GROUP BY p.id
-      ORDER BY p.is_pinned DESC, p.created_at DESC
+      GROUP BY u.id
+      ORDER BY u.fixed_post DESC, u.date DESC
       LIMIT ? OFFSET ?
     `;
     const [posts] = await getDB().query(query, [userId, limitNum, offset]);
     const countQuery = `
       SELECT COUNT(*) as total
-      FROM posts p
+      FROM updates u
       ${whereClause}
     `;
     const [countResult] = await getDB().query(countQuery, [userId]);
@@ -2262,44 +2266,48 @@ const getUpdates = async (req, res) => {
       return res.status(400).json(createErrorResponse(400, 'Invalid media_type parameter. Must be one of: all, image, video'));
     }
     const offset = (pageNum - 1) * limitNum;
-    let whereClause = 'WHERE p.user_id = ?';
+    let whereClause = 'WHERE u.user_id = ?';
     if (type === 'free') {
-      whereClause += ' AND p.price = 0';
+      whereClause += ' AND u.price = 0';
     } else if (type === 'paid') {
-      whereClause += ' AND p.price > 0';
+      whereClause += ' AND u.price > 0';
     }
     if (media_type === 'image') {
-      whereClause += ' AND p.media_type = "image"';
+      whereClause += ' AND (u.img_type = "jpg" OR u.img_type = "jpeg" OR u.img_type = "png" OR u.img_type = "gif")';
     } else if (media_type === 'video') {
-      whereClause += ' AND p.media_type = "video"';
+      whereClause += ' AND (u.img_type = "mp4" OR u.img_type = "avi" OR u.img_type = "mov")';
     }
     const query = `
       SELECT 
-        p.id,
-        p.title,
-        p.description,
-        p.price,
-        p.created_at,
-        p.updated_at,
-        p.status,
-        p.media_type,
-        p.media_url,
-        p.thumbnail_url,
-        p.is_pinned,
-        COUNT(l.id) as likes_count,
-        COUNT(c.id) as comments_count
-      FROM posts p
-      LEFT JOIN post_likes l ON p.id = l.post_id
-      LEFT JOIN post_comments c ON p.id = c.post_id
-      ${whereClause}
-      GROUP BY p.id
-      ORDER BY p.is_pinned DESC, p.created_at DESC
+        u.id,
+        u.description as title,
+        u.description,
+        u.price,
+        u.date as created_at,
+        u.date as updated_at,
+        u.status,
+        CASE 
+          WHEN u.img_type = 'jpg' OR u.img_type = 'jpeg' OR u.img_type = 'png' OR u.img_type = 'gif' THEN 'image'
+          WHEN u.img_type = 'mp4' OR u.img_type = 'avi' OR u.img_type = 'mov' THEN 'video'
+          ELSE 'unknown'
+        END as media_type,
+        u.image as media_url,
+        u.image as thumbnail_url,
+        u.fixed_post as is_pinned,
+        COUNT(DISTINCT l.id) as likes_count,
+        COUNT(DISTINCT c.id) as comments_count
+      FROM updates u
+      LEFT JOIN likes l ON u.id = l.updates_id AND l.status = '1'
+      LEFT JOIN comments c ON u.id = c.updates_id AND c.status = '1'
+      ${whereClause.replace(/p\./g, 'u.')}
+      GROUP BY u.id
+      ORDER BY u.fixed_post DESC, u.date DESC
       LIMIT ? OFFSET ?
     `;
     const [posts] = await getDB().query(query, [userId, limitNum, offset]);
     const countQuery = `
       SELECT COUNT(*) as total
-      FROM posts p
+      FROM updates u
       ${whereClause}
     `;
     const [countResult] = await getDB().query(countQuery, [userId]);
@@ -2420,14 +2428,13 @@ const deletePost = async (req, res) => {
     if (isNaN(postId)) {
       return res.status(400).json(createErrorResponse(400, 'Invalid post ID'));
     }
-    const query = 'DELETE FROM posts WHERE id = ? AND user_id = ?';
+    const query = 'DELETE FROM updates WHERE id = ? AND user_id = ?';
     const [result] = await getDB().query(query, [postId, userId]);
     if (result.affectedRows === 0) {
       return res.status(404).json(createErrorResponse(404, 'Post not found or you do not have permission to delete it'));
     }
-    await getDB().query('DELETE FROM post_tags WHERE post_id = ?', [postId]);
-    await getDB().query('DELETE FROM post_likes WHERE post_id = ?', [postId]);
-    await getDB().query('DELETE FROM post_comments WHERE post_id = ?', [postId]);
+    await getDB().query('DELETE FROM likes WHERE updates_id = ?', [postId]);
+    await getDB().query('DELETE FROM comments WHERE updates_id = ?', [postId]);
     logInfo('Post deleted successfully', { userId, postId });
     return res.status(200).json(createSuccessResponse('Post deleted successfully', {
       post_id: postId
@@ -2470,9 +2477,9 @@ const getComments = async (req, res) => {
     const query = `
       SELECT 
         c.id,
-        c.comment,
-        c.created_at,
-        c.updated_at,
+        c.reply as comment,
+        c.date as created_at,
+        c.date as updated_at,
         u.id as user_id,
         u.name,
         u.username,
@@ -2480,16 +2487,16 @@ const getComments = async (req, res) => {
         u.verified_id,
         u.role,
         COUNT(cl.id) as likes_count
-      FROM post_comments c
+      FROM comments c
       INNER JOIN users u ON c.user_id = u.id
-      LEFT JOIN comment_likes cl ON c.id = cl.comment_id
-      WHERE c.post_id = ?
+      LEFT JOIN comments_likes cl ON c.id = cl.comments_id
+      WHERE c.updates_id = ?
       GROUP BY c.id
-      ORDER BY c.created_at DESC
+      ORDER BY c.date DESC
       LIMIT ? OFFSET ?
     `;
     const [comments] = await getDB().query(query, [postId, limitNum, offset]);
-    const countQuery = 'SELECT COUNT(*) as total FROM post_comments WHERE post_id = ?';
+    const countQuery = 'SELECT COUNT(*) as total FROM comments WHERE updates_id = ?';
     const [countResult] = await getDB().query(countQuery, [postId]);
     const total = countResult[0].total;
     const totalPages = Math.ceil(total / limitNum);

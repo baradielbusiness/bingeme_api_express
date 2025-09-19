@@ -269,7 +269,7 @@ const fetchOwnerByUsername = async (username) => {
 const fetchPostByIdAndOwner = async (updateId, ownerId) => {
   const [rows] = await pool.query(
     `SELECT u.id, u.description, u.date, u.fixed_post, u.locked, u.price,
-            DATE_FORMAT(u.expired_at, '%Y-%m-%d %H:%i:%s') as expired_at, u.is_utc, u.status
+            DATE_FORMAT(u.expired_at, '%Y-%m-%d %H:%i:%s') as expired_at, u.status
        FROM updates u
       WHERE u.id = ? AND u.user_id = ? AND u.status IN ('active','disabled')
       LIMIT 1`,
@@ -690,7 +690,7 @@ const toggleCommentLikeHelper = async (commentId, userId) => {
     } else {
       // Create new like
       await pool.execute(`
-        INSERT INTO comments_likes (comments_id, user_id) VALUES (?, ?)
+        INSERT INTO comments_likes (comments_id, user_id, created_at, updated_at) VALUES (?, ?, NOW(), NOW())
       `, [commentId, userId]);
       return true; // Like
     }
