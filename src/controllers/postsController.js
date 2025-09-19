@@ -975,8 +975,8 @@ const createPost = async (req, res) => {
     // Step 3: Parse and validate JSON request body
     let requestBody;
     try {
-      // TODO: Convert JSON.parse(event.body || '{}') to JSON.parse(req.body || '{}')
-      requestBody = JSON.parse(req.body || '{}');
+      // Express already parses JSON, so use req.body directly
+      requestBody = req.body || {};
     } catch (error) {
       logError('Invalid JSON in request body:', { error: error.message });
       return res.status(400).json(createErrorResponse(400, 'Invalid JSON format in request body'));
@@ -1124,24 +1124,23 @@ const createPost = async (req, res) => {
  * @returns {Promise<object>} Express response with pre-signed URLs or error
  */
 const getPostUploadUrl = async (req, res) => {
-  // Configuration options for posts upload processing with destructuring
+  try {
     const uploadOptions = {
       action: 'getPostUploadUrl',
-    basePath: 'uploads/updates',
-    useFolderOrganization: true, // Posts use folder organization by file type
-    successMessage: 'Pre-signed upload URLs generated',
+      basePath: 'uploads/updates',
+      useFolderOrganization: true,
+      successMessage: 'Pre-signed upload URLs generated',
       getAuthenticatedUserId
     };
-    
-    // Use shared upload processing utility and return result directly
-  // TODO: Convert processUploadRequest(event, uploadOptions) to processUploadRequest(req, uploadOptions)
+
     const result = await processUploadRequest(req, uploadOptions);
-    
-  // TODO: Convert Lambda response format to Express response format
-    if (result.statusCode === 200) {
-      return res.status(200).json(JSON.parse(result.body));
-    } else {
-      return res.status(result.statusCode).json(JSON.parse(result.body));
+
+    // result is already a plain object from createSuccessResponse/createErrorResponse
+    const status = typeof result.status === 'number' ? result.status : 200;
+    return res.status(status).json(result);
+  } catch (error) {
+    logError('getPostUploadUrl failed:', error);
+    return res.status(500).json(createErrorResponse(500, 'Failed to generate upload URLs'));
   }
 };
 
@@ -1196,11 +1195,17 @@ const getPostByUsernameAndId = async (req, res) => {
     const appBaseUrl = process.env.APP_URL || 'https://bingeme.com';
 
     // 7) Build response
-    const { id: postId, description, date, date_utc, fixed_post, price, locked } = post;
+    const { id: postId, description, date, fixed_post, price, locked } = post;
+    
+    // Convert date to string if it's a Date object
+    const dateString = date ? (date instanceof Date ? date.toISOString() : date) : null;
+    const relativeTime = dateString ? formatRelativeTime(dateString) : 'just now';
+    
     const response = {
       id: encryptId(postId),
       caption: description || '',
-      date: date_utc ? formatRelativeTime(date_utc) : (date ? formatRelativeTime(date) : 'just now'),
+      date: relativeTime,
+      created_at: dateString,
       pinned: fixed_post === '1',
       price: price || 0,
       expired_at,
@@ -1234,24 +1239,17 @@ const getPostByUsernameAndId = async (req, res) => {
  */
 const addComment = async (req, res) => {
   try {
+    logInfo('addComment called with body:', req.body);
+    
     // Get authenticated user ID
-    // TODO: Convert getAuthenticatedUserId(event, { action: 'store_comment' }) to getAuthenticatedUserId(req, { action: 'store_comment' })
     const { userId, errorResponse } = getAuthenticatedUserId(req, { action: 'store_comment' });
     if (errorResponse) {
       // TODO: Convert return errorResponse to return res.status(errorResponse.statusCode).json(errorResponse.body)
       return res.status(errorResponse.statusCode).json(createErrorResponse(errorResponse.statusCode, errorResponse.body.message || errorResponse.body.error));
     }
 
-    // Parse request body
-    let requestBody;
-    try {
-      // TODO: Convert JSON.parse(event.body || '{}') to JSON.parse(req.body || '{}')
-      requestBody = JSON.parse(req.body || '{}');
-    } catch (error) {
-      // TODO: Convert createErrorResponse(400, 'Invalid JSON in request body') to res.status(400).json({ error: 'Invalid JSON in request body' })
-      return res.status(400).json(createErrorResponse(400, 'Invalid JSON in request body'));
-    }
-
+    // Use request body (already parsed by Express)
+    const requestBody = req.body || {};
     const { update_id, comment } = requestBody;
 
     // Validate update ID
@@ -1317,7 +1315,13 @@ const addComment = async (req, res) => {
     return res.json(createSuccessResponse('Comment stored successfully', responseData));
 
   } catch (error) {
-    logError('Error in store comment handler:', error);
+    logError('Error in store comment handler:', {
+      error: error.message,
+      stack: error.stack,
+      update_id,
+      comment,
+      userId
+    });
     // TODO: Convert createErrorResponse(500, 'Internal server error', { message: 'Failed to store comment' }) to res.status(500).json({ error: 'Internal server error', details: { message: 'Failed to store comment' } })
     return res.status(500).json(createErrorResponse(500, 'Failed to store comment'));
   }
@@ -1339,16 +1343,8 @@ const deleteComment = async (req, res) => {
       return res.status(errorResponse.statusCode).json(createErrorResponse(errorResponse.statusCode, errorResponse.body.message || errorResponse.body.error));
     }
 
-    // Parse request body
-    let requestBody;
-    try {
-      // TODO: Convert JSON.parse(event.body || '{}') to JSON.parse(req.body || '{}')
-      requestBody = JSON.parse(req.body || '{}');
-    } catch (error) {
-      // TODO: Convert createErrorResponse(400, 'Invalid JSON in request body') to res.status(400).json({ error: 'Invalid JSON in request body' })
-      return res.status(400).json(createErrorResponse(400, 'Invalid JSON in request body'));
-    }
-
+    // Use request body (already parsed by Express)
+    const requestBody = req.body || {};
     const { comment_id } = requestBody;
 
     // Validate comment ID
@@ -1434,16 +1430,8 @@ const toggleLike = async (req, res) => {
       return res.status(errorResponse.statusCode).json(createErrorResponse(errorResponse.statusCode, errorResponse.body.message || errorResponse.body.error));
     }
 
-    // Parse request body
-    let requestBody;
-    try {
-      // TODO: Convert JSON.parse(event.body || '{}') to JSON.parse(req.body || '{}')
-      requestBody = JSON.parse(req.body || '{}');
-    } catch (error) {
-      // TODO: Convert createErrorResponse(400, 'Invalid JSON in request body') to res.status(400).json({ error: 'Invalid JSON in request body' })
-      return res.status(400).json(createErrorResponse(400, 'Invalid JSON in request body'));
-    }
-
+    // Use request body (already parsed by Express)
+    const requestBody = req.body || {};
     const { update_id } = requestBody;
 
     // Validate update ID
@@ -1542,16 +1530,8 @@ const toggleCommentLike = async (req, res) => {
       return res.status(errorResponse.statusCode).json(createErrorResponse(errorResponse.statusCode, errorResponse.body.message || errorResponse.body.error));
     }
 
-    // Parse request body
-    let requestBody;
-    try {
-      // TODO: Convert JSON.parse(event.body || '{}') to JSON.parse(req.body || '{}')
-      requestBody = JSON.parse(req.body || '{}');
-    } catch (error) {
-      // TODO: Convert createErrorResponse(400, 'Invalid JSON in request body') to res.status(400).json({ error: 'Invalid JSON in request body' })
-      return res.status(400).json(createErrorResponse(400, 'Invalid JSON in request body'));
-    }
-
+    // Use request body (already parsed by Express)
+    const requestBody = req.body || {};
     const { comment_id } = requestBody;
 
     // Validate comment ID
@@ -1566,14 +1546,12 @@ const toggleCommentLike = async (req, res) => {
       decryptedCommentId = safeDecryptId(comment_id);
     } catch (error) {
       logError('Failed to decrypt comment ID:', { comment_id, error: error.message });
-      // TODO: Convert createErrorResponse(400, 'Invalid comment ID format') to res.status(400).json({ error: 'Invalid comment ID format' })
       return res.status(400).json(createErrorResponse(400, 'Invalid comment ID format'));
     }
 
     // Get comment details
     const comment = await getCommentDetails(decryptedCommentId);
     if (!comment) {
-      // TODO: Convert createErrorResponse(404, 'Comment not found') to res.status(404).json({ error: 'Comment not found' })
       return res.status(404).json(createErrorResponse(404, 'Comment not found'));
     }
 
@@ -1640,16 +1618,8 @@ const pinPost = async (req, res) => {
     
     const userId = authResult.userId;
     
-    // Step 2: Parse request body
-    let data;
-    try {
-      // TODO: Convert JSON.parse(event.body || '{}') to JSON.parse(req.body || '{}')
-      data = JSON.parse(req.body || '{}');
-    } catch (error) {
-      logError('[pinPostHandler] JSON parsing failed:', error.message);
-      // TODO: Convert createErrorResponse(400, 'Invalid JSON body') to res.status(400).json({ error: 'Invalid JSON body' })
-      return res.status(400).json(createErrorResponse(400, 'Invalid JSON body'));
-    }
+    // Step 2: Use request body (already parsed by Express)
+    const data = req.body || {};
     
     // Step 3: Validate input
     if (!data.id) {

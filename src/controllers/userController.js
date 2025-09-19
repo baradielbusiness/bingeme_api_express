@@ -9,6 +9,7 @@ import { sendEmailOTP } from '../utils/mail.js';
 import { sendWhatsAppOTP } from '../utils/whatsapp.js';
 import { getUserByIdOrUsername, getTotalPosts, getTotalFollowers, getTotalSubscribers, getUserCards, getUserUpdates, getUpdatesInfo, getLiveStreamingData, getPreBookCount } from '../utils/profileUtils.js';
 import { getMediaForUpdates, getBatchCommentsAndLikesCounts, getLatestComments, getTagsForUpdates } from '../utils/my_updates.js';
+import { processTags } from '../utils/updates.js';
 
 /**
  * Shared handler to generate pre-signed S3 URLs for uploading user profile image files.
@@ -247,7 +248,7 @@ const createUserProfileImageHandler = async (req, imageType) => {
         original: processedImage.original, 
         converted: processedImage.converted 
       });
-  } catch (error) {
+    } catch (error) {
       logError(`${imageType} image processing failed:`, { userId, imagePath, error: error.message });
       // TODO: Convert createErrorResponse(500, `Failed to process ${imageType} image`) to res.status(500).json({ error: `Failed to process ${imageType} image` })
       return { statusCode: 500, body: JSON.stringify({ error: `Failed to process ${imageType} image` }) };
@@ -372,34 +373,117 @@ const getSubscribers = async (req, res) => {
  */
 const editUpdate = async (req, res) => {
   try {
-    const userId = req.user.userId;
-    const { id, content, media_urls } = req.body;
-    
-    if (!id) {
-      return res.status(400).json(createErrorResponse(400, 'Update ID is required'));
+    const { userId, errorResponse } = getAuthenticatedUserId(req, { allowAnonymous: false, action: 'edit_update' });
+    if (errorResponse) {
+      return res.status(errorResponse.statusCode).json(createErrorResponse(errorResponse.statusCode, errorResponse.body.message || errorResponse.body.error));
     }
-    
+
+    const { id: encryptedId, description, tags, price, post_type, scheduled_date, scheduled_time } = req.body || {};
+    if (!encryptedId) {
+      return res.status(400).json(createErrorResponse(400, 'Post ID is required'));
+    }
+
+    // Decrypt update ID (accept numeric fallback)
+    let updateId;
+    try {
+      updateId = safeDecryptId ? safeDecryptId(encryptedId) : null;
+    } catch (_) {
+      updateId = null;
+    }
+    if (!updateId) {
+      const numericId = parseInt(encryptedId, 10);
+      if (Number.isNaN(numericId)) {
+        return res.status(400).json(createErrorResponse(400, 'Invalid post ID format'));
+      }
+      updateId = numericId;
+    }
+
     const db = await getDB();
-    
-    // Check if update exists and belongs to user
-    const [existingUpdate] = await db.execute(`
-      SELECT id FROM user_updates 
-      WHERE id = ? AND user_id = ? AND status = 'active'
-    `, [id, userId]);
-    
-    if (existingUpdate.length === 0) {
-      return res.status(404).json(createErrorResponse(404, 'Update not found'));
+
+    // Verify ownership in updates table
+    const [existsRows] = await db.execute(
+      `SELECT id, price, locked FROM updates WHERE id = ? AND user_id = ? AND status IN ('1','active','disabled')`,
+      [updateId, userId]
+    );
+    if (!existsRows || existsRows.length === 0) {
+      return res.status(404).json(createErrorResponse(404, 'Update not found or access denied'));
     }
-    
-    // Update the post
-    await db.execute(`
-      UPDATE user_updates 
-      SET content = ?, media_urls = ?, updated_at = NOW()
-      WHERE id = ? AND user_id = ?
-    `, [content, JSON.stringify(media_urls || []), id, userId]);
-    
-    logInfo('User update edited successfully', { userId, updateId: id });
-    return res.json(createSuccessResponse('Update edited successfully'));
+
+    // Compute expired_at if schedule provided
+    let expiredAt = null;
+    if (scheduled_date && scheduled_time) {
+      try {
+        const scheduledDateTime = new Date(`${scheduled_date}T${scheduled_time}:00`);
+        if (!Number.isNaN(scheduledDateTime.getTime())) {
+          expiredAt = scheduledDateTime.toISOString().slice(0, 19).replace('T', ' ');
+        }
+      } catch (_) {
+        // ignore; keep null
+      }
+    }
+
+    // Determine locked based on post_type and price
+    const priceVal = price !== undefined && price !== null ? Math.ceil(Number(price)) : null;
+    let lockedVal = null;
+    if (post_type) {
+      if (post_type === 'free') lockedVal = 'no';
+      else if (post_type === 'paid' || post_type === 'subscribers_only') lockedVal = 'yes';
+    }
+
+    // Normalize tags string
+    let tagsVal = null;
+    if (tags !== undefined && tags !== null) {
+      if (typeof tags === 'string') tagsVal = tags;
+      else if (Array.isArray(tags)) tagsVal = tags.join(',');
+      else if (typeof tags === 'object') {
+        try { tagsVal = Object.values(tags).join(','); } catch { tagsVal = null; }
+      }
+    }
+
+    // Build dynamic update set (do not update non-existent tags column)
+    const fields = [];
+    const params = [];
+    if (description !== undefined) { fields.push('description = ?'); params.push(description ?? ''); }
+    if (priceVal !== null) { fields.push('price = ?'); params.push(priceVal); }
+    if (lockedVal !== null) { fields.push('locked = ?'); params.push(lockedVal); }
+    if (expiredAt !== null) { fields.push('expired_at = ?'); params.push(expiredAt); }
+
+    if (fields.length === 0) {
+      return res.status(400).json(createErrorResponse(400, 'No editable fields provided'));
+    }
+
+    const sql = `UPDATE updates SET ${fields.join(', ')} WHERE id = ? AND user_id = ?`;
+    params.push(updateId, userId);
+
+    await db.execute(sql, params);
+
+    // Update tags through relation table if provided
+    if (tagsVal !== null && typeof tagsVal === 'string') {
+      await processTags(updateId, tagsVal);
+    }
+
+    logInfo('User update edited successfully', {
+      userId, updateId, updatedFields: fields
+    });
+
+    // Build Lambda-like response payload
+    const tagsArray = (tagsVal && typeof tagsVal === 'string')
+      ? tagsVal.split(',')
+          .map(t => t.trim())
+          .filter(Boolean)
+          .map(t => (t.startsWith('#') ? t : `#${t}`))
+      : [];
+
+    return res.json(createSuccessResponse('Post updated successfully', {
+      id: encryptedId,
+      description: description ?? null,
+      tags: tagsArray,
+      price: priceVal ?? null,
+      post_type: post_type ?? null,
+      scheduled_date: scheduled_date ?? null,
+      scheduled_time: scheduled_time ?? null,
+      expired_at: expiredAt
+    }));
   } catch (error) {
     logError('Error editing user update:', error);
     return res.status(500).json(createErrorResponse(500, 'Failed to edit update'));
@@ -413,34 +497,63 @@ const editUpdate = async (req, res) => {
  */
 const deleteUpdate = async (req, res) => {
   try {
-    const userId = req.user.userId;
-    const { id } = req.params;
+    const { userId, errorResponse } = getAuthenticatedUserId(req, { allowAnonymous: false, action: 'delete_update' });
+    if (errorResponse) {
+      return res.status(errorResponse.statusCode).json(createErrorResponse(errorResponse.statusCode, errorResponse.body.message || errorResponse.body.error));
+    }
 
-    if (!id) {
-      return res.status(400).json(createErrorResponse(400, 'Update ID is required'));
+    const { id: rawId } = req.params || {};
+    if (!rawId) {
+      return res.status(400).json(createErrorResponse(400, 'Post ID is required'));
     }
-    
+
+    // Decrypt update ID (accept numeric fallback)
+    let updateId;
+    try {
+      updateId = safeDecryptId ? safeDecryptId(rawId) : null;
+    } catch (_) {
+      updateId = null;
+    }
+    if (!updateId) {
+      const numericId = parseInt(rawId, 10);
+      if (Number.isNaN(numericId)) {
+        return res.status(400).json(createErrorResponse(400, 'Invalid post ID format'));
+      }
+      updateId = numericId;
+    }
+
     const db = await getDB();
-    
-    // Check if update exists and belongs to user
-    const [existingUpdate] = await db.execute(`
-      SELECT id FROM user_updates 
-      WHERE id = ? AND user_id = ? AND status = 'active'
-    `, [id, userId]);
-    
-    if (existingUpdate.length === 0) {
-      return res.status(404).json(createErrorResponse(404, 'Update not found'));
+
+    // Verify ownership and existence
+    const [rows] = await db.execute(
+      `SELECT id, expired_at FROM updates WHERE id = ? AND user_id = ?`,
+      [updateId, userId]
+    );
+    if (!rows || rows.length === 0) {
+      return res.status(404).json(createErrorResponse(404, 'Update not found or access denied'));
     }
-    
-    // Soft delete the post
-    await db.execute(`
-      UPDATE user_updates 
-      SET status = 'deleted', updated_at = NOW()
-      WHERE id = ? AND user_id = ?
-    `, [id, userId]);
-    
-    logInfo('User update deleted successfully', { userId, updateId: id });
-    return res.json(createSuccessResponse('Update deleted successfully'));
+
+    // If there are PPV purchases, set expired_at to now; else disable the update
+    let purchasesExist = false;
+    try {
+      // Optional: check purchases; if utility not available, fallback to disabling
+      const { getPayPerViewData } = await import('../utils/my_updates.js');
+      const purchasedData = await getPayPerViewData(updateId);
+      purchasesExist = Boolean(purchasedData);
+    } catch (_) {
+      purchasesExist = false;
+    }
+
+    if (purchasesExist) {
+      await db.execute(`UPDATE updates SET expired_at = NOW() WHERE id = ? AND user_id = ?`, [updateId, userId]);
+      logInfo('Update expired instead of deleting due to purchases', { updateId, userId });
+      return res.json(createSuccessResponse('Post deleted successfully', { success: true }));
+    }
+
+    // Soft disable the update
+    await db.execute(`UPDATE updates SET status = 'disabled' WHERE id = ? AND user_id = ?`, [updateId, userId]);
+    logInfo('User update deleted (disabled) successfully', { userId, updateId });
+    return res.json(createSuccessResponse('Post deleted successfully', { success: true }));
   } catch (error) {
     logError('Error deleting user update:', error);
     return res.status(500).json(createErrorResponse(500, 'Failed to delete update'));
@@ -468,7 +581,14 @@ const getMyPosts = async (req, res) => {
 
     return res.json(createSuccessResponse('Posts retrieved successfully', {
       posts,
-      pagination: { total: totalCount, skip, limit, hasMore, next }
+      pagination: {
+        current_page: pageNum,
+        total_pages: totalPages,
+        total_items: total,
+        items_per_page: limitNum,
+        has_next_page: pageNum < totalPages,
+        has_previous_page: pageNum > 1
+      }
     }));
   } catch (error) {
     logError('Error fetching posts:', error);
@@ -1244,7 +1364,7 @@ const blockUser = async (req, res) => {
     try {
       parsedUserToBlockId = safeDecryptId(userToBlockId);
       logInfo('Decoded user ID:', { originalId: userToBlockId, decodedId: parsedUserToBlockId });
-  } catch (error) {
+    } catch (error) {
       logError('Error decrypting user ID:', { userToBlockId, error: error.message });
       // TODO: Convert createErrorResponse(400, 'Invalid user ID format') to res.status(400).json({ error: 'Invalid user ID format' })
       return res.status(400).json(createErrorResponse(400, 'Invalid user ID format'));
@@ -1505,37 +1625,30 @@ const getProfile = async (req, res) => {
     
     const { slug } = validationResult;
 
-    // Step 2: Handle user authentication (required for profile routes)
-    // TODO: Convert getAuthenticatedUserId(event, { allowAnonymous: false, action: 'profile access' }) to getAuthenticatedUserId(req, { allowAnonymous: false, action: 'profile access' })
-    const authResult = getAuthenticatedUserId(req, { allowAnonymous: false, action: 'profile access' });
-    if (authResult.errorResponse) {
-      // TODO: Convert return authResult.errorResponse to return res.status(authResult.errorResponse.statusCode).json(authResult.errorResponse.body)
-      return res.status(authResult.errorResponse.statusCode).json(createErrorResponse(authResult.errorResponse.statusCode, authResult.errorResponse.body.message || authResult.errorResponse.body.error));
-    }
+    // Step 2: Handle user authentication (optional for profile routes)
+    const authResult = getAuthenticatedUserId(req, { allowAnonymous: true, action: 'profile access' });
+    const userId = authResult.userId; // May be null for anonymous users
     
-    const userId = authResult.userId;
-    
-    // Get authenticated user from database
-    const authUser = await getUserByIdOrUsername(userId, 'id');
-    if (!authUser) {
-      logError('Profile access: Invalid authenticated user', { userId });
-      // TODO: Convert createErrorResponse(400, 'Invalid User') to res.status(400).json({ error: 'Invalid User' })
-      return res.status(400).json(createErrorResponse(400, 'Invalid User'));
-    }
-
     // Step 3: Determine if this is own profile or other user's profile
     let user;
     
     if (slug === 'profile') {
-      // Own profile - use authenticated user data directly
+      // Own profile - requires authentication
+      if (!userId) {
+        return res.status(401).json(createErrorResponse(401, 'User authentication required'));
+      }
+    const authUser = await getUserByIdOrUsername(userId, 'id');
+    if (!authUser) {
+      logError('Profile access: Invalid authenticated user', { userId });
+      return res.status(400).json(createErrorResponse(400, 'Invalid User'));
+    }
       user = authUser;
       logInfo('Profile access: Own profile', { userId: authUser.id, username: authUser.username });
     } else {
-      // Other user's profile - get user data by username
+      // Other user's profile - get user data by username (public access)
       user = await getUserByIdOrUsername(slug, 'username');
       if (!user) {
         logError('Profile access: User not found', { slug, authUserId: userId });
-        // TODO: Convert createErrorResponse(404, 'User not found') to res.status(404).json({ error: 'User not found' })
         return res.status(404).json(createErrorResponse(404, 'User not found'));
       }
     }
@@ -1736,7 +1849,7 @@ const createUserCover = async (req, res) => {
     return res.status(result.statusCode).json(JSON.parse(result.body));
   }
   
-    return res.json(result);
+  return res.json(result);
 };
 
 /**
@@ -1922,10 +2035,10 @@ const restrictUser = async (req, res) => {
     // Do not restrict super admin (role = 'admin' and id = 1)
     if (targetUser.role === 'admin' && targetUser.id === 1) {
       return res.status(200).json(createSuccessResponse('Restriction updated successfully', {
-        message: 'Restriction updated successfully',
-        status: 200,
-        success: true,
-        timestamp: new Date().toISOString()
+          message: 'Restriction updated successfully',
+          status: 200,
+          success: true,
+          timestamp: new Date().toISOString()
       }));
     }
 
@@ -1961,10 +2074,10 @@ const restrictUser = async (req, res) => {
 
     logInfo('Restriction cache cleared');
     return res.status(200).json(createSuccessResponse('Restriction updated successfully', {
-      message: 'Restriction updated successfully',
-      status: 200,
-      success: true,
-      timestamp: new Date().toISOString()
+        message: 'Restriction updated successfully',
+        status: 200,
+        success: true,
+        timestamp: new Date().toISOString()
     }));
   } catch (error) {
     logError('Restrict user error:', error);
@@ -2022,11 +2135,11 @@ const getRestrictions = async (req, res) => {
 
     // Return paginated response matching Lambda JSON structure
     return res.status(200).json(createSuccessResponse('Restrictions retrieved successfully', {
-      restrictions: restrictionsList,
-      pagination: {
-        total: totalRestrictions,
-        next
-      }
+        restrictions: restrictionsList,
+        pagination: {
+          total: totalRestrictions,
+          next
+        }
     }));
   } catch (error) {
     logError('Get restrictions error:', error);
@@ -2456,82 +2569,122 @@ const getComments = async (req, res) => {
     if (errorResponse) {
       return res.status(errorResponse.statusCode).json(createErrorResponse(errorResponse.statusCode, errorResponse.body.message || errorResponse.body.error));
     }
-    const { id } = req.params || {};
-    if (!id) {
+
+    const { id: rawId } = req.params || {};
+    if (!rawId) {
       return res.status(400).json(createErrorResponse(400, 'Post ID is required'));
     }
-    const postId = parseInt(id, 10);
-    if (isNaN(postId)) {
+
+    let updatesId;
+    try {
+      updatesId = safeDecryptId ? safeDecryptId(rawId) : null;
+    } catch (_) {
+      updatesId = null;
+    }
+    if (!updatesId) {
+      const numericId = parseInt(rawId, 10);
+      if (Number.isNaN(numericId)) {
       return res.status(400).json(createErrorResponse(400, 'Invalid post ID'));
     }
-    const { page = 1, limit = 20 } = req.query || {};
-    const pageNum = parseInt(page, 10);
-    const limitNum = parseInt(limit, 10);
-    if (isNaN(pageNum) || pageNum < 1) {
+      updatesId = numericId;
+    }
+
+    const { skip, limit, page } = req.query || {};
+    const limitNum = Math.max(1, Math.min(100, parseInt((limit ?? 20), 10)));
+    let offset;
+    if (skip !== undefined) {
+      const skipNum = parseInt(skip, 10);
+      if (Number.isNaN(skipNum) || skipNum < 0) {
+        return res.status(400).json(createErrorResponse(400, 'Invalid skip parameter'));
+      }
+      offset = skipNum;
+    } else {
+      const pageNum = parseInt((page ?? 1), 10);
+      if (Number.isNaN(pageNum) || pageNum < 1) {
       return res.status(400).json(createErrorResponse(400, 'Invalid page parameter'));
     }
-    if (isNaN(limitNum) || limitNum < 1 || limitNum > 100) {
-      return res.status(400).json(createErrorResponse(400, 'Invalid limit parameter. Must be between 1 and 100'));
+      offset = (pageNum - 1) * limitNum;
     }
-    const offset = (pageNum - 1) * limitNum;
+
     const query = `
       SELECT 
         c.id,
         c.reply as comment,
-        c.date as created_at,
-        c.date as updated_at,
+        c.date,
+        c.date_utc,
         u.id as user_id,
         u.name,
         u.username,
         u.avatar,
         u.verified_id,
-        u.role,
-        COUNT(cl.id) as likes_count
+        u.role
       FROM comments c
       INNER JOIN users u ON c.user_id = u.id
-      LEFT JOIN comments_likes cl ON c.id = cl.comments_id
-      WHERE c.updates_id = ?
-      GROUP BY c.id
-      ORDER BY c.date DESC
+      WHERE c.updates_id = ? AND c.status = '1'
+      ORDER BY c.id DESC
       LIMIT ? OFFSET ?
     `;
-    const [comments] = await getDB().query(query, [postId, limitNum, offset]);
-    const countQuery = 'SELECT COUNT(*) as total FROM comments WHERE updates_id = ?';
-    const [countResult] = await getDB().query(countQuery, [postId]);
-    const total = countResult[0].total;
-    const totalPages = Math.ceil(total / limitNum);
-    const formattedComments = comments.map(comment => ({
-      id: comment.id,
-      comment: comment.comment,
-      created_at: comment.created_at,
-      updated_at: comment.updated_at,
-      user: {
-        id: comment.user_id,
-        name: comment.name,
-        username: comment.username,
-        avatar: comment.avatar ? getFile(`avatar/${comment.avatar}`) : null,
-        verified_id: comment.verified_id,
-        role: comment.role
-      },
-      likes_count: parseInt(comment.likes_count)
+    const [rows] = await getDB().query(query, [updatesId, limitNum, offset]);
+
+    const countQuery = "SELECT COUNT(*) as total FROM comments WHERE updates_id = ? AND status = '1'";
+    const [countResult] = await getDB().query(countQuery, [updatesId]);
+    const total = countResult[0]?.total ?? 0;
+
+    // Fetch likes_count for each comment and whether current user liked
+    const commentIds = rows.map(r => r.id);
+    let userLikedSet = new Set();
+    if (commentIds.length > 0) {
+      const placeholders = commentIds.map(() => '?').join(',');
+      const [userLikes] = await getDB().query(
+        `SELECT comments_id FROM comments_likes WHERE user_id = ? AND comments_id IN (${placeholders})`,
+        [userId, ...commentIds]
+      );
+      userLikedSet = new Set(userLikes.map(l => l.comments_id));
+    }
+
+    // likes_count per comment (batch by helper or per-row). Use helper if available; fallback via query.
+    const likesCounts = new Map();
+    if (commentIds.length > 0) {
+      const placeholders = commentIds.map(() => '?').join(',');
+      const [likeCounts] = await getDB().query(
+        `SELECT comments_id, COUNT(*) AS cnt FROM comments_likes WHERE comments_id IN (${placeholders}) GROUP BY comments_id`,
+        [...commentIds]
+      );
+      likeCounts.forEach(row => likesCounts.set(row.comments_id, parseInt(row.cnt)));
+    }
+
+    const formattedComments = rows.map(row => ({
+      id: encryptId(row.id),
+      name: row.name,
+      avatar: row.avatar ? getFile(`avatar/${row.avatar}`) : '',
+      comment: row.comment,
+      date: row.date_utc ? formatRelativeTime(row.date_utc) : (row.date ? formatRelativeTime(row.date) : 'just now'),
+      date_time: (row.date_utc ?? row.date ?? '0') || '0',
+      like: userLikedSet.has(row.id),
+      likes_count: likesCounts.get(row.id) || 0
     }));
+
+    const nextSkip = offset + limitNum;
+    const hasNext = nextSkip < total;
+    // Lambda example shows next without the id segment
+    const next = hasNext ? `/comments?skip=${nextSkip}&limit=${limitNum}` : null;
+
     logInfo('Comments retrieved successfully', { 
       userId, 
-      postId,
+      updatesId,
       total, 
-      page: pageNum, 
+      offset,
       limit: limitNum, 
       commentsCount: formattedComments.length 
     });
+
     return res.status(200).json(createSuccessResponse('Comments retrieved successfully', {
       comments: formattedComments,
       pagination: {
-        current_page: pageNum,
-        total_pages: totalPages,
-        total_items: total,
-        items_per_page: limitNum,
-        has_next_page: pageNum < totalPages,
-        has_previous_page: pageNum > 1
+        total,
+        skip: offset,
+        limit: limitNum,
+        next
       }
     }));
   } catch (error) {

@@ -949,12 +949,12 @@ const getUserSalesList = async (userId, options = {}) => {
 
   // Base sales query (purchases joined to products and buyer)
   let query = `
-    SELECT 
+      SELECT 
       p.id,
       p.delivery_status,
       p.created_at,
       p.description_custom_content,
-      u.username as buyer_username,
+        u.username as buyer_username,
       u.email as buyer_email,
       pr.name as product_name,
       pr.type as product_type,

@@ -1,7 +1,19 @@
 import { S3Client, GetObjectCommand, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { logInfo, logError } from './common.js';
-import sharp from 'sharp';
+// Note: lazy-load sharp to avoid ReferenceError if import fails in some environments
+let sharpInstance = null;
+const getSharp = async () => {
+  if (sharpInstance) return sharpInstance;
+  try {
+    const mod = await import('sharp');
+    sharpInstance = mod.default || mod;
+    return sharpInstance;
+  } catch (e) {
+    logError('Failed to load sharp module', { error: e.message });
+    throw e;
+  }
+};
 
 // Initialize S3 client
 const s3Client = new S3Client({ 
@@ -70,9 +82,9 @@ const processMediaFiles = async (fileKeys) => {
       } catch (error) {
         logError(`Error processing file ${fileKey}:`, error);
         // Throw detailed error to match Lambda behavior
-        const notFoundMessage = `payout media file not found in S3 bucket: ${fileKey}`;
+        const notFoundMessage = `post media file not found in S3 bucket: ${fileKey}`;
         const reason = error.name === 'NoSuchKey' ? notFoundMessage : error.message;
-        throw new Error(`Failed to process payout media file ${fileKey}: ${reason}`);
+        throw new Error(`Failed to process post media file ${fileKey}: ${reason}`);
       }
     }
     
@@ -162,6 +174,7 @@ const streamToBuffer = async (stream) => {
  */
 const isImageFile = async (buffer) => {
   try {
+    const sharp = await getSharp();
     const metadata = await sharp(buffer).metadata();
     return metadata.format !== undefined;
   } catch (error) {
@@ -174,6 +187,7 @@ const isImageFile = async (buffer) => {
  */
 const convertToWebP = async (buffer) => {
   try {
+    const sharp = await getSharp();
     return await sharp(buffer)
       .webp({ quality: 80 })
       .toBuffer();
