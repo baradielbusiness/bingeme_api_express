@@ -4844,7 +4844,8 @@
                         "type": "object",
                         "properties": {
                           "id": {
-                            "type": "integer"
+                            "type": "string",
+                            "description": "Encrypted product ID"
                           },
                           "name": {
                             "type": "string"
@@ -4894,7 +4895,7 @@
                 "data": {
                   "product": [
                     {
-                      "id": 2,
+                      "id": "MDuM5Ojjvp8PLVvuNF9mDA00",
                       "name": "Face Mask For KIds",
                       "type": "custom",
                       "price": "765.00",
@@ -5359,8 +5360,8 @@
             "name": "id",
             "in": "path",
             "required": true,
-            "type": "integer",
-            "description": "Product ID to retrieve"
+            "type": "string",
+            "description": "Encrypted product ID to retrieve"
           }
         ],
         "responses": {
@@ -5485,8 +5486,8 @@
             "name": "id",
             "in": "path",
             "required": true,
-            "type": "integer",
-            "description": "Product ID to update"
+            "type": "string",
+            "description": "Encrypted product ID to update"
           },
           {
             "name": "body",
@@ -5677,8 +5678,8 @@
             "name": "id",
             "in": "path",
             "required": true,
-            "type": "integer",
-            "description": "Product ID to delete"
+            "type": "string",
+            "description": "Encrypted product ID to delete"
           }
         ],
         "responses": {

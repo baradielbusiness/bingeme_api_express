@@ -174,8 +174,7 @@ const createProductHandler = async (req, res) => {
 
     const validationErrors = validateProductInput(body, { isUpdate: false });
     if (validationErrors.length > 0) {
-      // TODO: Convert createErrorResponse(400, 'Validation failed', { errors: validationErrors }) to res.status(400).json({ error: 'Validation failed', errors: validationErrors })
-      return res.status(400).json(createErrorResponse(400, 'Validation failed'));
+      return res.status(400).json(createErrorResponse(400, 'Validation failed', { errors: validationErrors }));
     }
 
     // Extract and prepare product data
@@ -255,8 +254,7 @@ const createProductHandler = async (req, res) => {
         cleanupMediaFiles(processedPreviews.original, processedPreviews.converted, bucketName, 'product')
       ]);
       
-      // TODO: Convert createErrorResponse(500, 'Failed to save product media to database', error.message) to res.status(500).json({ error: 'Failed to save product media to database', details: error.message })
-      return res.status(500).json(createErrorResponse(500, 'Failed to save product media to database'));
+      return res.status(500).json(createErrorResponse(500, `Failed to save product media to database: ${error.message}`));
     }
 
     // Log successful creation with metrics
@@ -498,19 +496,17 @@ const getProductUploadUrl = async (req, res) => {
     };
     
     // Use shared upload processing utility and return result directly
-    // TODO: Convert processUploadRequest(event, uploadOptions) to processUploadRequest(req, uploadOptions)
     const result = await processUploadRequest(req, uploadOptions);
     
-    // TODO: Convert return result to return res.status(result.statusCode).json(JSON.parse(result.body))
-    if (result.statusCode === 200) {
-      return res.status(200).json(createSuccessResponse('Product upload URL generated successfully', JSON.parse(result.body)));
+    // Return the result directly since processUploadRequest returns a response object
+    if (result.status === 200) {
+      return res.status(200).json(result);
     } else {
-      return res.status(result.statusCode).json(createErrorResponse(result.statusCode, JSON.parse(result.body).message || JSON.parse(result.body).error));
+      return res.status(result.status).json(result);
     }
   } catch (error) {
     logError('Error in getProductUploadUrl:', error);
-    // TODO: Convert createErrorResponse(500, 'Failed to generate upload URLs') to res.status(500).json({ error: 'Failed to generate upload URLs' })
-    return res.status(500).json(createErrorResponse(500, 'Failed to generate upload URLs'));
+    return res.status(500).json(createErrorResponse(500, `Failed to generate upload URLs: ${error.message}`));
   }
 };
 
