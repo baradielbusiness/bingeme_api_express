@@ -55,12 +55,22 @@ const getTotalPosts = async (userId) => {
  * @returns {Promise<number>} Total subscribers count
  */
 const getTotalSubscribers = async (userId) => {
-  const [rows] = await pool.query(
-    `SELECT COUNT(*) as count FROM subscriptions 
-     WHERE creator_id = ? AND status = 'active'`,
-    [userId]
-  );
-  return rows[0].count;
+  try {
+    const db = await getDB();
+    const [rows] = await db.execute(
+      `SELECT COUNT(*) as count 
+       FROM subscriptions s 
+       JOIN plans p ON s.stripe_price = p.name
+       WHERE p.user_id = ? 
+       AND p.status = "1"
+       AND ((s.cancelled = 'no' AND s.ends_at > NOW()) OR (s.free = 'yes' AND s.cancelled = 'no'))`,
+      [userId]
+    );
+    return rows[0]?.count || 0;
+  } catch (error) {
+    logError('Error getting total subscribers:', error);
+    return 0;
+  }
 };
 
 /**
@@ -357,8 +367,8 @@ const getTotalFollowers = async (userId) => {
     const db = await getDB();
     const [rows] = await db.execute(`
       SELECT COUNT(*) as count 
-      FROM followers 
-      WHERE creator_id = ? AND status = 'active'
+      FROM follow 
+      WHERE creator_id = ? AND follow = "1"
     `, [userId]);
     
     return rows[0]?.count || 0;
@@ -378,15 +388,28 @@ const getUserCards = async (userId) => {
     const db = await getDB();
     const [rows] = await db.execute(`
       SELECT 
-        id,
-        title,
-        description,
-        image_url,
-        link_url,
-        created_at
-      FROM user_cards 
-      WHERE user_id = ? AND status = 'active'
-      ORDER BY created_at DESC
+        p.id, 
+        p.name, 
+        p.description, 
+        p.price, 
+        p.delivery_time,
+        p.created_at,
+        mp.name as image,
+        COALESCE(purchase_stats.purchase_count, 0) as purchase_count
+      FROM products p
+      LEFT JOIN media_products mp ON p.id = mp.products_id 
+        AND mp.id = (SELECT MIN(id) FROM media_products WHERE products_id = p.id)
+      LEFT JOIN (
+        SELECT 
+          products_id,
+          COUNT(*) as purchase_count
+        FROM purchases 
+        WHERE delivery_status != 'rejected'
+        GROUP BY products_id
+      ) purchase_stats ON p.id = purchase_stats.products_id
+      WHERE p.user_id = ? AND p.status = "1" AND p.type = "custom"
+      GROUP BY p.id, mp.name
+      ORDER BY p.id DESC
     `, [userId]);
     
     return rows;
@@ -403,21 +426,30 @@ const getUserCards = async (userId) => {
  * @param {number} skip - Skip
  * @returns {Promise<Array>} User updates
  */
-const getUserUpdates = async (userId, limit = 20, skip = 0) => {
+const getUserUpdates = async (userId, authUserId) => {
   try {
     const db = await getDB();
+    
+    // If viewing own profile, show both active and disabled updates
+    // If viewing others' profile, show only active updates
+    const statusCondition = userId === authUserId 
+      ? 'u.status IN ("active", "disabled")' 
+      : 'u.status = "active"';
+      
     const [rows] = await db.execute(`
-      SELECT 
-        id,
-        content,
-        media_urls,
-        created_at,
-        updated_at
-      FROM user_updates 
-      WHERE user_id = ? AND status = 'active'
-      ORDER BY created_at DESC
-      LIMIT ? OFFSET ?
-    `, [userId, limit, skip]);
+      SELECT u.*,
+          CASE WHEN u.locked = 'yes' THEN 1 ELSE 0 END as is_locked,
+          CASE WHEN u.price > 0 THEN 1 ELSE 0 END as has_price,
+          CASE WHEN u.fixed_post = '1' THEN 1 ELSE 0 END as is_pinned,
+          DATE_FORMAT(u.expired_at, '%Y-%m-%d %H:%i:%s') as expired_at,
+          u.date_utc
+      FROM updates u 
+      WHERE u.user_id = ? 
+      AND ${statusCondition}
+      AND (u.expired_at IS NULL OR u.expired_at >= NOW())
+      ORDER BY CASE WHEN u.fixed_post = '1' THEN 0 ELSE 1 END, u.id DESC
+      LIMIT 10
+    `, [userId]);
     
     return rows;
   } catch (error) {
@@ -434,18 +466,73 @@ const getUserUpdates = async (userId, limit = 20, skip = 0) => {
 const getUpdatesInfo = async (userId) => {
   try {
     const db = await getDB();
-    const [rows] = await db.execute(`
-      SELECT 
-        COUNT(*) as total_updates,
-        MAX(created_at) as last_update
-      FROM user_updates 
-      WHERE user_id = ? AND status = 'active'
+    
+    // First, get all active update IDs for this user
+    const [updateRows] = await db.execute(`
+      SELECT id FROM updates 
+      WHERE user_id = ? 
+      AND status = 'active'
+      AND (expired_at IS NULL OR expired_at >= NOW())
     `, [userId]);
     
-    return rows[0] || { total_updates: 0, last_update: null };
+    const updateIds = updateRows.map(row => row.id);
+    const allCount = updateIds.length;
+    
+    if (allCount === 0) {
+      return {
+        all: 0,
+        photos: 0,
+        videos: 0,
+        custom: 0
+      };
+    }
+    
+    // Get media counts by type for these updates
+    const [mediaRows] = await db.execute(`
+      SELECT type, COUNT(*) as count
+      FROM media 
+      WHERE updates_id IN (${updateIds.map(() => '?').join(',')})
+      AND status = 'active'
+      GROUP BY type
+    `, updateIds);
+    
+    // Initialize counts
+    let photos = 0;
+    let videos = 0;
+    
+    // Process media counts
+    mediaRows.forEach(row => {
+      switch (row.type) {
+        case 'image':
+          photos = row.count;
+          break;
+        case 'video':
+          videos = row.count;
+          break;
+        default:
+          // Other media types are not counted
+          break;
+      }
+    });
+    
+    // Get shop items count
+    const [shopRows] = await db.execute(`
+      SELECT COUNT(*) as count 
+      FROM products 
+      WHERE user_id = ? AND status = "1"
+    `, [userId]);
+    
+    const custom = shopRows[0]?.count || 0;
+    
+    return {
+      all: allCount,
+      photos: photos,
+      videos: videos,
+      custom: custom
+    };
   } catch (error) {
     logError('Error getting updates info:', error);
-    return { total_updates: 0, last_update: null };
+    return { all: 0, photos: 0, videos: 0, custom: 0 };
   }
 };
 
@@ -469,13 +556,15 @@ const getLiveStreamingData = async (userId) => {
       FROM live_streams 
       WHERE user_id = ? 
       ORDER BY created_at DESC
-      LIMIT 10
+      LIMIT 1
     `, [userId]);
     
-    return rows;
+    if (!rows[0]) return null;
+    return rows[0];
   } catch (error) {
+    // If table doesn't exist or any other error, return null
     logError('Error getting live streaming data:', error);
-    return [];
+    return null;
   }
 };
 

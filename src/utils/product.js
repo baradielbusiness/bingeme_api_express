@@ -387,9 +387,98 @@ const processProductAdminSettings = (settings, userCountry = 'IN') => {
   };
 };
 
+/**
+ * Get user digital and custom products (Lambda function)
+ */
+const getUserDigitalAndCustomProducts = async (userId, limit = 20, skip = 0, statusFilter = 'all', sort = 'latest') => {
+  try {
+    // Build status condition based on filter
+    let statusCondition = '';
+    let countStatusCondition = '';
+    
+    if (statusFilter === 'active') {
+      statusCondition = 'AND p.status = "1"';
+      countStatusCondition = 'AND status = "1"';
+    } else if (statusFilter === 'disabled') {
+      statusCondition = 'AND p.status = "0"';
+      countStatusCondition = 'AND status = "0"';
+    } else {
+      // 'all' - include both active (1) and disabled (0), exclude deleted (2)
+      statusCondition = 'AND p.status IN ("0", "1")';
+      countStatusCondition = 'AND status IN ("0", "1")';
+    }
+
+    // Build order by clause based on sort option
+    let orderByClause = 'p.created_at DESC'; // Default
+    if (statusFilter === 'active') {
+      // For active products, support all sort options
+      switch (sort) {
+        case 'subscription':
+          orderByClause = 'p.price ASC, p.id DESC'; // Lowest price first
+          break;
+        case 'oldest':
+          orderByClause = 'p.id ASC'; // Oldest first
+          break;
+        case 'latest':
+          orderByClause = 'p.id DESC'; // Newest first
+          break;
+        default:
+          orderByClause = 'p.created_at DESC'; // Default
+      }
+    }
+
+    const db = await getDB();
+
+    // Get total count of digital and custom products for pagination
+    const [countRows] = await db.query(
+      `SELECT COUNT(*) as total FROM products WHERE user_id = ? AND status != "2" AND type IN ('digital', 'custom') ${countStatusCondition}`,
+      [userId]
+    );
+    const { total: totalCount } = countRows[0];
+
+    // Get digital and custom products from DB with pagination, filtering, sorting and join for purchase count
+    const [products] = await db.query(
+      `SELECT 
+        p.id,
+        p.name, 
+        p.type, 
+        p.price, 
+        p.description, 
+        p.tags, 
+        p.delivery_time, 
+        mp.name as image, 
+        p.status, 
+        p.created_at,
+        COALESCE(purchase_counts.purchases_count, 0) as purchases_count
+      FROM products p
+      LEFT JOIN media_products mp ON p.id = mp.products_id 
+        AND mp.id = (SELECT MIN(id) FROM media_products WHERE products_id = p.id)
+      LEFT JOIN (
+        SELECT 
+          products_id,
+          COUNT(*) as purchases_count
+        FROM purchases 
+        WHERE delivery_status != 'rejected' 
+          AND status != '2'
+        GROUP BY products_id
+      ) as purchase_counts ON p.id = purchase_counts.products_id
+      WHERE p.user_id = ? AND p.status != '2' AND p.type IN ('digital', 'custom') ${statusCondition}
+      ORDER BY ${orderByClause}
+      LIMIT ? OFFSET ?`,
+      [userId, limit, skip]
+    );
+
+    return { products, totalCount };
+  } catch (error) {
+    logError('Error fetching user digital and custom products:', { userId, error: error.message });
+    throw error;
+  }
+};
+
 // Export all functions at the end
 export {
   getUserProducts,
+  getUserDigitalAndCustomProducts,
   createProduct,
   getProductByIdForUser,
   updateProduct,

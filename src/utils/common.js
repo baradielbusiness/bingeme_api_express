@@ -420,25 +420,27 @@ const getUserSettings = async (userId) => {
     const db = await getDB();
     const [rows] = await db.execute(`
       SELECT 
-        username,
-        name,
-        email,
-        mobile,
-        story,
-        country,
-        disable_watermark,
-        dark_mode,
-        created_at,
-        updated_at
+        id, name, username, email, mobile, avatar, cover, about, story, profession, website, gender, birthdate, address, city, state_id, zip, countries_id, language, facebook, twitter, instagram, youtube, pinterest, github, tiktok, snapchat, telegram, vk, twitch, discord, company, hide_name, disable_watermark
       FROM users 
-      WHERE id = ? AND deleted = 0
+      WHERE id = ?
     `, [userId]);
     
     if (rows.length === 0) {
       return null;
     }
     
-    return rows[0];
+    // Process the user settings to handle empty/null values
+    const userSettings = rows[0];
+    
+    // Convert "Na" values and null values to empty strings for specific fields
+    const fieldsToProcess = ['address', 'city', 'state_id', 'zip', 'about', 'story', 'profession', 'website', 'company'];
+    fieldsToProcess.forEach(field => {
+      if (userSettings[field] === 'Na' || userSettings[field] === null || userSettings[field] === undefined) {
+        userSettings[field] = '';
+      }
+    });
+    
+    return userSettings;
   } catch (error) {
     logError('Error getting user settings:', error);
     throw error;
@@ -457,7 +459,7 @@ const checkUserFieldExists = async (userId, field, value) => {
     const db = await getDB();
     const [rows] = await db.execute(`
       SELECT id FROM users 
-      WHERE ${field} = ? AND id != ? AND deleted = 0
+      WHERE ${field} = ? AND id != ?
     `, [value, userId]);
     
     return rows.length > 0;
@@ -476,11 +478,18 @@ const checkUserFieldExists = async (userId, field, value) => {
  */
 const checkMobileExists = async (userId, mobile, countryCode) => {
   try {
+    if (!mobile || !countryCode) return false;
+    
     const db = await getDB();
+    // Create both formats: with country code and without
+    const mobileWithCode = countryCode + mobile;
+    const mobileWithoutCode = mobile;
+    
+    // Check if either format exists in the database for another user
     const [rows] = await db.execute(`
       SELECT id FROM users 
-      WHERE mobile = ? AND country_code = ? AND id != ? AND deleted = 0
-    `, [mobile, countryCode, userId]);
+      WHERE (mobile = ? OR mobile = ?) AND id != ?
+    `, [mobileWithCode, mobileWithoutCode, userId]);
     
     return rows.length > 0;
   } catch (error) {
@@ -498,7 +507,7 @@ const getUserCountryById = async (countryId) => {
   try {
     const db = await getDB();
     const [rows] = await db.execute(`
-      SELECT id, name, code FROM countries WHERE id = ?
+      SELECT id, country_name as name, country_code as code FROM countries WHERE id = ?
     `, [countryId]);
     
     return rows[0] || null;
@@ -524,7 +533,7 @@ const updateUserAfterOTP = async (userId, updateFields) => {
     const [result] = await db.execute(`
       UPDATE users 
       SET ${setClause}, updated_at = NOW()
-      WHERE id = ? AND deleted = 0
+      WHERE id = ?
     `, [...values, userId]);
     
     return result.affectedRows > 0;
@@ -542,18 +551,30 @@ const updateUserAfterOTP = async (userId, updateFields) => {
  * @param {string} countryCode - Country code
  * @returns {Promise<object>} Comparison result
  */
-const compareUserFields = async (userId, email, mobile, countryCode) => {
+const compareUserFields = async (userId, newEmail, newMobile, countryCode) => {
   try {
-    const db = await getDB();
-    const [rows] = await db.execute(`
-      SELECT 
-        CASE WHEN email = ? THEN 1 ELSE 0 END as email_exists,
-        CASE WHEN mobile = ? AND country_code = ? THEN 1 ELSE 0 END as mobile_exists
-      FROM users 
-      WHERE id = ? AND deleted = 0
-    `, [email, mobile, countryCode, userId]);
+    // Fetch current user settings
+    const currentSettings = await getUserSettings(userId);
+    if (!currentSettings) {
+      throw new Error('User not found');
+    }
+
+    // Compare email
+    const emailMatches = newEmail && currentSettings.email === newEmail;
     
-    return rows[0] || { email_exists: 0, mobile_exists: 0 };
+    // Compare mobile (handle both raw and combined formats)
+    let mobileMatches = false;
+    if (newMobile && countryCode) {
+      const combinedMobile = countryCode + newMobile;
+      mobileMatches = currentSettings.mobile === combinedMobile || currentSettings.mobile === newMobile;
+    } else if (newMobile) {
+      mobileMatches = currentSettings.mobile === newMobile;
+    }
+
+    return {
+      emailMatches,
+      mobileMatches
+    };
   } catch (error) {
     logError('Error comparing user fields:', error);
     throw error;
@@ -565,13 +586,13 @@ const compareUserFields = async (userId, email, mobile, countryCode) => {
  */
 const updateUserSettings = async (userId, settings) => {
   try {
-    const { username, name, email, mobile, story, country } = settings;
+    const { username, name, email, mobile, story, countries_id } = settings;
     const query = `
       UPDATE users 
-      SET username = ?, name = ?, email = ?, mobile = ?, story = ?, country = ?, updated_at = NOW() 
-      WHERE id = ? AND deleted = 0
+      SET username = ?, name = ?, email = ?, mobile = ?, story = ?, countries_id = ?, updated_at = NOW() 
+      WHERE id = ?
     `;
-    await pool.query(query, [username, name, email, mobile, story, country, userId]);
+    await pool.query(query, [username, name, email, mobile, story, countries_id, userId]);
     logInfo(`Updated user settings: ${userId}`);
   } catch (error) {
     logError('Error updating user settings:', error);
@@ -915,7 +936,7 @@ const getAllCountries = async () => {
  */
 const getStates = async (countryId) => {
   try {
-    const query = `SELECT * FROM states WHERE country_id = ? ORDER BY name ASC`;
+    const query = `SELECT * FROM states WHERE countries_id = ? ORDER BY name ASC`;
     const [states] = await pool.query(query, [countryId]);
     return states;
   } catch (error) {
@@ -2524,6 +2545,9 @@ const getAuthenticatedUserId = (req, options = {}) => {
   logInfo('getAuthenticatedUserId called', { caller: action });
   const authHeader = headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    if (allowAnonymous) {
+      return { userId: null, decoded: null };
+    }
     return { errorResponse: createErrorResponse(401, 'Access token required') };
   }
   const accessToken = authHeader.replace(/^Bearer\s+/i, '');
@@ -3065,7 +3089,7 @@ const formatNumberWithK = (num) => {
 
 const getCommentLikesCount = async (commentId) => {
   try {
-    const pool = getDB();
+    const pool = await getDB();
     const [rows] = await pool.execute(`
       SELECT COUNT(*) as count FROM comments_likes 
       WHERE comments_id = ?

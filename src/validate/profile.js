@@ -9,72 +9,88 @@
  * @returns {Array} Array of validation errors
  */
 /**
+ * Validate profile slug parameter
+ * @param {string} slug - The profile slug to validate
+ * @returns {Object} Validation result with isValid boolean and error message
+ */
+const validateProfileSlug = (slug) => {
+  // Check if slug exists
+  if (!slug) {
+    return {
+      isValid: false,
+      error: 'Missing slug parameter'
+    };
+  }
+
+  // Check if slug is a string
+  if (typeof slug !== 'string') {
+    return {
+      isValid: false,
+      error: 'Slug must be a string'
+    };
+  }
+
+  // Check if slug is not empty
+  if (slug.trim().length === 0) {
+    return {
+      isValid: false,
+      error: 'Slug cannot be empty'
+    };
+  }
+
+  // Check if slug contains only valid characters (alphanumeric, hyphens, underscores)
+  const validSlugRegex = /^[a-zA-Z0-9_-]+$/;
+  if (!validSlugRegex.test(slug)) {
+    return {
+      isValid: false,
+      error: 'Slug contains invalid characters. Only letters, numbers, hyphens, and underscores are allowed'
+    };
+  }
+
+  // Check if slug is not too long (max 50 characters)
+  if (slug.length > 50) {
+    return {
+      isValid: false,
+      error: 'Slug is too long. Maximum 50 characters allowed'
+    };
+  }
+
+  return {
+    isValid: true,
+    error: null
+  };
+};
+
+/**
  * Validate profile request
  * @param {Object} req - Express request object
  * @returns {Object} Validation result with valid flag, data, and error
  */
 const validateProfileRequest = (req) => {
   try {
-    const errors = [];
-    const data = {};
+    // Extract slug from URL parameters
+    const slug = req.params.slug;
 
-    // Extract user info from request (assuming it's added by auth middleware)
-    if (!req.user || !req.user.userId) {
-      errors.push('User authentication required');
-      return { valid: false, error: errors.join(', '), data: {} };
-    }
-
-    data.userId = req.user.userId;
-    data.username = req.user.username || '';
-
-    // Validate query parameters
-    const { skip, limit, type } = req.query || {};
-
-    // Validate pagination parameters
-    if (skip !== undefined) {
-      const skipNum = parseInt(skip);
-      if (isNaN(skipNum) || skipNum < 0) {
-        errors.push('Skip must be a non-negative number');
-      } else {
-        data.skip = skipNum;
-      }
-    } else {
-      data.skip = 0;
-    }
-
-    if (limit !== undefined) {
-      const limitNum = parseInt(limit);
-      if (isNaN(limitNum) || limitNum < 1 || limitNum > 100) {
-        errors.push('Limit must be a number between 1 and 100');
-      } else {
-        data.limit = limitNum;
-      }
-    } else {
-      data.limit = 20;
-    }
-
-    // Validate type parameter
-    if (type !== undefined) {
-      const validTypes = ['all', 'posts', 'updates', 'live'];
-      if (!validTypes.includes(type)) {
-        errors.push('Type must be one of: all, posts, updates, live');
-      } else {
-        data.type = type;
-      }
-    } else {
-      data.type = 'all';
+    // Validate slug
+    const slugValidation = validateProfileSlug(slug);
+    if (!slugValidation.isValid) {
+      return {
+        isValid: false,
+        error: slugValidation.error,
+        slug: null
+      };
     }
 
     return {
-      valid: errors.length === 0,
-      error: errors.length > 0 ? errors.join(', ') : null,
-      data: data
+      isValid: true,
+      error: null,
+      slug
     };
   } catch (error) {
     return {
-      valid: false,
+      isValid: false,
       error: 'Invalid request format',
-      data: {}
+      slug: null
     };
   }
 };
