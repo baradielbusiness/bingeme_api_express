@@ -7,7 +7,7 @@ import setEdgeCacheHeaders from '../middleware/edgeCacheHeaders.js';
 const router = express.Router();
 
 // Public routes (no authentication required)
-router.get('/:slug', setEdgeCacheHeaders, optionalAuthMiddleware, userController.getProfile);
+// Note: /:slug route moved to aliases.js to avoid conflict with specific routes like /user/info
 
 // Protected routes (authentication required)
 router.use(authMiddleware);
@@ -22,7 +22,7 @@ router.get('/comments/:id', setEdgeCacheHeaders, userController.getComments);
 // User profile and settings
 router.get('/profile', setEdgeCacheHeaders, userController.getSettings);
 router.post('/profile', userController.postSettings);
-router.get('/info', setEdgeCacheHeaders, userController.getUserInfo);
+// Note: /info route moved to aliases.js as /user/info to avoid conflict with profile slug routes
 router.get('/search', setEdgeCacheHeaders, userController.searchUsers);
 router.post('/mode/:mode', userController.darkMode);
 router.post('/change-password', userController.changePassword);

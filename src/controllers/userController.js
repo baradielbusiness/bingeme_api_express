@@ -8,7 +8,8 @@ import { validateUserSettings } from '../utils/validations.js';
 import { sendEmailOTP } from '../utils/mail.js';
 import { sendWhatsAppOTP } from '../utils/whatsapp.js';
 import { getUserByIdOrUsername, getTotalPosts, getTotalFollowers, getTotalSubscribers, getUserCards, getUserUpdates, getUpdatesInfo, getLiveStreamingData, getPreBookCount } from '../utils/profileUtils.js';
-import { getMediaForUpdates, getBatchCommentsAndLikesCounts, getLatestComments, getTagsForUpdates } from '../utils/my_updates.js';
+import { getMediaForUpdates, getBatchCommentsAndLikesCounts, getLatestComments, getTagsForUpdates, getMediaTypeFromFilter, getOrderByClause, extractQueryParameters, executeUpdatesQueries, applyPostQueryFilters } from '../utils/my_updates.js';
+import { getUserProducts, getUserDigitalAndCustomProducts } from '../utils/product.js';
 import { processTags } from '../utils/updates.js';
 
 /**
@@ -560,39 +561,221 @@ const deleteUpdate = async (req, res) => {
   }
 };
 
+/**
+ * Retrieves media type information for multiple posts (Lambda logic)
+ * @param {Array<number>} updateIds - Array of post IDs
+ * @returns {Promise<Object>} Media types grouped by post ID using Set
+ */
+const getMediaTypesForUpdates = async (updateIds) => {
+  if (!updateIds?.length) return {};
+  
+  const placeholders = updateIds.map(() => '?').join(',');
+  const query = `
+    SELECT updates_id, type
+    FROM media 
+    WHERE updates_id IN (${placeholders})
+    AND status = 'active'
+    ORDER BY updates_id, id
+  `;
+  
+  try {
+    const db = await getDB();
+    const [rows] = await db.query(query, updateIds);
+    
+    // Group media types by post ID using Set to avoid duplicates
+    const mediaByUpdate = {};
+    rows.forEach(({ updates_id, type }) => {
+      if (!mediaByUpdate[updates_id]) {
+        mediaByUpdate[updates_id] = new Set();
+      }
+      mediaByUpdate[updates_id].add(type);
+    });
+    
+    return mediaByUpdate;
+  } catch (error) {
+    logError('Error fetching media for updates:', { updateIds, error: error.message });
+    return {};
+  }
+};
+
+/**
+ * Determines the media field value based on available media types (Lambda logic)
+ * @param {Set<string>} mediaTypes - Set of media types for a post
+ * @returns {string} Media field value: "image", "video", "image, video", or ""
+ */
+const getMediaFieldValue = (mediaTypes) => {
+  if (!mediaTypes?.size) return '';
+  
+  const hasImage = mediaTypes.has('image');
+  const hasVideo = mediaTypes.has('video');
+  
+  if (hasImage && hasVideo) return 'image, video';
+  if (hasImage) return 'image';
+  if (hasVideo) return 'video';
+  
+  return '';
+};
+
+/**
+ * Formats price to show "0" instead of "0.00" for zero values (Lambda logic)
+ * @param {number|string} price - Price value to format
+ * @returns {string} Formatted price string
+ */
+const formatPrice = (price) => {
+  const numericPrice = parseFloat(price);
+  return numericPrice === 0 ? "0" : numericPrice.toString();
+};
+
+/**
+ * Formats a single post row with proper date, price, and media information (Lambda logic)
+ * @param {Object} row - Database row containing post data
+ * @param {Object} mediaByUpdate - Media information grouped by post ID
+ * @returns {Object} Formatted post object
+ */
+const formatPostRow = (row, mediaByUpdate) => {
+  // Destructure fields that need custom formatting
+  const { id, description, status, date, date_utc, likes_count, comments_count, locked, price, expired_at, ...remainingFields } = row;
+  
+  // Get media types for this post
+  const mediaTypes = mediaByUpdate[id] || new Set();
+  const mediaField = getMediaFieldValue(mediaTypes);
+  
+  return {
+    // Custom formatted fields
+    id,
+    description,
+    status,
+    date: formatDate(date_utc || date),
+    likes_count,
+    comments_count,
+    locked,
+    price: formatPrice(price),
+    expired_at: expired_at, // Return exact database value without conversion
+    ...remainingFields, // Spread remaining fields automatically
+    media: mediaField // Override media field with processed value
+  };
+};
+
+/**
+ * Generates pagination information including next URL (Lambda logic)
+ * @param {number} totalUpdates - Total number of posts
+ * @param {number} skip - Number of posts skipped
+ * @param {number} limit - Number of posts per page
+ * @returns {Object} Pagination object with hasMore and next URL
+ */
+const generatePaginationInfo = (totalUpdates, skip, limit) => {
+  const hasMore = (skip + limit) < totalUpdates;
+  const next = hasMore ? `/posts?skip=${skip + limit}&limit=${limit}` : "";
+  
+  return {
+    total: totalUpdates,
+    skip,
+    limit,
+    hasMore,
+    next
+  };
+};
+
 const getMyPosts = async (req, res) => {
   try {
+    // Step 1: Authenticate user and extract user ID
     const userId = req.userId;
-    const { skip: skipRaw, limit: limitRaw } = req.query;
-    const skip = parseInt(skipRaw) || 0;
-    const limit = parseInt(limitRaw) || 20;
+    if (!userId) {
+      return res.status(401).json(createErrorResponse(401, 'Access token required'));
+    }
 
-    // Get posts list and count
-    const [posts, totalCount] = await Promise.all([
-      getUserPostsList(userId, { skip, limit }),
-      getUserPostsCount(userId)
+    // Step 2: Parse pagination parameters with defaults
+    const { skip = 0, limit = 10 } = req.query;
+    const skipNum = Number(skip) || 0;
+    const limitNum = Number(limit) || 10;
+
+    // Step 3: Fetch posts data and total count from database (Lambda query)
+    const query = `
+      SELECT 
+        u.id,
+        u.locked,
+        u.price,
+        u.description,
+        u.status,
+        DATE_FORMAT(u.expired_at, '%Y-%m-%d %H:%i:%s') as expired_at,
+        u.date,
+        u.date_utc,
+        COALESCE(likes.likes_count, 0) as likes_count,
+        COALESCE(comments.comments_count, 0) as comments_count
+      FROM updates u
+      LEFT JOIN (
+        SELECT updates_id, COUNT(*) as likes_count 
+        FROM likes 
+        WHERE status = '1' 
+        GROUP BY updates_id
+      ) likes ON u.id = likes.updates_id
+      LEFT JOIN (
+        SELECT updates_id, COUNT(*) as comments_count 
+        FROM comments 
+        GROUP BY updates_id
+      ) comments ON u.id = comments.updates_id
+      WHERE u.user_id = ? 
+        AND u.status <> 'encode'
+        AND u.status IN ('active', 'disabled')
+        AND (u.expired_at IS NULL OR u.expired_at >= NOW())
+      ORDER BY u.id DESC
+      LIMIT ? OFFSET ?
+    `;
+
+    // Query to get total count for pagination
+    const countQuery = `
+      SELECT COUNT(*) as total
+      FROM updates u
+      WHERE u.user_id = ? 
+        AND u.status <> 'encode'
+        AND u.status IN ('active', 'disabled')
+        AND (u.expired_at IS NULL OR u.expired_at >= NOW())
+    `;
+
+    const db = await getDB();
+    
+    // Execute both queries concurrently for better performance
+    const [countResult, updatesResult] = await Promise.all([
+      db.query(countQuery, [userId]),
+      db.query(query, [userId, limitNum, skipNum])
     ]);
 
-    // Calculate pagination info
-    const hasMore = (skip + limit) < totalCount;
-    const next = hasMore ? `/posts?skip=${skip + limit}&limit=${limit}` : '';
+    // Destructure results
+    const [[{ total: totalUpdates }]] = countResult;
+    const [updatesRaw] = updatesResult;
 
-    logInfo('Posts retrieved successfully', { userId, totalCount, returnedCount: posts.length });
+    // Step 4: Retrieve media information for all posts
+    const updateIds = updatesRaw.map(({ id }) => id);
+    const mediaByUpdate = await getMediaTypesForUpdates(updateIds);
 
-    return res.json(createSuccessResponse('Posts retrieved successfully', {
-      posts,
-      pagination: {
-        current_page: pageNum,
-        total_pages: totalPages,
-        total_items: total,
-        items_per_page: limitNum,
-        has_next_page: pageNum < totalPages,
-        has_previous_page: pageNum > 1
-      }
-    }));
+    // Step 5: Format all posts with proper date, price, and media information
+    const updates = updatesRaw.map(row => formatPostRow(row, mediaByUpdate));
+
+    // Step 6: Generate pagination information
+    const pagination = generatePaginationInfo(totalUpdates, skipNum, limitNum);
+
+    // Step 7: Log success and return formatted response
+    logInfo('Posts retrieved successfully', {
+      userId,
+      totalUpdates,
+      returnedCount: updates.length,
+      pagination
+    });
+
+    return res.json({
+      message: 'Updates retrieved successfully',
+      status: 200,
+      data: {
+        updates,
+        pagination
+      },
+      timestamp: new Date().toISOString()
+    });
+    
   } catch (error) {
-    logError('Error fetching posts:', error);
-    return res.status(500).json(createErrorResponse(500, 'Failed to fetch posts'));
+    // Handle unexpected errors
+    logError('My posts list handler error:', { error: error.message });
+    return res.status(500).json(createErrorResponse(500, 'Internal server error'));
   }
 };
 
@@ -603,28 +786,85 @@ const getMyPosts = async (req, res) => {
 const getSettings = async (req, res) => {
   try {
     const userId = req.userId;
-    const user = await getUserById(userId);
     
-    if (!user) {
+    // Fetch user settings from DB
+    const userSettings = await getUserSettings(userId);
+    if (!userSettings) {
       return res.status(404).json(createErrorResponse(404, 'User not found'));
     }
+    
+    // Fetch user's selected language, state, and country details in parallel
+    const [languagesForUser, statesForUser, userCountry] = await Promise.all([
+      getAllLanguages(),
+      getStates(),
+      getUserCountryById(userSettings.countries_id)
+    ]);
+    
+    // Find the user's selected language and state from the arrays
+    const userLanguage = userSettings.language ? languagesForUser.find(lang => lang.abbreviation === userSettings.language) || null : null;
+    const userState = userSettings.state_id ? statesForUser.find(state => state.id === userSettings.state_id) || null : null;
+    
+    // Parse mobile into separate code and number for client convenience
+    const rawMobile = (userSettings.mobile || '').toString().replace(/\s+/g, ''); // Remove spaces
+    let mobile_code = '';
+    let mobile_number = '';
+    // Do NOT infer dial code from user country; detect from number itself using known E.164 prefixes
+    if (/^\+\d+/.test(rawMobile)) {
+      const knownDialCodes = [
+        '+998','+997','+996','+995','+994','+993','+992','+991','+979','+977','+976','+975','+974','+973','+972','+971','+970','+968','+967','+966','+965','+964','+963','+962','+961','+960','+959','+958','+957','+956','+955','+954','+953','+952','+951',
+        '+886','+880','+878','+874','+873','+872','+871','+870','+865','+856','+855','+853','+852','+850',
+        '+692','+691','+690','+689','+688','+687','+686','+685','+683','+682','+681','+680','+679','+678','+677','+676','+675','+674','+673','+672','+671','+670',
+        '+599','+598','+597','+596','+595','+594','+593','+592','+591','+590','+509','+508','+507','+506','+505','+504','+503','+502','+501','+500',
+        '+423','+421','+420','+389','+387','+386','+385','+383','+382','+381','+380','+378','+377','+376','+375','+374','+373','+372','+371','+370','+359','+358','+357','+356','+355','+354','+353','+352','+351','+350',
+        '+299','+298','+297','+296','+295','+294','+293','+292','+291','+290',
+        '+269','+268','+267','+266','+265','+264','+263','+262','+261','+260','+259','+258','+257','+256','+255','+254','+253','+252','+251','+250','+249','+248','+246','+245','+244','+243','+242','+241','+240','+239','+238','+237','+236','+235','+234','+233','+232','+231','+230','+229','+228','+227','+226','+225','+224','+223','+222','+221','+220',
+        '+218','+216','+213','+212','+211','+210',
+        '+98','+97','+96','+95','+94','+93','+92','+91','+90','+86','+84','+83','+82','+81','+66','+65','+64','+63','+62','+61','+60','+58','+57','+56','+55','+54','+53','+52','+51','+49','+48','+47','+46','+45','+44','+43','+41','+40','+39','+36','+34','+33','+32','+31','+30','+27','+20','+7','+1'
+      ];
+      const found = knownDialCodes.find(code => rawMobile.startsWith(code));
+      if (found) {
+        mobile_code = found;
+        mobile_number = rawMobile.slice(found.length);
+      } else {
+        // Unknown prefix: keep as plain number without code separation
+        mobile_number = rawMobile.slice(1);
+      }
+    } else {
+      // No plus: treat entire as local number
+      mobile_number = rawMobile;
+    }
 
-    // Format user data for settings response
-    const settings = {
-      name: user.name || '',
-      email: user.email || '',
-      avatar: user.avatar ? getFile(`avatar/${user.avatar}`) : '',
-      story: user.story || '',
-      location: user.location || '',
-      website: user.website || '',
-      social_links: user.social_links ? JSON.parse(user.social_links) : {}
+    // Process avatar and cover fields using getFile() function to generate full URLs
+    const processedUserSettings = {
+      ...userSettings,
+      // Generate full URL for avatar if it exists
+      avatar: userSettings.avatar ? getFile(`avatar/${userSettings.avatar}`) : userSettings.avatar,
+      // Generate full URL for cover if it exists
+      cover: userSettings.cover ? getFile(`cover/${userSettings.cover}`) : userSettings.cover,
+      // Replace language short code with full language name for display
+      language: (userLanguage && userLanguage.name) ? userLanguage.name : (userSettings.language || ''),
+      // Format gender with first letter uppercase
+      gender: typeof userSettings.gender === 'string' && userSettings.gender
+        ? userSettings.gender.charAt(0).toUpperCase() + userSettings.gender.slice(1).toLowerCase()
+        : userSettings.gender,
+      // Provide mobile code and number separately for the UI
+      mobile_code,
+      mobile_number,
+      // Add user's selected language as full name string (not short code)
+      selected_language: userLanguage?.name || "",
+      // Add user's selected state details (convert null to empty string)
+      selected_state: userState || "",
+      // Add user's selected country details (convert null to empty string)
+      selected_country: userCountry || ""
     };
-
+    
     logInfo('User settings retrieved successfully', { userId });
-    return res.json(createSuccessResponse('User settings retrieved successfully', { user: settings }));
+    return res.json(createSuccessResponse('User settings retrieved successfully', { 
+      user: processedUserSettings,
+    }));
   } catch (error) {
     logError('Error fetching user settings:', error);
-    return res.status(500).json(createErrorResponse(500, 'Failed to fetch user settings'));
+    return res.status(500).json(createErrorResponse(500, 'Internal server error', { error: error.message }));
   }
 };
 
@@ -750,6 +990,7 @@ const getUserInfo = async (req, res) => {
 
     // Extract and validate JWT token
     const token = extractJwtToken(headers);
+    logInfo('Token extraction result:', { token: token ? 'EXTRACTED' : 'NOT_FOUND' });
     if (!token) {
       logError('Missing or invalid Authorization header');
       // TODO: Convert createErrorResponse(401, 'Unauthorized: Missing or invalid Authorization header') to res.status(401).json({ error: 'Unauthorized: Missing or invalid Authorization header' })
@@ -763,6 +1004,9 @@ const getUserInfo = async (req, res) => {
       // TODO: Convert createErrorResponse(401, `Unauthorized: ${tokenError}`) to res.status(401).json({ error: `Unauthorized: ${tokenError}` })
       return res.status(401).json(createErrorResponse(401, `Unauthorized: ${tokenError}`));
     }
+
+    // Debug logging
+    logInfo('Extracted user ID:', { userId, type: typeof userId });
 
     // Retrieve user information from database
     const userData = await getUserInfoById(userId);
@@ -1614,9 +1858,13 @@ const formatUpdates = async (updates, mediaByUpdate, commentsCounts, likesCounts
  */
 const getProfile = async (req, res) => {
   try {
+    logInfo('Profile access: Request received', { params: req.params, query: req.query });
+    
     // Step 1: Validate request parameters
     // TODO: Convert validateProfileRequest(event) to validateProfileRequest(req)
     const validationResult = validateProfileRequest(req);
+    logInfo('Profile access: Validation result', { validationResult });
+    
     if (!validationResult.isValid) {
       logError('Profile access: Validation failed', { error: validationResult.error });
       // TODO: Convert createErrorResponse(400, validationResult.error) to res.status(400).json({ error: validationResult.error })
@@ -1691,8 +1939,12 @@ const getProfile = async (req, res) => {
       updates: await formatUpdates(updates, mediaByUpdate, commentsCounts, likesCounts, tagsByUpdate, userId, user.username)
     };
 
-    // TODO: Convert createSuccessResponse(responseData) to res.status(200).json(createSuccessResponse('Profile retrieved successfully', responseData))
-    return res.status(200).json(createSuccessResponse('Profile retrieved successfully', responseData));
+    // Return data in message field to match Lambda format
+    return res.status(200).json({
+      message: responseData,
+      status: 200,
+      timestamp: new Date().toISOString()
+    });
 
   } catch (err) {
     logError('Profile error:', err);
@@ -2356,113 +2608,278 @@ const getPosts = async (req, res) => {
 
 const getUpdates = async (req, res) => {
   try {
-    logInfo('Updates request received');
-    const { userId, errorResponse } = getAuthenticatedUserId(req, { allowAnonymous: false, action: 'get updates' });
+    // Step 1: Authenticate user and extract user ID
+    const { userId, errorResponse } = getAuthenticatedUserId(req);
     if (errorResponse) {
       return res.status(errorResponse.statusCode).json(createErrorResponse(errorResponse.statusCode, errorResponse.body.message || errorResponse.body.error));
     }
-    const { page = 1, limit = 10, type = 'all', media_type = 'all' } = req.query || {};
-    const pageNum = parseInt(page, 10);
-    const limitNum = parseInt(limit, 10);
-    if (isNaN(pageNum) || pageNum < 1) {
-      return res.status(400).json(createErrorResponse(400, 'Invalid page parameter'));
-    }
-    if (isNaN(limitNum) || limitNum < 1 || limitNum > 100) {
-      return res.status(400).json(createErrorResponse(400, 'Invalid limit parameter. Must be between 1 and 100'));
-    }
-    const validTypes = ['all', 'free', 'paid'];
-    if (!validTypes.includes(type)) {
-      return res.status(400).json(createErrorResponse(400, 'Invalid type parameter. Must be one of: all, free, paid'));
-    }
-    const validMediaTypes = ['all', 'image', 'video'];
-    if (!validMediaTypes.includes(media_type)) {
-      return res.status(400).json(createErrorResponse(400, 'Invalid media_type parameter. Must be one of: all, image, video'));
-    }
-    const offset = (pageNum - 1) * limitNum;
-    let whereClause = 'WHERE u.user_id = ?';
-    if (type === 'free') {
-      whereClause += ' AND u.price = 0';
-    } else if (type === 'paid') {
-      whereClause += ' AND u.price > 0';
-    }
-    if (media_type === 'image') {
-      whereClause += ' AND (u.img_type = "jpg" OR u.img_type = "jpeg" OR u.img_type = "png" OR u.img_type = "gif")';
-    } else if (media_type === 'video') {
-      whereClause += ' AND (u.img_type = "mp4" OR u.img_type = "avi" OR u.img_type = "mov")';
-    }
-    const query = `
-      SELECT 
-        u.id,
-        u.description as title,
-        u.description,
-        u.price,
-        u.date as created_at,
-        u.date as updated_at,
-        u.status,
-        CASE 
-          WHEN u.img_type = 'jpg' OR u.img_type = 'jpeg' OR u.img_type = 'png' OR u.img_type = 'gif' THEN 'image'
-          WHEN u.img_type = 'mp4' OR u.img_type = 'avi' OR u.img_type = 'mov' THEN 'video'
-          ELSE 'unknown'
-        END as media_type,
-        u.image as media_url,
-        u.image as thumbnail_url,
-        u.fixed_post as is_pinned,
-        COUNT(DISTINCT l.id) as likes_count,
-        COUNT(DISTINCT c.id) as comments_count
-      FROM updates u
-      LEFT JOIN likes l ON u.id = l.updates_id AND l.status = '1'
-      LEFT JOIN comments c ON u.id = c.updates_id AND c.status = '1'
-      ${whereClause.replace(/p\./g, 'u.')}
-      GROUP BY u.id
-      ORDER BY u.fixed_post DESC, u.date DESC
-      LIMIT ? OFFSET ?
-    `;
-    const [posts] = await getDB().query(query, [userId, limitNum, offset]);
-    const countQuery = `
-      SELECT COUNT(*) as total
-      FROM updates u
-      ${whereClause}
-    `;
-    const [countResult] = await getDB().query(countQuery, [userId]);
-    const total = countResult[0].total;
-    const totalPages = Math.ceil(total / limitNum);
-    const formattedPosts = posts.map(post => ({
-      id: post.id,
-      title: post.title,
-      description: post.description,
-      price: parseFloat(post.price),
-      created_at: post.created_at,
-      updated_at: post.updated_at,
-      status: post.status,
-      media_type: post.media_type,
-      media_url: post.media_url ? getFile(`posts/${post.media_url}`) : null,
-      thumbnail_url: post.thumbnail_url ? getFile(`posts/thumbnails/${post.thumbnail_url}`) : null,
-      is_pinned: post.is_pinned === 1,
-      likes_count: parseInt(post.likes_count),
-      comments_count: parseInt(post.comments_count)
-    }));
-    logInfo('Updates retrieved successfully', { 
-      userId, 
-      total, 
-      page: pageNum, 
-      limit: limitNum, 
-      type,
-      media_type,
-      postsCount: formattedPosts.length 
-    });
-    return res.status(200).json(createSuccessResponse('Updates retrieved successfully', {
-      posts: formattedPosts,
-      pagination: {
-        current_page: pageNum,
-        total_pages: totalPages,
-        total_items: total,
-        items_per_page: limitNum,
-        has_next_page: pageNum < totalPages,
-        has_previous_page: pageNum > 1
+
+    logInfo('Get updates request received');
+
+    // Step 2: Extract and validate query parameters (Lambda logic)
+    const { skip = 0, limit = 10, media, sort } = extractQueryParameters(req.query);
+
+    // Step 3: Check if this is a shop filter request
+    if (media === 'shop') {
+      // Handle shop filtering - get products instead of updates using optimized function
+      const { products, totalCount: totalProducts } = await getUserProducts(userId, limit, skip, 'active', sort || 'latest');
+      
+      // Format products to match profile cards structure exactly
+      const formattedProducts = products.map(product => ({
+        id: encryptId(product.id),
+        name: product.name,
+        description: product.description || '',
+        price: product.price || 0,
+        delivery_time: product.delivery_time ? `${product.delivery_time} days` : null,
+        created_at: product.created_at ? formatDate(product.created_at) : null,
+        purchase_count: product.purchases_count || 0,
+        image: product.image ? getFile(`products/${product.image}`) : ''
+      }));
+
+      // Products are already sorted at database level
+      const sortedProducts = formattedProducts;
+
+      // Build next URL for pagination
+      const queryParams = new URLSearchParams();
+      queryParams.set('media', 'shop');
+      if (sort) queryParams.set('sort', sort);
+      
+      const nextSkip = skip + limit;
+      let next = null;
+      
+      if (nextSkip < totalProducts) {
+        queryParams.set('skip', nextSkip.toString());
+        queryParams.set('limit', limit.toString());
+        next = `/updates?${queryParams.toString()}`;
       }
+
+      logInfo('Shop products retrieved successfully:', { 
+        userId, 
+        totalProducts,
+        returnedCount: formattedProducts.length,
+        filters: { media, sort },
+        pagination: { skip, limit, next: !!next }
+      });
+
+      return res.json({
+        success: true,
+        message: 'Shop products retrieved successfully',
+        data: {
+          updates: sortedProducts,
+          pagination: {
+            total: totalProducts,
+            skip,
+            limit,
+            next
+          }
+        }
+      });
+    }
+
+    // Step 4: Check if this is a digital products filter request
+    if (media === 'digital') {
+      // Handle digital products filtering - get digital and custom products only
+      const { products, totalCount: totalProducts } = await getUserDigitalAndCustomProducts(userId, limit, skip, 'active', sort || 'latest');
+      
+      // Format products to match profile cards structure exactly
+      const formattedProducts = products.map(product => ({
+        id: encryptId(product.id),
+        name: product.name,
+        description: product.description || '',
+        price: product.price || 0,
+        delivery_time: product.delivery_time ? `${product.delivery_time} days` : null,
+        created_at: product.created_at ? formatDate(product.created_at) : null,
+        purchase_count: product.purchases_count || 0,
+        image: product.image ? getFile(`products/${product.image}`) : ''
+      }));
+
+      // Apply sorting to the results
+      let sortedProducts = formattedProducts;
+      if (sort === 'oldest') {
+        sortedProducts = formattedProducts.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+      }
+      // For 'latest' or default, products are already sorted by creation date DESC
+
+      // Build next URL for pagination
+      const queryParams = new URLSearchParams();
+      queryParams.set('media', 'digital');
+      if (sort) queryParams.set('sort', sort);
+      
+      const nextSkip = skip + limit;
+      let next = null;
+      
+      if (nextSkip < totalProducts) {
+        queryParams.set('skip', nextSkip.toString());
+        queryParams.set('limit', limit.toString());
+        next = `/updates?${queryParams.toString()}`;
+      }
+
+      logInfo('Digital products retrieved successfully:', { 
+        userId, 
+        totalProducts,
+        returnedCount: sortedProducts.length,
+        filters: { media, sort },
+        pagination: { skip, limit, next: !!next }
+      });
+
+      return res.json({
+        success: true,
+        message: 'Digital products retrieved successfully',
+        data: {
+          updates: sortedProducts,
+          pagination: {
+            total: totalProducts,
+            skip,
+            limit,
+            next
+          }
+        }
+      });
+    }
+
+    // Step 5: Regular updates filtering (non-shop, non-digital)
+    // Fetch current user to build post_url using username
+    const currentUser = await getUserById(userId);
+    const appBaseUrl = process.env.APP_URL || 'https://bingeme.com';
+    
+    // Get media type filter
+    const mediaType = getMediaTypeFromFilter(media);
+
+    // Get ORDER BY clause
+    const orderBy = getOrderByClause(sort, mediaType);
+
+    // Execute database queries
+    const { totalUpdates, updates } = await executeUpdatesQueries(userId, mediaType, orderBy, limit, skip);
+
+    // Get update IDs for media, comments, likes, and tags
+    const updateIds = updates.map(update => update.id);
+    
+    // Get media data, comments, likes, and tags for all updates
+    const [mediaByUpdate, { comments: commentsCounts, likes: likesCounts }, tagsByUpdate] = await Promise.all([
+      getMediaForUpdates(updateIds),
+      getBatchCommentsAndLikesCounts(updateIds),
+      getTagsForUpdates(updateIds)
+    ]);
+    
+    // Get comments for updates
+    const updatesWithDetails = await Promise.all(updates.map(async (update) => {
+      const comments = await getLatestComments(update.id, 2, userId);
+      
+      return {
+        ...update,
+        media: mediaByUpdate[update.id] || [],
+        comments_count: commentsCounts[update.id] || 0,
+        likes: likesCounts[update.id] || 0,
+        comments: comments,
+        tags: tagsByUpdate[update.id] || ''
+      };
     }));
+
+    // Prepare base domain and username for share URL
+    const siteBase = (process.env.APP_URL || 'https://bingeme.com').replace(/\/+$/, '');
+    const authUser = await getUserById(userId);
+    const username = authUser?.username || '';
+
+    const formattedUpdates = updatesWithDetails.map(update => {
+      // Destructure fields that need custom formatting
+      const { id, description, date, date_utc, fixed_post, price, expired_at, user_id, is_utc, ...remainingFields } = update; // All other fields (locked, tags, media, comments_count, likes, comments, etc.)
+      
+      // Compute remaining time (days or HH:MM or minutes) and message if expired_at is present
+      let remainingDays = null; // String per requested format
+      let remainingMessage = null;
+      if (expired_at) {
+        try {
+          // Parse expired_at as UTC timestamp
+          const expiryDate = new Date(`${expired_at}Z`);
+          const now = new Date();
+          const diffMs = Math.max(0, expiryDate.getTime() - now.getTime());
+          const totalMinutes = Math.floor(diffMs / (1000 * 60));
+          const days = Math.floor(totalMinutes / (60 * 24));
+          const hours = Math.floor((totalMinutes % (60 * 24)) / 60);
+          const minutes = totalMinutes % 60;
+
+          let remainingTime = '0';
+          let timeUnit = 'minutes';
+          if (days > 0) {
+            remainingTime = `${days}`;
+            timeUnit = `day${days > 1 ? 's' : ''}`;
+          } else if (hours > 0) {
+            remainingTime = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+            timeUnit = `hour${hours > 1 ? 's' : ''}`;
+          } else {
+            remainingTime = `${minutes}`;
+            timeUnit = `minute${minutes > 1 ? 's' : ''}`;
+          }
+
+          remainingDays = remainingTime;
+          remainingMessage = `Act fast! This post deletes in ${remainingTime} ${timeUnit}`;
+        } catch (e) {
+          remainingDays = null;
+          remainingMessage = null;
+        }
+      }
+
+      return {
+        // Custom formatted fields
+        id: encryptId(id),
+        caption: description || '',
+        date: date_utc ? formatRelativeTime(date_utc) : (date ? formatRelativeTime(date) : 'just now'),
+        pinned: fixed_post === '1',
+        price: price || 0,
+        expired_at: expired_at, // Return exact database value without conversion
+        // Share URL: domain.com/<Creator Username>/post/<Updates id>
+        share_url: `${siteBase}/${username}/post/${id}`,
+        remaining_days: remainingDays,
+        remaining_message: remainingMessage,
+        // Deep link to post detail page for this update
+        post_url: `${appBaseUrl}/posts/${currentUser?.username || ''}/${encryptId(id)}`,
+        // Spread remaining fields automatically (tags, media, comments_count, likes, comments, etc.)
+        ...remainingFields
+      };
+    });
+
+    // Apply additional sorting if needed (for complex sorts)
+    const sortedUpdates = applyPostQueryFilters(formattedUpdates, sort);
+
+    // Build next URL for pagination
+    const queryParams = new URLSearchParams();
+    
+    if (media) queryParams.set('media', media);
+    if (sort) queryParams.set('sort', sort);
+    
+    const nextSkip = skip + limit;
+    let next = null;
+    
+    if (nextSkip < totalUpdates) {
+      queryParams.set('skip', nextSkip.toString());
+      queryParams.set('limit', limit.toString());
+      next = `/updates?${queryParams.toString()}`;
+    }
+
+    logInfo('Updates retrieved successfully:', { 
+        userId, 
+        totalUpdates,
+      returnedCount: formattedUpdates.length,
+      filters: { media, sort },
+      pagination: { skip, limit, next: !!next }
+    });
+
+    return res.json({
+      success: true,
+      message: 'Posts retrieved successfully',
+      data: {
+        updates: sortedUpdates,
+        pagination: {
+          total: totalUpdates,
+          skip,
+          limit,
+          next
+        }
+      }
+    });
+
   } catch (error) {
-    logError('Updates error:', error);
+    logError('Error in get updates handler:', error);
     return res.status(500).json(createErrorResponse(500, 'Internal server error'));
   }
 };
