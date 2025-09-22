@@ -2860,14 +2860,17 @@ const getSupportUsersByIds = async (userIds) => {
         name,
         email,
         mobile,
-        profile_image,
-        is_verified,
+        avatar,
+        verified_id,
         created_at
       FROM users 
-      WHERE id IN (${placeholders}) AND deleted = 0
+      WHERE id IN (${placeholders}) AND status != 'deleted'
     `, userIds);
     
-    return rows;
+    return rows.map(r => ({
+      ...r,
+      avatar: r.avatar ? getFile(`avatar/${r.avatar}`) : getFile('avatar/default-1671797639.jpeg')
+    }));
   } catch (error) {
     logError('Error getting support users by IDs:', error);
     return [];
@@ -2881,9 +2884,66 @@ const getSupportUsersByIds = async (userIds) => {
  * @param {number} skip - Skip
  * @returns {Promise<Array>} Users matching search term
  */
-const getUsersBySearch = async (searchTerm, limit = 20, skip = 0) => {
+const getUsersBySearch = async (searchTermOrOptions, limit = 20, skip = 0) => {
   try {
     const db = await getDB();
+
+    // Support both legacy signature and advanced options
+    if (typeof searchTermOrOptions === 'object' && searchTermOrOptions !== null) {
+      const {
+        excludedUserIds = [],
+        searchTerm = '',
+        supportIds = [],
+        type = ''
+      } = searchTermOrOptions;
+
+      const where = [
+        "status != 'deleted'",
+        "(name LIKE ? OR username LIKE ? OR email LIKE ?)"
+      ];
+      const params = [
+        `%${searchTerm}%`, `%${searchTerm}%`, `%${searchTerm}%`
+      ];
+
+      if (type === 'user') {
+        where.push("verified_id = 'no'");
+      } else if (type === 'creator') {
+        where.push("verified_id = 'yes'");
+      }
+
+      const allExcluded = [...new Set([...(excludedUserIds || []), ...(supportIds || [])])];
+      if (allExcluded.length > 0) {
+        const placeholders = allExcluded.map(() => '?').join(',');
+        where.push(`id NOT IN (${placeholders})`);
+        params.push(...allExcluded);
+      }
+
+      const query = `
+        SELECT id, name, username, avatar, verified_id, email
+        FROM users
+        WHERE ${where.join(' AND ')}
+        ORDER BY 
+          CASE 
+            WHEN name LIKE ? THEN 1
+            WHEN username LIKE ? THEN 2
+            WHEN email LIKE ? THEN 3
+            ELSE 4
+          END,
+          name ASC
+        LIMIT 20
+      `;
+      params.push(`${searchTerm}%`, `${searchTerm}%`, `${searchTerm}%`);
+
+      const [rows] = await db.execute(query, params);
+
+      return rows.map(r => ({
+        ...r,
+        avatar: r.avatar ? getFile(`avatar/${r.avatar}`) : getFile('avatar/default-1671797639.jpeg')
+      }));
+    }
+
+    // Legacy behavior
+    const searchTerm = searchTermOrOptions || '';
     const searchPattern = `%${searchTerm}%`;
     const [rows] = await db.execute(`
       SELECT 
@@ -2891,12 +2951,12 @@ const getUsersBySearch = async (searchTerm, limit = 20, skip = 0) => {
         username,
         name,
         email,
-        profile_image,
-        is_verified,
+        avatar,
+        verified_id,
         created_at
       FROM users 
       WHERE (username LIKE ? OR name LIKE ? OR email LIKE ?) 
-        AND deleted = 0
+        AND status != 'deleted'
       ORDER BY 
         CASE 
           WHEN username LIKE ? THEN 1
@@ -2908,7 +2968,10 @@ const getUsersBySearch = async (searchTerm, limit = 20, skip = 0) => {
       LIMIT ? OFFSET ?
     `, [searchPattern, searchPattern, searchPattern, searchPattern, searchPattern, searchPattern, limit, skip]);
     
-    return rows;
+    return rows.map(r => ({
+      ...r,
+      avatar: r.avatar ? getFile(`avatar/${r.avatar}`) : getFile('avatar/default-1671797639.jpeg')
+    }));
   } catch (error) {
     logError('Error getting users by search:', error);
     return [];

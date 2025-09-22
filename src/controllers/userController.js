@@ -1,4 +1,4 @@
-import { createSuccessResponse, createErrorResponse, logInfo, logError, getSubscribersList, getSubscribersCount, getUserById, getFile, decryptId, isEncryptedId, verifyAccessToken, getUserPostsList, getUserPostsCount, updateUserSettings, getAuthenticatedUserId, safeDecryptId, encryptId, formatRelativeTime, formatDate, formatNumberWithK, getAllLanguages, getStates, generateOTP, verifyEmailOTP, getUserSettings, checkUserFieldExists, checkMobileExists, getUserCountryById, updateUserAfterOTP, compareUserFields, getSupportCreatorIds, getSupportUserIds, getRestrictedUserIds, getSupportUsersByIds, getUsersBySearch } from '../utils/common.js';
+import { createSuccessResponse, createErrorResponse, logInfo, logError, getSubscribersList, getSubscribersCount, getUserById, getFile, decryptId, isEncryptedId, verifyAccessToken, getUserPostsList, getUserPostsCount, updateUserSettings, getAuthenticatedUserId, safeDecryptId, encryptId, formatRelativeTime, formatDate, formatNumberWithK, getAllLanguages, getStates, generateOTP, verifyEmailOTP, getUserSettings, checkUserFieldExists, checkMobileExists, getUserCountryById, updateUserAfterOTP, compareUserFields, getSupportCreatorIds, getSupportUserIds, getRestrictedUserIds, getSupportUsersByIds, getUsersBySearch, generateRoomId } from '../utils/common.js';
 import { getLatestMessageForConversation, formatMessageForResponse } from '../utils/conversation_search.js';
 import { processUploadRequest } from '../utils/uploadUtils.js';
 import { getDB } from '../config/database.js';
@@ -3629,7 +3629,7 @@ const searchUsers = async (req, res) => {
             media: formatted.media,
             unread_count: formatted.unread_count,
             msg_type: formatted.msg_type,
-            user_id: u.id,
+            user_id: encryptId(u.id),
             name: u.name,
             username: u.username,
             avatar: u.avatar,
@@ -3639,7 +3639,7 @@ const searchUsers = async (req, res) => {
         }
       } else {
         dataArray.push({
-          user_id: u.id,
+          user_id: encryptId(u.id),
           name: u.name,
           username: u.username,
           avatar: u.avatar,
@@ -3649,7 +3649,7 @@ const searchUsers = async (req, res) => {
     }
 
     logInfo('Search results', { usersCount: users.length, resultCount: dataArray.length });
-    return res.status(200).json(createSuccessResponse('Messages retrieved successfully', dataArray));
+    return res.status(200).json(createSuccessResponse('Users retrieved successfully', dataArray));
   } catch (error) {
     logError('Search users error:', error);
     return res.status(500).json(createErrorResponse(500, 'Internal server error'));

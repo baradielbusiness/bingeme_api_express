@@ -69,6 +69,9 @@ router.get('/user/info', authMiddleware, userController.getUserInfo);
 router.get('/user/search', authMiddleware, userController.searchUsers);
 router.post('/user/mode/:mode', authMiddleware, userController.darkMode);
 router.post('/user/change-password', authMiddleware, userController.changePassword);
+// Password creation (aliases without /user prefix to mirror Lambda paths)
+router.post('/create/password', authMiddleware, userController.createPasswordOtp);
+router.post('/create/password/verify', authMiddleware, userController.verifyPasswordOtp);
 router.get('/user/cover/upload-url', authMiddleware, userController.getUserCoverUploadUrl);
 router.post('/user/cover', authMiddleware, userController.createUserCover);
 router.get('/user/avatar/upload-url', authMiddleware, userController.getUserAvatarUploadUrl);
