@@ -177,39 +177,104 @@ const getLatestMessageInConversation = async (conversationId, userId) => {
   }
 };
 
-/**
- * Format relative time for display
- * @param {string} dateString - ISO date string
- * @returns {string} Formatted relative time
- */
-const formatRelativeTime = (dateString) => {
-  try {
-    const now = new Date();
-    const messageDate = new Date(dateString);
-    const diffInSeconds = Math.floor((now - messageDate) / 1000);
-    
-    if (diffInSeconds < 60) {
-      return 'Just now';
-    } else if (diffInSeconds < 3600) {
-      const minutes = Math.floor(diffInSeconds / 60);
-      return `${minutes}m ago`;
-    } else if (diffInSeconds < 86400) {
-      const hours = Math.floor(diffInSeconds / 3600);
-      return `${hours}h ago`;
-    } else if (diffInSeconds < 604800) {
-      const days = Math.floor(diffInSeconds / 86400);
-      return `${days}d ago`;
-    } else {
-      return messageDate.toLocaleDateString();
-    }
-  } catch (error) {
-    logError('formatRelativeTime: Error', error);
-    return 'Unknown';
-  }
-};
-
 export {
   searchUsersInConversations,
   getLatestMessageInConversation,
-  formatRelativeTime
+  getLatestMessageForConversation,
+  formatMessageForResponse
+};
+
+/**
+ * Get latest message for a specific conversation (Lambda-aligned shape)
+ * @param {number} currentUserId - Authenticated user ID
+ * @param {number} otherUserId - Other user ID (not used in query but kept for parity)
+ * @param {number} conversationId - Conversation ID
+ * @param {Object} db - Optional DB connection (uses pool if not provided)
+ * @returns {Promise<Object|null>} Latest message row or null
+ */
+const getLatestMessageForConversation = async (currentUserId, otherUserId, conversationId, db) => {
+  try {
+    const conn = db || pool;
+    const query = `
+      SELECT 
+        m.id,
+        m.from_user_id,
+        m.to_user_id,
+        m.message,
+        m.created_at,
+        m.status,
+        m.price,
+        m.tip,
+        m.tip_amount,
+        m.expires_at,
+        NULL as media,
+        COALESCE(m3.count, 0) as count,
+        c.room_id
+      FROM messages m
+      LEFT JOIN conversations c ON m.conversations_id = c.id
+      LEFT JOIN (
+        SELECT conversations_id, COUNT(id) as count 
+        FROM messages 
+        WHERE conversations_id = ? AND status = 'new' AND to_user_id = ?
+        GROUP BY conversations_id
+      ) m3 ON m.conversations_id = m3.conversations_id
+      WHERE m.conversations_id = ? AND m.status != 'deleted'
+      ORDER BY m.created_at DESC
+      LIMIT 1
+    `;
+    const exec = conn.execute ? conn.execute.bind(conn) : conn.query.bind(conn);
+    const [rows] = await exec(query, [conversationId, currentUserId, conversationId]);
+    if (!rows || rows.length === 0) {
+      return null;
+    }
+    return rows[0];
+  } catch (error) {
+    logError('getLatestMessageForConversation error:', error);
+    return null;
+  }
+};
+
+/**
+ * Format message row to API response (Lambda-aligned)
+ * @param {Object} message - Message DB row
+ * @param {Object} user - Other user object { id, name, username, avatar }
+ * @param {number} currentUserId - Authenticated user ID
+ * @returns {Object}
+ */
+const formatMessageForResponse = (message, user, currentUserId) => {
+  try {
+    const { id, from_user_id, message: messageText, created_at, status, media, count, tip, room_id } = message;
+    const { id: userId, name, username, avatar } = user;
+
+    const currentUserIdInt = parseInt(currentUserId);
+    const fromUserIdInt = parseInt(from_user_id);
+    const userIdInt = parseInt(userId);
+
+    const msgType = fromUserIdInt === currentUserIdInt ? 'outgoing' : 'incoming';
+    const time = formatRelativeTime(created_at);
+    const messageStatus = status === 'new' ? 'new' : 'read';
+    const mediaType = media ? (typeof media === 'string' ? media.split(',')[0] : null) : null;
+    const isTip = tip === 1 || tip === '1';
+
+    return {
+      id,
+      message: messageText,
+      time,
+      status: messageStatus,
+      tip: isTip,
+      media: mediaType,
+      unread_count: parseInt(count) || 0,
+      msg_type: msgType,
+      chat_user: {
+        id: userIdInt,
+        name,
+        username,
+        avatar: avatar ? getFile(`avatar/${avatar}`) : getFile('avatar/default-1671797639.jpeg'),
+        room_id: room_id || ''
+      }
+    };
+  } catch (error) {
+    logError('formatMessageForResponse error:', error);
+    return null;
+  }
 };
