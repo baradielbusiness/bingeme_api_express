@@ -14850,8 +14850,8 @@
     },
     "/user/search": {
       "get": {
-        "summary": "Search users for conversation",
-        "description": "Search for users by username or name using a single search parameter. Supports both regular user search and support user search based on verification status. Optional type parameter filters results by verification status: 'user' for unverified users, 'creator' for verified users. Returns formatted user data with full avatar URLs and proper name handling.",
+        "summary": "Search users with conversation data",
+        "description": "Search for users by username or name and return their conversation data. For users with existing conversations, returns the latest message. For users without conversations, returns user details with a generated room_id for future use. Supports both regular user search and support user search based on verification status. Optional type parameter filters results by verification status: 'user' for unverified users, 'creator' for verified users.",
         "tags": [
           "User"
         ],
@@ -14880,7 +14880,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Search results retrieved successfully",
+            "description": "Messages retrieved successfully",
             "schema": {
               "type": "object",
               "properties": {
@@ -14893,45 +14893,93 @@
                 "data": {
                   "type": "object",
                   "properties": {
-                    "users": {
+                    "messagesInbox": {
                       "type": "array",
                       "items": {
                         "type": "object",
                         "properties": {
                           "id": {
                             "type": "integer",
-                            "description": "User ID"
+                            "description": "Message ID (0 if no conversation exists)"
                           },
-                          "username": {
+                          "message": {
                             "type": "string",
-                            "description": "User's username"
+                            "description": "Latest message content (empty if no conversation)"
                           },
-                          "name": {
+                          "time": {
                             "type": "string",
-                            "description": "User's display name (username if hide_name is 'yes')"
+                            "description": "Relative time of message (empty if no conversation)"
                           },
-                          "avatar": {
+                          "status": {
                             "type": "string",
-                            "description": "Full URL path to user's avatar"
+                            "description": "Message status: 'new' or 'read'"
                           },
-                          "verified_id": {
+                          "tip": {
+                            "type": "boolean",
+                            "description": "Whether message is a tip"
+                          },
+                          "media": {
                             "type": "string",
-                            "description": "User verification status"
+                            "description": "Media type if message has media (null if no conversation)"
+                          },
+                          "unread_count": {
+                            "type": "integer",
+                            "description": "Number of unread messages"
+                          },
+                          "msg_type": {
+                            "type": "string",
+                            "description": "Message type: 'incoming' or 'outgoing'"
+                          },
+                          "chat_user": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "description": "Encrypted user ID"
+                              },
+                              "name": {
+                                "type": "string",
+                                "description": "User's display name"
+                              },
+                              "username": {
+                                "type": "string",
+                                "description": "User's username"
+                              },
+                              "avatar": {
+                                "type": "string",
+                                "description": "Full URL path to user's avatar"
+                              },
+                              "room_id": {
+                                "type": "string",
+                                "description": "Room ID for conversation (generated if no conversation exists)"
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "name",
+                              "username",
+                              "avatar",
+                              "room_id"
+                            ]
                           }
                         },
                         "required": [
                           "id",
-                          "username",
-                          "name",
-                          "avatar",
-                          "verified_id"
+                          "message",
+                          "time",
+                          "status",
+                          "tip",
+                          "media",
+                          "unread_count",
+                          "msg_type",
+                          "chat_user"
                         ]
                       },
-                      "description": "Array of matching users"
+                      "description": "Array of conversation data for matching users"
                     }
                   },
                   "required": [
-                    "users"
+                    "messagesInbox"
                   ]
                 }
               }

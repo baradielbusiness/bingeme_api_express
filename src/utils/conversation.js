@@ -1,5 +1,5 @@
 import { pool } from '../config/database.js';
-import { logInfo, logError } from './common.js';
+import { logInfo, logError, generateRoomId } from './common.js';
 
 /**
  * Standard API response payload builder (used by controllers)
@@ -347,11 +347,11 @@ const searchConversations = async (userId, searchTerm, skip = 0, limit = 10) => 
 /**
  * Find or create conversation between two users
  */
-const findOrCreateConversation = async (userId1, userId2) => {
+const findOrCreateConversation = async (userId1, userId2, roomIdFromClient = null) => {
   try {
     // First, try to find existing conversation
     const findQuery = `
-      SELECT id FROM conversations 
+      SELECT id, room_id FROM conversations 
       WHERE ((user1_id = ? AND user2_id = ?) OR (user1_id = ? AND user2_id = ?))
         AND active = 1
       LIMIT 1
@@ -360,8 +360,16 @@ const findOrCreateConversation = async (userId1, userId2) => {
     const [existing] = await pool.query(findQuery, [userId1, userId2, userId2, userId1]);
     
     if (existing.length > 0) {
-      logInfo(`Found existing conversation: ${existing[0].id}`);
-      return existing[0].id;
+      const existingConv = existing[0];
+      // Backfill room_id if missing (don't overwrite)
+      if (!existingConv.room_id || existingConv.room_id === '') {
+        const newRoom = roomIdFromClient && String(roomIdFromClient).trim() !== ''
+          ? roomIdFromClient
+          : generateRoomId(existingConv.id);
+        await pool.query(`UPDATE conversations SET room_id = ? WHERE id = ?`, [newRoom, existingConv.id]);
+      }
+      logInfo(`Found existing conversation: ${existingConv.id}`);
+      return existingConv.id;
     }
 
     // Create new conversation
@@ -372,6 +380,10 @@ const findOrCreateConversation = async (userId1, userId2) => {
     
     const [result] = await pool.query(insertQuery, [userId1, userId2]);
     const conversationId = result.insertId;
+    const roomId = roomIdFromClient && String(roomIdFromClient).trim() !== ''
+      ? roomIdFromClient
+      : generateRoomId(conversationId);
+    await pool.query(`UPDATE conversations SET room_id = ? WHERE id = ?`, [roomId, conversationId]);
     
     logInfo(`Created new conversation: ${conversationId}`);
     return conversationId;

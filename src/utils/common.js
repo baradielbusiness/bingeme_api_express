@@ -586,17 +586,33 @@ const compareUserFields = async (userId, newEmail, newMobile, countryCode) => {
  */
 const updateUserSettings = async (userId, settings) => {
   try {
-    const { username, name, email, mobile, story, countries_id } = settings;
-    const query = `
-      UPDATE users 
-      SET username = ?, name = ?, email = ?, mobile = ?, story = ?, countries_id = ?, updated_at = NOW() 
-      WHERE id = ?
-    `;
-    await pool.query(query, [username, name, email, mobile, story, countries_id, userId]);
-    logInfo(`Updated user settings: ${userId}`);
+    // Only allow updating specific fields
+    const allowedFields = [
+      'name', 'username', 'email', 'mobile', 'avatar', 'cover', 'about', 'story', 'profession', 'website', 'gender', 'birthdate', 'address', 'city', 'state_id', 'zip', 'countries_id', 'language',
+      'facebook', 'twitter', 'instagram', 'youtube', 'pinterest', 'github', 'tiktok', 'snapchat', 'telegram', 'vk', 'twitch', 'discord', 'company', 'hide_name', 'disable_watermark'
+    ];
+    const updateFields = {};
+    for (const key of allowedFields) {
+      if (settings.hasOwnProperty(key)) {
+        updateFields[key] = settings[key];
+      }
+    }
+    if (Object.keys(updateFields).length === 0) {
+      return false;
+    }
+    
+    // Build dynamic SQL query
+    const setClause = Object.keys(updateFields).map(key => `${key} = ?`).join(', ');
+    const values = Object.values(updateFields);
+    
+    const [result] = await pool.query(
+      `UPDATE users SET ${setClause} WHERE id = ?`,
+      [...values, userId]
+    );
+    return result.affectedRows > 0;
   } catch (error) {
     logError('Error updating user settings:', error);
-    throw error;
+    return false;
   }
 };
 
@@ -3345,5 +3361,21 @@ export {
   encryptSensitiveData,
   decryptSensitiveData,
   getUserSessionsWithDeviceInfo,
-  revokeSessionByToken
+  revokeSessionByToken,
+  generateRoomId
+};
+
+/**
+ * Generate a room ID for conversations
+ * Format: 6 random characters + conversation ID
+ * @param {number} conversationId - Conversation ID to append
+ * @returns {string} Generated room ID
+ */
+const generateRoomId = (conversationId) => {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  let randomPart = '';
+  for (let i = 0; i < 6; i++) {
+    randomPart += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return `${randomPart}${conversationId}`;
 };

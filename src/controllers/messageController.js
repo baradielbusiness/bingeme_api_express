@@ -961,7 +961,7 @@ const sendMessage = async (req, res) => {
 
     // Parse request body to extract message data
     // TODO: Convert JSON.parse(event.body || '{}') to req.body
-    const { user_id, message, price, media, expires_at, expired_at } = req.body || {};
+    const { user_id, message, price, media, expires_at, expired_at, room_id } = req.body || {};
 
     // Get authenticated user ID using common utility function
     // This ensures consistent authentication handling across the application
@@ -1028,7 +1028,7 @@ const sendMessage = async (req, res) => {
         senderId: authenticatedUserId, 
         receiverId: targetUserId 
       });
-      conversationId = await findOrCreateConversation(authenticatedUserId, targetUserId);
+      conversationId = await findOrCreateConversation(authenticatedUserId, targetUserId, room_id || null);
       logInfo('Conversation management completed:', { conversationId });
     } catch (error) {
       logError('Conversation management failed:', { error: error.message });
