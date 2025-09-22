@@ -1,4 +1,5 @@
 import { createSuccessResponse, createErrorResponse, logInfo, logError, getSubscribersList, getSubscribersCount, getUserById, getFile, decryptId, isEncryptedId, verifyAccessToken, getUserPostsList, getUserPostsCount, updateUserSettings, getAuthenticatedUserId, safeDecryptId, encryptId, formatRelativeTime, formatDate, formatNumberWithK, getAllLanguages, getStates, generateOTP, verifyEmailOTP, getUserSettings, checkUserFieldExists, checkMobileExists, getUserCountryById, updateUserAfterOTP, compareUserFields, getSupportCreatorIds, getSupportUserIds, getRestrictedUserIds, getSupportUsersByIds, getUsersBySearch } from '../utils/common.js';
+import { getLatestMessageForConversation, formatMessageForResponse } from '../utils/conversation_search.js';
 import { processUploadRequest } from '../utils/uploadUtils.js';
 import { getDB } from '../config/database.js';
 import { cancelSubscriptions } from '../utils/subscription.js';
@@ -792,7 +793,7 @@ const getSettings = async (req, res) => {
     if (!userSettings) {
       return res.status(404).json(createErrorResponse(404, 'User not found'));
     }
-    
+
     // Fetch user's selected language, state, and country details in parallel
     const [languagesForUser, statesForUser, userCountry] = await Promise.all([
       getAllLanguages(),
@@ -857,7 +858,7 @@ const getSettings = async (req, res) => {
       // Add user's selected country details (convert null to empty string)
       selected_country: userCountry || ""
     };
-    
+
     logInfo('User settings retrieved successfully', { userId });
     return res.json(createSuccessResponse('User settings retrieved successfully', { 
       user: processedUserSettings,
@@ -874,18 +875,147 @@ const getSettings = async (req, res) => {
 const postSettings = async (req, res) => {
   try {
     const userId = req.userId;
-    const settingsData = req.body;
+    const requestBody = req.body;
 
-    const success = await updateUserSettings(userId, settingsData);
-    if (!success) {
-      return res.status(400).json(createErrorResponse(400, 'Failed to update settings'));
+    // Validate required fields
+    const validation = validateUserSettings(requestBody);
+    if (!validation.isValid) {
+      return res.status(400).json(createErrorResponse(400, validation.message));
     }
 
-    logInfo('User settings updated successfully', { userId });
-    return res.json(createSuccessResponse('User settings updated successfully'));
+    // Check for duplicate username, email, or mobile (if provided)
+    if (requestBody.username && await checkUserFieldExists(userId, 'username', requestBody.username)) {
+      return res.status(409).json(createErrorResponse(409, 'Username already taken'));
+    }
+    if (requestBody.email && await checkUserFieldExists(userId, 'email', requestBody.email)) {
+      return res.status(409).json(createErrorResponse(409, 'Email already taken'));
+    }
+    if (requestBody.mobile && await checkMobileExists(userId, requestBody.mobile, requestBody.country_code)) {
+      return res.status(409).json(createErrorResponse(409, 'Mobile number already taken'));
+    }
+
+    // Compare new email and mobile with existing values
+    const comparison = await compareUserFields(userId, requestBody.email, requestBody.mobile, requestBody.country_code);
+    
+    // Determine OTP verification requirements based on field matching
+    const emailMatches = comparison.emailMatches;
+    const mobileMatches = comparison.mobileMatches;
+    
+    // Extract OTP values from request
+    const { email_otp, mobile_otp } = requestBody;
+
+    // Handle different cases based on field matching
+    if (emailMatches && mobileMatches) {
+      // Case: Both matched → no OTP check, directly update profile
+      const updateFields = { ...requestBody };
+      delete updateFields.email_otp;
+      delete updateFields.mobile_otp;
+      
+      // Combine country_code and mobile for DB update
+      if (requestBody.mobile && requestBody.country_code) {
+        updateFields.mobile = requestBody.country_code + requestBody.mobile;
+      }
+      
+      const updateSuccess = await updateUserSettings(userId, updateFields);
+      if (!updateSuccess) {
+        return res.status(500).json(createErrorResponse(500, 'Failed to update user settings'));
+      }
+      
+      return res.json(createSuccessResponse('Profile updated successfully'));
+    }
+    
+    // Case: Email matched but mobile not matched → verify only mobile_otp
+    if (emailMatches && !mobileMatches) {
+      if (!mobile_otp) {
+        return res.status(400).json(createErrorResponse(400, 'Mobile OTP is required for mobile number change'));
+      }
+      
+      // Verify mobile OTP
+      const mobileIdentifier = requestBody.country_code + requestBody.mobile;
+      const mobileValid = await verifyEmailOTP(mobileIdentifier, mobile_otp);
+      if (!mobileValid) {
+        return res.status(400).json(createErrorResponse(400, 'Invalid or expired mobile OTP'));
+      }
+      
+      // Update profile with mobile change
+      const updateFields = { ...requestBody };
+      delete updateFields.email_otp;
+      delete updateFields.mobile_otp;
+      updateFields.mobile = requestBody.country_code + requestBody.mobile;
+      
+      const updateSuccess = await updateUserSettings(userId, updateFields);
+      if (!updateSuccess) {
+        return res.status(500).json(createErrorResponse(500, 'Failed to update user settings'));
+      }
+      
+      return res.json(createSuccessResponse('Profile updated successfully'));
+    }
+    
+    // Case: Mobile matched but email not matched → verify only email_otp
+    if (!emailMatches && mobileMatches) {
+      if (!email_otp) {
+        return res.status(400).json(createErrorResponse(400, 'Email OTP is required for email change'));
+      }
+      
+      // Verify email OTP
+      const emailValid = await verifyEmailOTP(requestBody.email, email_otp);
+      if (!emailValid) {
+        return res.status(400).json(createErrorResponse(400, 'Invalid or expired email OTP'));
+      }
+      
+      // Update profile with email change
+      const updateFields = { ...requestBody };
+      delete updateFields.email_otp;
+      delete updateFields.mobile_otp;
+      
+      // Combine country_code and mobile for DB update if mobile is provided
+      if (requestBody.mobile && requestBody.country_code) {
+        updateFields.mobile = requestBody.country_code + requestBody.mobile;
+      }
+      
+      const updateSuccess = await updateUserSettings(userId, updateFields);
+      if (!updateSuccess) {
+        return res.status(500).json(createErrorResponse(500, 'Failed to update user settings'));
+      }
+      
+      return res.json(createSuccessResponse('Profile updated successfully'));
+    }
+    
+    // Case: Both not matched → verify both email_otp & mobile_otp
+    if (!emailMatches && !mobileMatches) {
+      if (!email_otp || !mobile_otp) {
+        return res.status(400).json(createErrorResponse(400, 'Both email and mobile OTPs are required for changes'));
+      }
+      
+      // Verify both OTPs
+      const emailValid = await verifyEmailOTP(requestBody.email, email_otp);
+      const mobileIdentifier = requestBody.country_code + requestBody.mobile;
+      const mobileValid = await verifyEmailOTP(mobileIdentifier, mobile_otp);
+      
+      if (!emailValid || !mobileValid) {
+        let errorMsg = [];
+        if (!emailValid) errorMsg.push('Invalid or expired email OTP');
+        if (!mobileValid) errorMsg.push('Invalid or expired mobile OTP');
+        return res.status(400).json(createErrorResponse(400, errorMsg.join(' and ')));
+      }
+      
+      // Update profile with both changes
+      const updateFields = { ...requestBody };
+      delete updateFields.email_otp;
+      delete updateFields.mobile_otp;
+      updateFields.mobile = requestBody.country_code + requestBody.mobile;
+      
+      const updateSuccess = await updateUserSettings(userId, updateFields);
+      if (!updateSuccess) {
+        return res.status(500).json(createErrorResponse(500, 'Failed to update user settings'));
+      }
+      
+      return res.json(createSuccessResponse('Profile updated successfully'));
+    }
+
   } catch (error) {
     logError('Error updating user settings:', error);
-    return res.status(500).json(createErrorResponse(500, 'Failed to update user settings'));
+    return res.status(500).json(createErrorResponse(500, 'Internal server error', { error: error.message }));
   }
 };
 
@@ -2715,7 +2845,7 @@ const getUpdates = async (req, res) => {
       }
 
       logInfo('Digital products retrieved successfully:', { 
-        userId, 
+      userId, 
         totalProducts,
         returnedCount: sortedProducts.length,
         filters: { media, sort },
@@ -2727,7 +2857,7 @@ const getUpdates = async (req, res) => {
         message: 'Digital products retrieved successfully',
         data: {
           updates: sortedProducts,
-          pagination: {
+      pagination: {
             total: totalProducts,
             skip,
             limit,
@@ -3462,40 +3592,64 @@ const searchUsers = async (req, res) => {
     const restrictedUserIds = await getRestrictedUserIds(userId);
     const excludedUserIds = [...restrictedUserIds, userId, ...supportIds];
     logInfo('Exclusion list built', { excludedUserIds });
+    // Build flattened conversation-style array like Lambda
+    const db = await getDB();
+    const dataArray = [];
+    // Fetch base users using existing helpers
     let users = [];
     if (isSupportSearchRequest && supportIds.length > 0) {
-      logInfo('Executing support search');
       const supportRows = await getSupportUsersByIds(supportIds);
-      const otherRows = await getUsersBySearch({ 
-        excludedUserIds, 
-        searchTerm, 
-        supportIds,
-        type: searchType
-      });
+      const otherRows = await getUsersBySearch({ excludedUserIds, searchTerm, supportIds, type: searchType });
       users = [...supportRows, ...otherRows];
     } else {
-      logInfo('Executing regular search', { searchTerm, excludedUserIds });
-      try {
-        const [allUsers] = await getDB().query('SELECT id, name, username FROM users WHERE status = "active" AND role = "normal" LIMIT 10');
-        logInfo('Sample users in database', { allUsers });
-      } catch (debugError) {
-        logError('Debug query error', debugError);
-      }
       users = await getUsersBySearch({ excludedUserIds, searchTerm, type: searchType });
     }
-    const formattedUsers = users.map(user => {
-      const { hide_name, ...userData } = user;
-      if (userData.avatar) {
-        userData.avatar = getFile(`avatar/${userData.avatar}`);
+
+    for (const u of users) {
+      const otherUserId = u.id;
+      const [convRows] = await db.execute(
+        `SELECT id, room_id FROM conversations 
+         WHERE ((user_1 = ? AND user_2 = ?) OR (user_2 = ? AND user_1 = ?))
+           AND status = 1
+         LIMIT 1`,
+        [userId, otherUserId, userId, otherUserId]
+      );
+
+      if (convRows.length > 0) {
+        const { id: conversationId, room_id } = convRows[0];
+        const latest = await getLatestMessageForConversation(userId, otherUserId, conversationId, db);
+        if (latest) {
+          const formatted = formatMessageForResponse(latest, u, userId);
+          const flattened = {
+            id: formatted.id,
+            message: formatted.message,
+            time: formatted.time,
+            status: formatted.status,
+            tip: formatted.tip,
+            media: formatted.media,
+            unread_count: formatted.unread_count,
+            msg_type: formatted.msg_type,
+            user_id: u.id,
+            name: u.name,
+            username: u.username,
+            avatar: u.avatar,
+            room_id: room_id || ''
+          };
+          dataArray.push(flattened);
+        }
+      } else {
+        dataArray.push({
+          user_id: u.id,
+          name: u.name,
+          username: u.username,
+          avatar: u.avatar,
+          room_id: generateRoomId(0)
+        });
       }
-      if (hide_name === 'yes') {
-        userData.name = userData.username;
-      }
-      userData.id = encryptId(userData.id);
-      return userData;
-    });
-    logInfo('Search results', { usersCount: formattedUsers.length, users: formattedUsers });
-    return res.status(200).json(createSuccessResponse('Search completed', { users: formattedUsers }));
+    }
+
+    logInfo('Search results', { usersCount: users.length, resultCount: dataArray.length });
+    return res.status(200).json(createSuccessResponse('Messages retrieved successfully', dataArray));
   } catch (error) {
     logError('Search users error:', error);
     return res.status(500).json(createErrorResponse(500, 'Internal server error'));
